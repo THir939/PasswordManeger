@@ -7,6 +7,10 @@
     "test": "node test/run-tests.mjs",
     "server:install": "npm --prefix server install",
     "server:dev": "npm --prefix server run dev",
-    "server:start": "npm --prefix server run start"
+    "server:start": "npm --prefix server run start",
+    "stripe:mcp": "./scripts/run-stripe-mcp.sh"
+  },
+  "devDependencies": {
+    "@stripe/mcp": "^0.2.5"
   }
 }
