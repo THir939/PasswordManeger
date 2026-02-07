@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>PasswordManeger Options</title>
+    <link rel="stylesheet" href="./options.css" />
+  </head>
+  <body>
+    <main class="wrap">
+      <h1>PasswordManeger 設定ガイド</h1>
+      <section>
+        <h2>この拡張機能でできること</h2>
+        <ul>
+          <li>ローカル暗号化されたVaultにパスワードやカード情報を保存</li>
+          <li>アクティブサイト向け候補を表示して自動入力</li>
+          <li>フォーム送信内容から新規ログイン候補を検出</li>
+          <li>ローカルセキュリティ診断（弱い/古い/再利用パスワード）</li>
+          <li>暗号化JSONバックアップのエクスポート/インポート</li>
+        </ul>
+      </section>
+
+      <section>
+        <h2>注意点</h2>
+        <ul>
+          <li>マスターパスワードを忘れると復元できません。</li>
+          <li>このバージョンはクラウド同期を実装していません。</li>
+          <li>サイトごとのDOM差分で自動入力精度が変わることがあります。</li>
+        </ul>
+      </section>
+
+      <section>
+        <h2>使い方</h2>
+        <ol>
+          <li>拡張機能アイコンを開き、Vaultを作成</li>
+          <li>ログイン項目を登録して保存</li>
+          <li>ログインページで「このサイト向け候補」から自動入力</li>
+        </ol>
+      </section>
+    </main>
+  </body>
+</html>

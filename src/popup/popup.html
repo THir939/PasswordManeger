@@ -1,0 +1,231 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>PasswordManeger</title>
+    <link rel="stylesheet" href="./popup.css" />
+  </head>
+  <body>
+    <main class="app">
+      <header class="hero">
+        <p class="eyebrow">Chrome Extension</p>
+        <h1>PasswordManeger</h1>
+        <p class="sub">ローカル暗号化 + 自動入力 + セキュリティ診断</p>
+      </header>
+
+      <p id="status" class="status" role="status" aria-live="polite"></p>
+
+      <section id="setup-view" class="panel hidden">
+        <h2>1. Vault作成</h2>
+        <p class="desc">最初にマスターパスワードを作成します。復元できないので安全に保管してください。</p>
+        <form id="setup-form" class="grid-form">
+          <label>
+            マスターパスワード（10文字以上）
+            <input id="setup-password" type="password" minlength="10" required autocomplete="new-password" />
+          </label>
+          <label>
+            確認入力
+            <input id="setup-confirm" type="password" minlength="10" required autocomplete="new-password" />
+          </label>
+          <button type="submit">Vaultを作成して開く</button>
+        </form>
+      </section>
+
+      <section id="unlock-view" class="panel hidden">
+        <h2>2. Vault解錠</h2>
+        <form id="unlock-form" class="grid-form">
+          <label>
+            マスターパスワード
+            <input id="unlock-password" type="password" required autocomplete="current-password" />
+          </label>
+          <button type="submit">解錠する</button>
+        </form>
+      </section>
+
+      <section id="main-view" class="panel hidden">
+        <div class="toolbar">
+          <button id="lock-btn" class="ghost" type="button">ロック</button>
+          <button id="export-btn" class="ghost" type="button">暗号化バックアップ</button>
+          <label class="file-btn ghost">
+            復元
+            <input id="import-input" type="file" accept="application/json" hidden />
+          </label>
+        </div>
+
+        <section class="panel-soft">
+          <h3>このサイト向け候補</h3>
+          <p id="domain-label" class="small"></p>
+          <ul id="suggestion-list" class="stack-list"></ul>
+        </section>
+
+        <section class="panel-soft">
+          <h3>保存候補（フォーム送信から検出）</h3>
+          <ul id="capture-list" class="stack-list"></ul>
+        </section>
+
+        <section class="panel-soft">
+          <h3>新規作成 / 編集</h3>
+          <form id="item-form" class="grid-form">
+            <input id="item-id" type="hidden" />
+            <label>
+              種別
+              <select id="item-type">
+                <option value="login">ログイン</option>
+                <option value="card">クレジットカード</option>
+                <option value="identity">個人情報</option>
+                <option value="note">セキュアノート</option>
+              </select>
+            </label>
+            <label>
+              タイトル
+              <input id="item-title" type="text" required maxlength="140" placeholder="例: GitHub" />
+            </label>
+
+            <div class="type-login type-note type-identity">
+              <label>
+                ユーザー名 / メール
+                <input id="item-username" type="text" maxlength="200" />
+              </label>
+            </div>
+
+            <div class="type-login">
+              <label>
+                パスワード
+                <div class="inline">
+                  <input id="item-password" type="text" maxlength="500" />
+                  <button id="generate-btn" class="ghost" type="button">生成</button>
+                </div>
+              </label>
+            </div>
+
+            <div class="type-login type-note">
+              <label>
+                URL
+                <input id="item-url" type="url" maxlength="300" placeholder="https://example.com" />
+              </label>
+            </div>
+
+            <div class="type-login">
+              <label>
+                TOTPシークレット（2段階認証）
+                <input id="item-otp" type="text" maxlength="300" placeholder="Base32 または otpauth://" />
+              </label>
+            </div>
+
+            <div class="type-identity">
+              <label>
+                氏名
+                <input id="item-fullname" type="text" maxlength="200" />
+              </label>
+              <label>
+                メール
+                <input id="item-email" type="email" maxlength="200" />
+              </label>
+              <label>
+                電話
+                <input id="item-phone" type="text" maxlength="50" />
+              </label>
+              <label>
+                住所
+                <textarea id="item-address" rows="2" maxlength="400"></textarea>
+              </label>
+            </div>
+
+            <div class="type-card">
+              <label>
+                名義人
+                <input id="item-card-holder" type="text" maxlength="120" />
+              </label>
+              <label>
+                カード番号
+                <input id="item-card-number" type="text" maxlength="40" />
+              </label>
+              <label>
+                有効期限 (MM/YY)
+                <input id="item-card-expiry" type="text" maxlength="10" />
+              </label>
+              <label>
+                CVC
+                <input id="item-card-cvc" type="text" maxlength="10" />
+              </label>
+            </div>
+
+            <label>
+              タグ（カンマ区切り）
+              <input id="item-tags" type="text" maxlength="400" placeholder="work, personal" />
+            </label>
+            <label>
+              メモ
+              <textarea id="item-notes" rows="3" maxlength="4000"></textarea>
+            </label>
+            <label class="checkbox">
+              <input id="item-favorite" type="checkbox" />
+              よく使う項目にする
+            </label>
+
+            <div class="actions">
+              <button type="submit">保存</button>
+              <button id="cancel-edit" class="ghost hidden" type="button">編集をキャンセル</button>
+            </div>
+          </form>
+        </section>
+
+        <section class="panel-soft">
+          <h3>検索 / 一覧</h3>
+          <div class="filters">
+            <input id="search-input" type="search" placeholder="タイトル・ユーザー名・タグで検索" />
+            <select id="filter-type">
+              <option value="all">全種別</option>
+              <option value="login">ログイン</option>
+              <option value="card">カード</option>
+              <option value="identity">個人情報</option>
+              <option value="note">ノート</option>
+            </select>
+            <label class="checkbox compact">
+              <input id="only-favorite" type="checkbox" />
+              お気に入りのみ
+            </label>
+          </div>
+          <ul id="item-list" class="stack-list"></ul>
+        </section>
+
+        <section class="panel-soft">
+          <h3>セキュリティ診断（差別化機能）</h3>
+          <button id="refresh-report" class="ghost" type="button">診断を更新</button>
+          <div id="report-box" class="report"></div>
+        </section>
+
+        <section class="panel-soft">
+          <h3>設定</h3>
+          <form id="settings-form" class="grid-form">
+            <label>
+              自動ロック（分）
+              <input id="setting-autolock" type="number" min="1" max="120" />
+            </label>
+            <label>
+              クリップボード自動クリア（秒）
+              <input id="setting-clipboard" type="number" min="0" max="120" />
+            </label>
+            <button type="submit">設定を保存</button>
+          </form>
+
+          <form id="master-form" class="grid-form mt-8">
+            <h4>マスターパスワード変更</h4>
+            <label>
+              現在のマスターパスワード
+              <input id="old-master" type="password" />
+            </label>
+            <label>
+              新しいマスターパスワード
+              <input id="new-master" type="password" minlength="10" />
+            </label>
+            <button type="submit">変更する</button>
+          </form>
+        </section>
+      </section>
+    </main>
+
+    <script type="module" src="./popup.js"></script>
+  </body>
+</html>

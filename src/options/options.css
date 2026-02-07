@@ -1,0 +1,40 @@
+:root {
+  --bg: #f8fafc;
+  --panel: #ffffff;
+  --line: #d9e2ec;
+  --text: #0f172a;
+  --muted: #475569;
+}
+
+body {
+  margin: 0;
+  font-family: "Avenir Next", "Hiragino Kaku Gothic ProN", "Noto Sans JP", sans-serif;
+  background: var(--bg);
+  color: var(--text);
+}
+
+.wrap {
+  width: min(900px, calc(100% - 2rem));
+  margin: 1.5rem auto;
+  display: grid;
+  gap: 1rem;
+}
+
+section {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--panel);
+  padding: 1rem;
+}
+
+h1,
+h2 {
+  margin-top: 0;
+}
+
+ul,
+ol {
+  margin: 0;
+  padding-left: 1.3rem;
+  color: var(--muted);
+}
