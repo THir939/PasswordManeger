@@ -6,18 +6,27 @@
     <title>PasswordManeger Cloud</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,800&family=IBM+Plex+Sans:wght@400;500;700&display=swap" rel="stylesheet" />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,800&family=IBM+Plex+Sans:wght@400;500;700&display=swap"
+      rel="stylesheet"
+    />
     <style>
       :root {
-        --bg0: #f7f4ef;
-        --bg1: #ebe5da;
-        --ink: #161616;
-        --muted: #5f5648;
-        --line: #d5cdbc;
-        --brand: #1f2937;
-        --brand-2: #43536d;
-        --danger: #b91c1c;
-        --ok: #0f766e;
+        --bg: #f5f2ea;
+        --bg-soft: #ece5d8;
+        --paper: rgba(255, 255, 255, 0.86);
+        --paper-strong: rgba(255, 255, 255, 0.94);
+        --line: #d8cfbe;
+        --line-strong: #cabda7;
+        --ink: #191817;
+        --muted: #635a4c;
+        --brand: #1e3a5f;
+        --brand-2: #395f8f;
+        --accent: #c76828;
+        --danger: #b33a35;
+        --ok: #0e7c68;
+        --shadow-soft: 0 20px 40px rgba(35, 28, 20, 0.09);
+        --shadow-card: 0 12px 24px rgba(36, 30, 20, 0.08);
       }
 
       * {
@@ -28,38 +37,81 @@
         margin: 0;
         font-family: "IBM Plex Sans", sans-serif;
         color: var(--ink);
-        background: radial-gradient(circle at 15% 15%, #faf8f3 0%, var(--bg0) 50%, var(--bg1) 100%);
+        min-height: 100vh;
+        background:
+          radial-gradient(1200px 700px at 100% -15%, rgba(83, 127, 179, 0.28), transparent 58%),
+          radial-gradient(900px 500px at -10% 10%, rgba(200, 102, 45, 0.15), transparent 60%),
+          linear-gradient(160deg, var(--bg) 0%, var(--bg-soft) 100%);
       }
 
       .wrap {
-        width: min(980px, calc(100% - 2rem));
-        margin: 1.4rem auto 2.5rem;
+        width: min(1120px, calc(100% - 2rem));
+        margin: 1.6rem auto 2.7rem;
         display: grid;
-        gap: 1rem;
+        gap: 1.1rem;
       }
 
       .hero,
       .panel {
         border: 1px solid var(--line);
-        border-radius: 16px;
-        background: rgba(255, 255, 255, 0.9);
-        backdrop-filter: blur(4px);
+        border-radius: 20px;
+        background: var(--paper);
+        box-shadow: var(--shadow-soft);
+        backdrop-filter: blur(8px);
       }
 
       .hero {
-        padding: 1.4rem;
+        position: relative;
+        overflow: hidden;
+        padding: 1.5rem 1.55rem;
+      }
+
+      .hero::after {
+        content: "";
+        position: absolute;
+        right: -12%;
+        top: -40%;
+        width: 340px;
+        height: 340px;
+        border-radius: 50%;
+        background: radial-gradient(circle at 30% 30%, rgba(31, 97, 163, 0.25), transparent 70%);
+        pointer-events: none;
+      }
+
+      .hero-grid {
+        display: grid;
+        gap: 0.9rem;
+        grid-template-columns: 1fr auto;
+        align-items: center;
       }
 
       .hero h1 {
-        margin: 0.15rem 0 0.5rem;
+        margin: 0.22rem 0 0.45rem;
         font-family: "Fraunces", serif;
-        font-size: clamp(1.8rem, 4vw, 2.8rem);
+        font-size: clamp(1.9rem, 4.5vw, 3rem);
+        letter-spacing: 0.01em;
+      }
+
+      .hero-meta {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.45rem;
+      }
+
+      .pill {
+        border: 1px solid rgba(31, 58, 95, 0.2);
+        background: rgba(255, 255, 255, 0.67);
+        border-radius: 999px;
+        font-size: 0.78rem;
+        color: #334765;
+        padding: 0.3rem 0.62rem;
+        font-weight: 600;
       }
 
       .kicker {
         margin: 0;
         text-transform: uppercase;
-        letter-spacing: 0.09em;
+        letter-spacing: 0.1em;
         color: var(--muted);
         font-size: 0.78rem;
       }
@@ -67,30 +119,32 @@
       .sub {
         margin: 0;
         color: var(--muted);
+        max-width: 62ch;
       }
 
       .grid {
         display: grid;
-        gap: 1rem;
-        grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+        gap: 1.05rem;
+        grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
       }
 
       .panel {
-        padding: 1rem;
+        padding: 1.05rem;
         display: grid;
-        gap: 0.7rem;
+        gap: 0.78rem;
       }
 
       .panel h2 {
         margin: 0;
         font-size: 1.05rem;
+        letter-spacing: 0.01em;
       }
 
       label {
         display: grid;
-        gap: 0.3rem;
+        gap: 0.34rem;
         font-size: 0.9rem;
-        font-weight: 600;
+        font-weight: 700;
       }
 
       input,
@@ -102,37 +156,44 @@
       input,
       textarea {
         width: 100%;
-        border: 1px solid #cbc0ac;
-        border-radius: 10px;
-        padding: 0.55rem 0.65rem;
+        border: 1px solid #cfc3ad;
+        border-radius: 12px;
+        padding: 0.62rem 0.72rem;
+        background: rgba(255, 255, 255, 0.95);
       }
 
       input:focus,
       textarea:focus {
-        outline: 3px solid #d4c5a7;
+        outline: 3px solid rgba(120, 153, 187, 0.32);
+        border-color: #6d90bb;
       }
 
       button {
         border: 1px solid transparent;
-        border-radius: 10px;
-        padding: 0.6rem 0.8rem;
+        border-radius: 12px;
+        padding: 0.64rem 0.88rem;
         background: var(--brand);
         color: #fff;
         cursor: pointer;
+        font-weight: 700;
+        transition: transform 150ms ease, background 150ms ease, box-shadow 150ms ease;
+        box-shadow: 0 6px 14px rgba(30, 58, 95, 0.28);
       }
 
       button:hover {
         background: var(--brand-2);
+        transform: translateY(-1px);
       }
 
       button.ghost {
-        background: transparent;
+        background: rgba(255, 255, 255, 0.72);
         color: var(--ink);
-        border-color: #c8bdab;
+        border-color: #c7bba6;
+        box-shadow: none;
       }
 
       button.ghost:hover {
-        background: #f5f1e8;
+        background: rgba(255, 255, 255, 0.98);
       }
 
       .row {
@@ -142,44 +203,219 @@
       }
 
       .status {
-        margin: 0;
-        min-height: 1.2rem;
-        color: var(--danger);
+        margin: 0.1rem 0 0;
+        min-height: 1.35rem;
+        color: var(--muted);
+        background: rgba(255, 255, 255, 0.78);
+        border: 1px solid rgba(202, 189, 167, 0.75);
+        border-radius: 12px;
+        padding: 0.56rem 0.8rem;
         font-size: 0.9rem;
+        font-weight: 600;
       }
 
       .status.ok {
         color: var(--ok);
+        border-color: rgba(14, 124, 104, 0.32);
+      }
+
+      .status.error {
+        color: var(--danger);
+        border-color: rgba(179, 58, 53, 0.35);
+      }
+
+      .status:empty {
+        display: none;
       }
 
       .mono {
         font-family: ui-monospace, Menlo, monospace;
         white-space: pre-wrap;
-        background: #f8f6f1;
-        border: 1px dashed #d6ccb9;
-        border-radius: 10px;
+        background: #fcfaf5;
+        border: 1px dashed #d5cab3;
+        border-radius: 12px;
         padding: 0.75rem;
       }
 
       .hint {
         margin: 0;
-        font-size: 0.82rem;
+        font-size: 0.83rem;
         color: var(--muted);
       }
 
       .two-col {
         display: grid;
-        gap: 0.7rem;
+        gap: 0.82rem;
         grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      }
+
+      .account-panel {
+        gap: 0.85rem;
+      }
+
+      .panel-head {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 0.8rem;
+      }
+
+      .summary-grid {
+        display: grid;
+        gap: 0.74rem;
+        grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      }
+
+      .summary-card {
+        border: 1px solid var(--line-strong);
+        background: var(--paper-strong);
+        border-radius: 14px;
+        padding: 0.66rem 0.72rem;
+        box-shadow: var(--shadow-card);
+      }
+
+      .summary-label {
+        margin: 0;
+        color: var(--muted);
+        font-size: 0.76rem;
+        letter-spacing: 0.05em;
+        text-transform: uppercase;
+      }
+
+      .summary-value {
+        margin: 0.24rem 0 0;
+        font-size: 1rem;
+        font-weight: 700;
+        word-break: break-word;
+      }
+
+      .summary-value.plan-active {
+        color: var(--ok);
+      }
+
+      .summary-value.plan-inactive {
+        color: var(--danger);
+      }
+
+      .entitlement-list {
+        margin: 0;
+        padding: 0;
+        list-style: none;
+        display: grid;
+        gap: 0.55rem;
+      }
+
+      .entitlement-item {
+        border: 1px solid #ccbfa8;
+        border-radius: 12px;
+        background: rgba(255, 255, 255, 0.9);
+        padding: 0.62rem 0.72rem;
+        display: grid;
+        gap: 0.32rem;
+      }
+
+      .entitlement-head {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: space-between;
+        align-items: center;
+        gap: 0.35rem;
+      }
+
+      .entitlement-source {
+        margin: 0;
+        font-weight: 700;
+      }
+
+      .entitlement-status {
+        margin: 0;
+        border-radius: 999px;
+        padding: 0.15rem 0.55rem;
+        font-size: 0.74rem;
+        font-weight: 700;
+      }
+
+      .entitlement-status.active,
+      .entitlement-status.trialing,
+      .entitlement-status.grace_period {
+        background: rgba(14, 124, 104, 0.15);
+        color: #0d6a5d;
+      }
+
+      .entitlement-status.inactive,
+      .entitlement-status.canceled,
+      .entitlement-status.expired,
+      .entitlement-status.revoked {
+        background: rgba(179, 58, 53, 0.13);
+        color: #96302c;
+      }
+
+      .entitlement-meta {
+        margin: 0;
+        color: var(--muted);
+        font-size: 0.82rem;
+      }
+
+      .empty {
+        color: var(--muted);
+        font-size: 0.88rem;
+      }
+
+      details.raw-details summary {
+        cursor: pointer;
+        font-weight: 700;
+      }
+
+      details.raw-details[open] summary {
+        margin-bottom: 0.6rem;
+      }
+
+      .panel,
+      .hero {
+        animation: riseIn 420ms ease both;
+      }
+
+      .grid .panel:nth-child(1) {
+        animation-delay: 60ms;
+      }
+
+      .grid .panel:nth-child(2) {
+        animation-delay: 120ms;
+      }
+
+      @keyframes riseIn {
+        from {
+          opacity: 0;
+          transform: translateY(8px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+
+      @media (max-width: 860px) {
+        .hero-grid {
+          grid-template-columns: 1fr;
+        }
       }
     </style>
   </head>
   <body>
     <main class="wrap">
       <section class="hero">
-        <p class="kicker">Commercial Edition</p>
-        <h1>PasswordManeger Cloud Billing</h1>
-        <p class="sub">サーバー同期は有料プランのみ有効です。ここで登録・課金・契約管理を行います。</p>
+        <div class="hero-grid">
+          <div>
+            <p class="kicker">Commercial Edition</p>
+            <h1>PasswordManeger Cloud Billing</h1>
+            <p class="sub">サーバー同期は有料プランのみ有効です。ここで登録・課金・契約管理を行います。</p>
+          </div>
+          <div class="hero-meta">
+            <span class="pill">Entitlement Unified</span>
+            <span class="pill">Stripe Connected</span>
+            <span class="pill">Emergency Recovery</span>
+          </div>
+        </div>
       </section>
 
       <p id="status" class="status" role="status" aria-live="polite"></p>
@@ -225,9 +461,42 @@
         </div>
       </section>
 
-      <section class="panel">
-        <h2>アカウント状態</h2>
-        <pre id="account-box" class="mono">未ログイン</pre>
+      <section class="panel account-panel">
+        <div class="panel-head">
+          <h2>アカウント状態</h2>
+          <button id="refresh-account-btn" type="button" class="ghost">状態を更新</button>
+        </div>
+
+        <div id="account-summary" class="summary-grid">
+          <article class="summary-card">
+            <p class="summary-label">メール</p>
+            <p id="summary-email" class="summary-value">未ログイン</p>
+          </article>
+          <article class="summary-card">
+            <p class="summary-label">プラン状態</p>
+            <p id="summary-plan" class="summary-value plan-inactive">inactive</p>
+          </article>
+          <article class="summary-card">
+            <p class="summary-label">有料アクセス</p>
+            <p id="summary-paid" class="summary-value">いいえ</p>
+          </article>
+          <article class="summary-card">
+            <p class="summary-label">次回期限</p>
+            <p id="summary-period" class="summary-value">-</p>
+          </article>
+        </div>
+
+        <div>
+          <h3>利用権ソース</h3>
+          <ul id="entitlement-list" class="entitlement-list">
+            <li class="empty">未ログイン</li>
+          </ul>
+        </div>
+
+        <details class="raw-details">
+          <summary>生データ（JSON）</summary>
+          <pre id="account-box" class="mono">未ログイン</pre>
+        </details>
       </section>
 
       <section class="panel">

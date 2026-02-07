@@ -1,5 +1,10 @@
 const statusEl = document.querySelector("#status");
 const accountBox = document.querySelector("#account-box");
+const entitlementListEl = document.querySelector("#entitlement-list");
+const summaryEmailEl = document.querySelector("#summary-email");
+const summaryPlanEl = document.querySelector("#summary-plan");
+const summaryPaidEl = document.querySelector("#summary-paid");
+const summaryPeriodEl = document.querySelector("#summary-period");
 
 const inputs = {
   registerEmail: document.querySelector("#register-email"),
@@ -17,6 +22,7 @@ const buttons = {
   register: document.querySelector("#register-btn"),
   login: document.querySelector("#login-btn"),
   logout: document.querySelector("#logout-btn"),
+  refreshAccount: document.querySelector("#refresh-account-btn"),
   checkout: document.querySelector("#checkout-btn"),
   portal: document.querySelector("#portal-btn"),
   emergency: document.querySelector("#emergency-btn"),
@@ -30,12 +36,15 @@ const recoveredSecretBox = document.querySelector("#recovered-secret-box");
 
 const state = {
   token: localStorage.getItem("pm_cloud_token") || "",
-  latestShares: []
+  latestShares: [],
+  account: null
 };
 
 function setStatus(message, isError = false) {
-  statusEl.textContent = message || "";
-  statusEl.classList.toggle("ok", !isError && Boolean(message));
+  const hasMessage = Boolean(message);
+  statusEl.textContent = hasMessage ? String(message) : "";
+  statusEl.classList.toggle("ok", hasMessage && !isError);
+  statusEl.classList.toggle("error", hasMessage && isError);
 }
 
 function saveToken(token) {
@@ -45,6 +54,104 @@ function saveToken(token) {
   } else {
     localStorage.removeItem("pm_cloud_token");
   }
+}
+
+function formatDateTime(value) {
+  if (!value) {
+    return "-";
+  }
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return "-";
+  }
+  return new Intl.DateTimeFormat("ja-JP", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit"
+  }).format(date);
+}
+
+function escapeHtml(value) {
+  return String(value || "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
+}
+
+function sourceLabel(source) {
+  const normalized = String(source || "").toLowerCase();
+  if (normalized === "stripe") return "Stripe";
+  if (["apple", "apple_app_store", "app_store"].includes(normalized)) return "App Store";
+  if (["google_play", "google"].includes(normalized)) return "Google Play";
+  if (normalized === "manual") return "Manual";
+  if (!normalized) return "Unknown";
+  return source;
+}
+
+function renderLoggedOutAccount() {
+  state.account = null;
+  accountBox.textContent = "未ログイン";
+  summaryEmailEl.textContent = "未ログイン";
+  summaryPlanEl.textContent = "inactive";
+  summaryPlanEl.classList.remove("plan-active");
+  summaryPlanEl.classList.add("plan-inactive");
+  summaryPaidEl.textContent = "いいえ";
+  summaryPeriodEl.textContent = "-";
+  entitlementListEl.innerHTML = '<li class="empty">未ログイン</li>';
+}
+
+function renderEntitlementList(entitlements = []) {
+  if (!Array.isArray(entitlements) || entitlements.length === 0) {
+    entitlementListEl.innerHTML = '<li class="empty">有効な利用権がありません。</li>';
+    return;
+  }
+
+  entitlementListEl.innerHTML = entitlements
+    .map((entitlement) => {
+      const source = sourceLabel(entitlement.source);
+      const status = String(entitlement.status || "inactive");
+      const expires = entitlement.expiresAt ? formatDateTime(entitlement.expiresAt) : "期限なし";
+      const feature = String(entitlement.feature || "cloud_sync");
+      return `
+        <li class="entitlement-item">
+          <div class="entitlement-head">
+            <p class="entitlement-source">${escapeHtml(source)} / ${escapeHtml(feature)}</p>
+            <span class="entitlement-status ${escapeHtml(status)}">${escapeHtml(status)}</span>
+          </div>
+          <p class="entitlement-meta">sourceRef: ${escapeHtml(entitlement.sourceRef || "-")}</p>
+          <p class="entitlement-meta">expires: ${escapeHtml(expires)}</p>
+        </li>
+      `;
+    })
+    .join("");
+}
+
+function renderAccount(payload) {
+  state.account = payload;
+
+  const user = payload?.user || {};
+  const billing = payload?.billing || {};
+
+  summaryEmailEl.textContent = user.email || "-";
+  summaryPlanEl.textContent = billing.planStatus || user.planStatus || "inactive";
+
+  if (billing.isPaid) {
+    summaryPlanEl.classList.remove("plan-inactive");
+    summaryPlanEl.classList.add("plan-active");
+  } else {
+    summaryPlanEl.classList.remove("plan-active");
+    summaryPlanEl.classList.add("plan-inactive");
+  }
+
+  summaryPaidEl.textContent = billing.isPaid ? "はい" : "いいえ";
+  summaryPeriodEl.textContent = formatDateTime(billing.currentPeriodEnd || user.currentPeriodEnd);
+
+  renderEntitlementList(Array.isArray(billing.entitlements) ? billing.entitlements : []);
+  accountBox.textContent = JSON.stringify(payload, null, 2);
 }
 
 async function api(path, options = {}) {
@@ -68,27 +175,28 @@ async function api(path, options = {}) {
 
 async function refreshAccount() {
   if (!state.token) {
-    accountBox.textContent = "未ログイン";
+    renderLoggedOutAccount();
     return;
   }
 
   try {
-    const me = await api("/api/auth/me");
-    const billing = await api("/api/billing/status");
+    const [me, billing, entitlements] = await Promise.all([
+      api("/api/auth/me"),
+      api("/api/billing/status"),
+      api("/api/entitlements/status").catch(() => null)
+    ]);
 
-    accountBox.textContent = JSON.stringify(
-      {
-        user: me.user,
-        billing
-      },
-      null,
-      2
-    );
+    const payload = {
+      user: me.user,
+      billing,
+      entitlements
+    };
+    renderAccount(payload);
 
     setStatus("アカウント情報を更新しました。", false);
   } catch (error) {
     saveToken("");
-    accountBox.textContent = "未ログイン";
+    renderLoggedOutAccount();
     setStatus(error.message, true);
   }
 }
@@ -187,30 +295,50 @@ function base64ToBytes(base64) {
   return Uint8Array.from(binary, (char) => char.charCodeAt(0));
 }
 
-const GF_EXP = new Uint8Array(512);
-const GF_LOG = new Uint8Array(256);
-
-(function initGF() {
-  let value = 1;
-  for (let index = 0; index < 255; index += 1) {
-    GF_EXP[index] = value;
-    GF_LOG[value] = index;
-    value <<= 1;
-    if (value & 0x100) {
-      value ^= 0x11b;
-    }
-  }
-
-  for (let index = 255; index < 512; index += 1) {
-    GF_EXP[index] = GF_EXP[index - 255];
-  }
-})();
-
 function gfMultiply(left, right) {
-  if (left === 0 || right === 0) {
-    return 0;
+  let a = Number(left) & 0xff;
+  let b = Number(right) & 0xff;
+  let result = 0;
+
+  while (b > 0) {
+    if (b & 1) {
+      result ^= a;
+    }
+
+    const carry = a & 0x80;
+    a = (a << 1) & 0xff;
+    if (carry) {
+      a ^= 0x1b;
+    }
+
+    b >>= 1;
   }
-  return GF_EXP[GF_LOG[left] + GF_LOG[right]];
+
+  return result;
+}
+
+function gfPow(base, exponent) {
+  let result = 1;
+  let factor = Number(base) & 0xff;
+  let power = Number(exponent);
+
+  while (power > 0) {
+    if (power & 1) {
+      result = gfMultiply(result, factor);
+    }
+    factor = gfMultiply(factor, factor);
+    power >>= 1;
+  }
+
+  return result;
+}
+
+function gfInverse(value) {
+  const v = Number(value) & 0xff;
+  if (v === 0) {
+    throw new Error("ゼロの逆元は存在しません。");
+  }
+  return gfPow(v, 254);
 }
 
 function gfDivide(left, right) {
@@ -220,8 +348,7 @@ function gfDivide(left, right) {
   if (left === 0) {
     return 0;
   }
-  const index = (GF_LOG[left] - GF_LOG[right] + 255) % 255;
-  return GF_EXP[index];
+  return gfMultiply(left, gfInverse(right));
 }
 
 function evaluatePolynomial(coefficients, x) {
@@ -375,6 +502,10 @@ buttons.login.addEventListener("click", () => {
 
 buttons.logout.addEventListener("click", () => {
   logout();
+});
+
+buttons.refreshAccount.addEventListener("click", () => {
+  refreshAccount().catch((error) => setStatus(error.message, true));
 });
 
 buttons.checkout.addEventListener("click", () => {
