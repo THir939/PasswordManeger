@@ -3,6 +3,9 @@ const elements = {
   setupView: document.querySelector("#setup-view"),
   unlockView: document.querySelector("#unlock-view"),
   mainView: document.querySelector("#main-view"),
+  tabbar: document.querySelector("#tabbar"),
+  tabButtons: [...document.querySelectorAll("#tabbar [data-tab]")],
+  tabPanels: [...document.querySelectorAll("[data-tab-panel]")],
 
   setupForm: document.querySelector("#setup-form"),
   setupPassword: document.querySelector("#setup-password"),
@@ -85,7 +88,8 @@ const state = {
   currentItems: [],
   cloudStatus: null,
   currentDomain: "",
-  migrationDraft: null
+  migrationDraft: null,
+  currentTab: "autofill"
 };
 
 function setStatus(message = "", isError = false) {
@@ -101,7 +105,34 @@ function setView(viewName) {
 
   if (viewName === "setup") elements.setupView.classList.remove("hidden");
   if (viewName === "unlock") elements.unlockView.classList.remove("hidden");
-  if (viewName === "main") elements.mainView.classList.remove("hidden");
+  if (viewName === "main") {
+    elements.mainView.classList.remove("hidden");
+    setTab(state.currentTab || "autofill");
+  }
+}
+
+function setTab(tabName) {
+  if (!elements.tabButtons.length || !elements.tabPanels.length) {
+    return;
+  }
+
+  const next = String(tabName || "autofill");
+  state.currentTab = next;
+
+  elements.tabButtons.forEach((button) => {
+    const active = button.dataset.tab === next;
+    button.setAttribute("aria-selected", active ? "true" : "false");
+    button.classList.toggle("active", active);
+    button.tabIndex = active ? 0 : -1;
+  });
+
+  elements.tabPanels.forEach((panel) => {
+    const active = panel.dataset.tabPanel === next;
+    panel.classList.toggle("hidden", !active);
+    panel.setAttribute("aria-hidden", active ? "false" : "true");
+  });
+
+  elements.tabbar?.scrollIntoView({ block: "start" });
 }
 
 async function callBackground(action, payload = {}) {
@@ -136,6 +167,32 @@ function riskLabel(risk) {
     return `注意 (${risk.score})`;
   }
   return `低リスク (${risk.score})`;
+}
+
+function riskChipClass(risk) {
+  if (!risk) {
+    return "chip-risk-unknown";
+  }
+  if (risk.level === "high") {
+    return "chip-risk-high";
+  }
+  if (risk.level === "medium") {
+    return "chip-risk-medium";
+  }
+  return "chip-risk-low";
+}
+
+function riskChipText(risk) {
+  if (!risk) {
+    return "評価なし";
+  }
+  if (risk.level === "high") {
+    return `高 ${risk.score}`;
+  }
+  if (risk.level === "medium") {
+    return `注意 ${risk.score}`;
+  }
+  return `低 ${risk.score}`;
 }
 
 function buildMigrationPreviewText(preview) {
@@ -315,17 +372,27 @@ function renderSuggestions(domain, items) {
   }
 
   elements.suggestionList.innerHTML = items
-    .map(
-      (item) => `
+    .map((item) => {
+      const username = item.username || "ユーザー名未設定";
+      const risk = item.autofillRisk;
+      const reasons = Array.isArray(risk?.reasons) ? risk.reasons : [];
+      const metaLines = [username, reasons.length ? `理由: ${reasons.join(" / ")}` : ""].filter(Boolean).join("\n");
+
+      return `
         <li class="card">
-          <p class="card-title">${escapeHtml(item.title)}</p>
-          <p class="meta">${escapeHtml(`${item.username || "ユーザー名未設定"}\n自動入力リスク: ${riskLabel(item.autofillRisk)}`)}</p>
+          <div class="card-head">
+            <p class="card-title">${escapeHtml(item.title)}</p>
+            <div class="chips">
+              <span class="chip ${riskChipClass(risk)}" title="${escapeHtml(riskLabel(risk))}">${escapeHtml(riskChipText(risk))}</span>
+            </div>
+          </div>
+          <p class="meta">${escapeHtml(metaLines)}</p>
           <div class="card-actions">
             <button type="button" data-action="suggest-fill" data-id="${escapeHtml(item.id)}" class="ghost">このサイトに入力</button>
           </div>
         </li>
-      `
-    )
+      `;
+    })
     .join("");
 }
 
@@ -587,6 +654,20 @@ async function refreshMainScreen() {
 }
 
 function bindEvents() {
+  elements.tabbar?.addEventListener("click", (event) => {
+    const target = event.target;
+    if (!(target instanceof HTMLButtonElement)) {
+      return;
+    }
+
+    const tab = target.dataset.tab;
+    if (!tab) {
+      return;
+    }
+
+    setTab(tab);
+  });
+
   elements.setupForm.addEventListener("submit", async (event) => {
     event.preventDefault();
     setStatus("");
