@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#0f172a" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <link rel="icon" href="/icon.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="/styles.css" />
+    <title>Password Manager</title>
+  </head>
+  <body>
+    <main class="layout">
+      <header class="hero">
+        <p class="eyebrow">Offline-first PWA</p>
+        <h1>Password Manager</h1>
+        <p class="subtitle">
+          Your data is encrypted in this browser before it is saved.
+        </p>
+      </header>
+
+      <section id="setup-panel" class="panel hidden" aria-live="polite">
+        <h2>Create Master Password</h2>
+        <p>
+          Use at least 10 characters. This password cannot be recovered.
+        </p>
+        <form id="setup-form" class="stack">
+          <label>
+            Master password
+            <input id="setup-master" type="password" autocomplete="new-password" minlength="10" required />
+          </label>
+          <label>
+            Confirm password
+            <input id="setup-confirm" type="password" autocomplete="new-password" minlength="10" required />
+          </label>
+          <button type="submit">Create Vault</button>
+        </form>
+      </section>
+
+      <section id="unlock-panel" class="panel hidden" aria-live="polite">
+        <h2>Unlock Vault</h2>
+        <form id="unlock-form" class="stack">
+          <label>
+            Master password
+            <input id="unlock-master" type="password" autocomplete="current-password" required />
+          </label>
+          <button type="submit">Unlock</button>
+        </form>
+      </section>
+
+      <section id="vault-panel" class="panel hidden" aria-live="polite">
+        <div class="toolbar">
+          <div class="toolbar-left">
+            <h2>Saved Passwords</h2>
+            <input id="search-input" type="search" placeholder="Search by service, username, or notes" />
+          </div>
+          <div class="toolbar-right">
+            <button id="export-btn" type="button" class="ghost">Export Encrypted Backup</button>
+            <label class="import-label ghost">
+              Import Backup
+              <input id="import-input" type="file" accept="application/json" hidden />
+            </label>
+            <button id="lock-btn" type="button" class="ghost">Lock</button>
+          </div>
+        </div>
+
+        <form id="entry-form" class="entry-form">
+          <input id="entry-id" type="hidden" />
+          <label>
+            Service
+            <input id="service-input" type="text" required maxlength="100" placeholder="Example: GitHub" />
+          </label>
+          <label>
+            Username / Email
+            <input id="username-input" type="text" maxlength="120" placeholder="user@example.com" />
+          </label>
+          <label>
+            Password
+            <div class="inline-field">
+              <input id="password-input" type="text" required maxlength="200" placeholder="Enter password" />
+              <button id="generate-btn" type="button" class="ghost small">Generate</button>
+            </div>
+          </label>
+          <label>
+            URL
+            <input id="url-input" type="url" maxlength="200" placeholder="https://example.com" />
+          </label>
+          <label>
+            Notes
+            <textarea id="notes-input" rows="3" maxlength="500" placeholder="Optional notes"></textarea>
+          </label>
+          <div class="form-actions">
+            <button id="save-btn" type="submit">Save Password</button>
+            <button id="cancel-edit-btn" type="button" class="ghost hidden">Cancel Edit</button>
+          </div>
+        </form>
+
+        <ul id="entry-list" class="entry-list" aria-live="polite"></ul>
+      </section>
+
+      <p id="status" class="status" role="status" aria-live="assertive"></p>
+    </main>
+
+    <script type="module" src="/app.js"></script>
+  </body>
+</html>
