@@ -47,6 +47,57 @@ function createDefaultVault() {
   };
 }
 
+function normalizeStoredItem(item) {
+  const now = nowIso();
+  return {
+    id: item?.id || crypto.randomUUID(),
+    type: ["login", "card", "identity", "note"].includes(item?.type) ? item.type : "login",
+    title: String(item?.title || "Untitled").trim().slice(0, 140),
+    username: String(item?.username || "").trim().slice(0, 200),
+    password: String(item?.password || "").slice(0, 500),
+    url: normalizeUrl(item?.url || ""),
+    notes: String(item?.notes || "").trim().slice(0, 4000),
+    otpSecret: String(item?.otpSecret || "").trim().slice(0, 300),
+    fullName: String(item?.fullName || "").trim().slice(0, 200),
+    email: String(item?.email || "").trim().slice(0, 200),
+    phone: String(item?.phone || "").trim().slice(0, 50),
+    address: String(item?.address || "").trim().slice(0, 400),
+    cardHolder: String(item?.cardHolder || "").trim().slice(0, 120),
+    cardNumber: String(item?.cardNumber || "").replace(/\s+/g, "").slice(0, 40),
+    cardExpiry: String(item?.cardExpiry || "").trim().slice(0, 10),
+    cardCvc: String(item?.cardCvc || "").trim().slice(0, 10),
+    tags: sanitizeTags(item?.tags || []),
+    favorite: Boolean(item?.favorite),
+    passwordUpdatedAt: item?.passwordUpdatedAt || null,
+    createdAt: item?.createdAt || now,
+    updatedAt: item?.updatedAt || now,
+    lastUsedAt: item?.lastUsedAt || null
+  };
+}
+
+function normalizeVault(vault) {
+  const fallback = createDefaultVault();
+  const incoming = vault && typeof vault === "object" ? vault : {};
+  const items = Array.isArray(incoming.items) ? incoming.items.map(normalizeStoredItem) : [];
+
+  return {
+    version: 1,
+    meta: {
+      createdAt: incoming.meta?.createdAt || fallback.meta.createdAt,
+      updatedAt: incoming.meta?.updatedAt || fallback.meta.updatedAt
+    },
+    settings: {
+      autoLockMinutes: Number(incoming.settings?.autoLockMinutes) || fallback.settings.autoLockMinutes,
+      clipboardClearSeconds: Number(incoming.settings?.clipboardClearSeconds) || fallback.settings.clipboardClearSeconds,
+      generator: {
+        ...fallback.settings.generator,
+        ...(incoming.settings?.generator || {})
+      }
+    },
+    items
+  };
+}
+
 function resetSession() {
   session.unlocked = false;
   session.key = null;
@@ -202,7 +253,7 @@ async function unlockVault(masterPassword) {
   session.unlocked = true;
   session.key = unlocked.key;
   session.kdf = envelope.kdf;
-  session.vault = unlocked.vault;
+  session.vault = normalizeVault(unlocked.vault);
   touchSession();
 
   return {
@@ -237,12 +288,12 @@ function searchItems(items, query) {
   }
 
   return items.filter((item) => {
-    const tags = item.tags.join(" ").toLowerCase();
+    const tags = (item.tags || []).join(" ").toLowerCase();
     return (
-      item.title.toLowerCase().includes(q) ||
-      item.username.toLowerCase().includes(q) ||
-      item.url.toLowerCase().includes(q) ||
-      item.notes.toLowerCase().includes(q) ||
+      String(item.title || "").toLowerCase().includes(q) ||
+      String(item.username || "").toLowerCase().includes(q) ||
+      String(item.url || "").toLowerCase().includes(q) ||
+      String(item.notes || "").toLowerCase().includes(q) ||
       tags.includes(q)
     );
   });
