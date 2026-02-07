@@ -36,6 +36,15 @@ cp server/.env.example server/.env
 npm run server:dev
 ```
 
+4. テストWebhookを自動設定（公開URLがある場合）
+
+```bash
+npm run webhook:test -- https://YOUR_PUBLIC_URL
+```
+
+- 指定URLの `/api/billing/webhook` をStripeに登録します
+- 取得した `whsec_...` を `server/.env` の `STRIPE_WEBHOOK_SECRET` に自動反映します
+
 ## API（主要）
 
 - `POST /api/auth/register`
