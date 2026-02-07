@@ -23,6 +23,8 @@
 8. 暗号化バックアップ（JSON）エクスポート / インポート
 9. セキュリティ診断（弱い/古い/再利用パスワードの可視化）
 10. 自動ロック、クリップボード自動クリア設定
+11. 他サービス移行インポート（1Password / Bitwarden / LastPass / 汎用CSV/JSON）
+12. 商用向けクラウド同期（有料ユーザーのみ）+ Web課金画面（Stripe）
 
 ---
 
@@ -131,6 +133,48 @@ npm test
 3. ログイン項目を追加
 4. 対応サイトで「このサイト向け候補」から自動入力
 
+### 5-4. 他サービスから移行
+
+1. 移行元サービスでCSVまたはJSONをエクスポート
+2. 拡張機能の「他サービスから移行」を開く
+3. 移行元を選択（通常は「自動判定」）
+4. ファイルを選択して「移行インポートを実行」
+
+対応形式:
+- Bitwarden: CSV / JSON
+- 1Password: CSV
+- LastPass: CSV
+- 上記以外: 汎用CSV/JSON（主要列があれば自動マッピング）
+
+### 5-5. 商用モード（クラウド同期 + Web課金）
+
+1. サーバー依存をインストール
+
+```bash
+npm run server:install
+```
+
+2. 環境変数を準備
+
+```bash
+cp server/.env.example server/.env
+```
+
+3. サーバー起動
+
+```bash
+npm run server:dev
+```
+
+4. Web課金画面を開く  
+`http://localhost:8787`
+
+5. アカウント登録 -> Stripe課金 -> 拡張機能でクラウドログイン
+
+補足:
+- 同期APIは有料プランのみ利用可能です
+- サーバーには暗号化済みVaultのみ保存され、平文は保存しません
+
 ---
 
 ## 6. ディレクトリ構成
@@ -154,6 +198,11 @@ src/
     options.css
 test/
   run-tests.mjs
+server/
+  src/server.js             # 認証・課金・同期API
+  public/index.html         # Web課金画面
+  public/app.js
+  data/db.json              # 開発用JSON DB
 ```
 
 ---

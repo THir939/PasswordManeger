@@ -6,9 +6,11 @@ import {
 import { generatePassword } from "./lib/password.js";
 import { generateTotp } from "./lib/totp.js";
 import { buildSecurityReport } from "./lib/security-audit.js";
+import { parseExternalItems } from "./lib/migration.js";
 
 const STORAGE_KEY = "pm_encrypted_vault";
 const AUTO_LOCK_ALARM = "pm-auto-lock";
+const CLOUD_AUTH_KEY = "pm_cloud_auth";
 
 const session = {
   unlocked: false,
@@ -22,6 +24,67 @@ const pendingCaptures = [];
 
 function nowIso() {
   return new Date().toISOString();
+}
+
+function normalizeBaseUrl(baseUrl) {
+  const value = String(baseUrl || "").trim();
+  if (!value) {
+    return "";
+  }
+  return value.replace(/\/+$/, "");
+}
+
+async function getCloudState() {
+  const result = await chrome.storage.local.get(CLOUD_AUTH_KEY);
+  const payload = result[CLOUD_AUTH_KEY] || {};
+  return {
+    baseUrl: normalizeBaseUrl(payload.baseUrl || ""),
+    token: String(payload.token || ""),
+    revision: Number(payload.revision) || 0,
+    lastSyncAt: payload.lastSyncAt || null,
+    user: payload.user || null
+  };
+}
+
+async function setCloudState(next) {
+  await chrome.storage.local.set({
+    [CLOUD_AUTH_KEY]: {
+      baseUrl: normalizeBaseUrl(next.baseUrl || ""),
+      token: String(next.token || ""),
+      revision: Number(next.revision) || 0,
+      lastSyncAt: next.lastSyncAt || null,
+      user: next.user || null
+    }
+  });
+}
+
+async function clearCloudState() {
+  await chrome.storage.local.remove(CLOUD_AUTH_KEY);
+}
+
+async function cloudRequest(cloudState, endpoint, options = {}) {
+  const baseUrl = normalizeBaseUrl(cloudState.baseUrl || "");
+  if (!baseUrl) {
+    throw new Error("クラウドAPIのURLが設定されていません。");
+  }
+
+  const response = await fetch(`${baseUrl}${endpoint}`, {
+    method: options.method || "GET",
+    headers: {
+      "content-type": "application/json",
+      ...(cloudState.token ? { authorization: `Bearer ${cloudState.token}` } : {}),
+      ...(options.headers || {})
+    },
+    body: options.body ? JSON.stringify(options.body) : undefined
+  });
+
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok || payload?.ok === false) {
+    const reason = payload?.error || `Cloud request failed (${response.status})`;
+    throw new Error(reason);
+  }
+
+  return payload;
 }
 
 function createDefaultVault() {
@@ -215,6 +278,20 @@ function isItemForDomain(item, domain) {
 
 function sortByUpdated(items) {
   return [...items].sort((left, right) => Date.parse(right.updatedAt) - Date.parse(left.updatedAt));
+}
+
+function buildDedupFingerprint(item) {
+  const type = String(item.type || "login").toLowerCase();
+  const title = String(item.title || "").trim().toLowerCase();
+  const username = String(item.username || "").trim().toLowerCase();
+  const url = String(item.url || "").trim().toLowerCase();
+  const password = String(item.password || "");
+
+  if (type === "login") {
+    return [type, title, username, url, password].join("|");
+  }
+
+  return [type, title, String(item.notes || "").trim().toLowerCase()].join("|");
 }
 
 async function persistVault() {
@@ -621,6 +698,229 @@ async function handleAction(message, sender) {
         pendingCaptures.splice(index, 1);
       }
       return { discarded: true };
+    }
+
+    case "importExternalData": {
+      ensureUnlocked();
+      const imported = parseExternalItems({
+        provider: message.provider,
+        rawText: message.rawText,
+        filename: message.filename
+      });
+
+      const replaceExisting = Boolean(message.replaceExisting);
+      if (replaceExisting) {
+        session.vault.items = [];
+      }
+
+      const existingFingerprints = new Set(session.vault.items.map((item) => buildDedupFingerprint(item)));
+      let added = 0;
+      let skippedDuplicates = 0;
+      let skippedInvalid = 0;
+
+      for (const rawItem of imported.items) {
+        try {
+          const normalized = normalizeItem(rawItem);
+          const fingerprint = buildDedupFingerprint(normalized);
+
+          if (existingFingerprints.has(fingerprint)) {
+            skippedDuplicates += 1;
+            continue;
+          }
+
+          session.vault.items.unshift(normalized);
+          existingFingerprints.add(fingerprint);
+          added += 1;
+        } catch {
+          skippedInvalid += 1;
+        }
+      }
+
+      await persistVault();
+
+      return {
+        added,
+        skippedDuplicates,
+        skippedInvalid,
+        sourceProvider: imported.sourceProvider,
+        format: imported.format,
+        totalParsed: imported.totalParsed,
+        warnings: imported.warnings
+      };
+    }
+
+    case "cloudRegister": {
+      const baseUrl = normalizeBaseUrl(message.baseUrl || "http://localhost:8787");
+      const email = String(message.email || "").trim();
+      const password = String(message.password || "");
+
+      const response = await fetch(`${baseUrl}/api/auth/register`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ email, password })
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok || payload?.ok === false) {
+        throw new Error(payload?.error || "アカウント登録に失敗しました。");
+      }
+
+      await setCloudState({
+        baseUrl,
+        token: payload.token,
+        revision: 0,
+        lastSyncAt: null,
+        user: payload.user
+      });
+
+      return {
+        connected: true,
+        user: payload.user,
+        baseUrl
+      };
+    }
+
+    case "cloudLogin": {
+      const baseUrl = normalizeBaseUrl(message.baseUrl || "http://localhost:8787");
+      const email = String(message.email || "").trim();
+      const password = String(message.password || "");
+
+      const response = await fetch(`${baseUrl}/api/auth/login`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ email, password })
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok || payload?.ok === false) {
+        throw new Error(payload?.error || "ログインに失敗しました。");
+      }
+
+      await setCloudState({
+        baseUrl,
+        token: payload.token,
+        revision: 0,
+        lastSyncAt: null,
+        user: payload.user
+      });
+
+      return {
+        connected: true,
+        user: payload.user,
+        baseUrl
+      };
+    }
+
+    case "cloudLogout": {
+      await clearCloudState();
+      return { connected: false };
+    }
+
+    case "cloudStatus": {
+      const state = await getCloudState();
+      if (!state.token || !state.baseUrl) {
+        return {
+          connected: false,
+          baseUrl: state.baseUrl || "",
+          revision: state.revision || 0,
+          lastSyncAt: state.lastSyncAt
+        };
+      }
+
+      try {
+        const [me, billing] = await Promise.all([
+          cloudRequest(state, "/api/auth/me"),
+          cloudRequest(state, "/api/billing/status")
+        ]);
+
+        const nextState = {
+          ...state,
+          user: me.user
+        };
+        await setCloudState(nextState);
+
+        return {
+          connected: true,
+          baseUrl: state.baseUrl,
+          user: me.user,
+          billing,
+          revision: state.revision,
+          lastSyncAt: state.lastSyncAt
+        };
+      } catch {
+        await clearCloudState();
+        return {
+          connected: false,
+          baseUrl: state.baseUrl,
+          revision: 0,
+          lastSyncAt: null
+        };
+      }
+    }
+
+    case "cloudSyncPush": {
+      ensureUnlocked();
+      const state = await getCloudState();
+      if (!state.token) {
+        throw new Error("先にクラウドログインしてください。");
+      }
+
+      const envelope = await getStoredEnvelope();
+      if (!envelope) {
+        throw new Error("同期するVaultがありません。");
+      }
+
+      const expectedRevision = Number(state.revision || 0);
+      const payload = await cloudRequest(state, "/api/vault/snapshot", {
+        method: "PUT",
+        body: {
+          expectedRevision,
+          nextRevision: expectedRevision + 1,
+          envelope
+        }
+      });
+
+      await setCloudState({
+        ...state,
+        revision: payload.snapshot.revision,
+        lastSyncAt: nowIso()
+      });
+
+      return {
+        pushed: true,
+        revision: payload.snapshot.revision
+      };
+    }
+
+    case "cloudSyncPull": {
+      const state = await getCloudState();
+      if (!state.token) {
+        throw new Error("先にクラウドログインしてください。");
+      }
+
+      const payload = await cloudRequest(state, "/api/vault/snapshot", {
+        method: "GET"
+      });
+
+      if (!payload.snapshot?.envelope) {
+        return {
+          pulled: false,
+          reason: "remote-empty",
+          revision: payload.snapshot?.revision || 0
+        };
+      }
+
+      await setStoredEnvelope(payload.snapshot.envelope);
+      resetSession();
+
+      await setCloudState({
+        ...state,
+        revision: Number(payload.snapshot.revision || 0),
+        lastSyncAt: nowIso()
+      });
+
+      return {
+        pulled: true,
+        revision: Number(payload.snapshot.revision || 0)
+      };
     }
 
     default:

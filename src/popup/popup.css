@@ -179,6 +179,10 @@ button.ghost:hover,
   gap: 0.4rem;
 }
 
+.actions-3 {
+  grid-template-columns: 1fr 1fr 1fr;
+}
+
 .filters {
   display: grid;
   gap: 0.45rem;

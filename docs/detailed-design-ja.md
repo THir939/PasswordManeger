@@ -299,6 +299,17 @@ PasswordManeger/
 3. `POST /v1/auth/refresh`
 4. `POST /v1/auth/logout`
 
+## 9-1b. 課金API（商用リリース前提）
+
+1. `POST /v1/billing/checkout-session`（Stripe Checkoutへ遷移）
+2. `POST /v1/billing/portal-session`（契約変更/解約）
+3. `GET /v1/billing/status`（プラン状態確認）
+4. `POST /v1/billing/webhook`（Stripeイベント受信）
+
+制御ルール:
+1. 同期APIは有料プラン（`active` / `trialing`）のみ許可
+2. 無料ユーザーはローカル専用モードで利用
+
 ## 9-2. デバイスAPI
 
 1. `POST /v1/devices`
@@ -466,3 +477,28 @@ PasswordManeger/
 3. Passkeyフル管理
 
 以上の差分を埋めるための設計が本書です。
+
+---
+
+## 17. 他サービスからの移行設計
+
+目的:
+1. 初回導入時の離脱を減らす
+2. 既存ユーザーの乗り換えコストを下げる
+
+対応入力形式（第一段階）:
+1. Bitwarden: CSV / JSON
+2. 1Password: CSV
+3. LastPass: CSV
+4. 汎用CSV/JSON（主要列の自動推定）
+
+変換ルール:
+1. 可能な限り`login`として取り込み
+2. パスワードがないログインは`note`へ自動フォールバック
+3. タイトル未設定はURLまたはユーザー名から補完
+4. 重複はフィンガープリント（種別/タイトル/ID/URL/パスワード）でスキップ
+
+UI方針:
+1. 移行元を「自動判定（推奨）」で開始
+2. 上書き置換と追加入力（マージ）を切り替え可能にする
+3. 完了時に「追加件数 / 重複スキップ / 変換不可件数」を表示

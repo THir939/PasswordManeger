@@ -65,6 +65,69 @@
         </section>
 
         <section class="panel-soft">
+          <h3>他サービスから移行</h3>
+          <p class="small">
+            1Password / Bitwarden / LastPass のエクスポートをそのまま取り込めます。
+          </p>
+          <form id="migration-form" class="grid-form">
+            <label>
+              移行元サービス
+              <select id="migration-provider">
+                <option value="auto">自動判定（推奨）</option>
+                <option value="1password">1Password</option>
+                <option value="bitwarden">Bitwarden</option>
+                <option value="lastpass">LastPass</option>
+                <option value="generic">その他（汎用CSV/JSON）</option>
+              </select>
+            </label>
+            <label>
+              エクスポートファイル（CSV / JSON）
+              <input id="migration-file" type="file" accept=".csv,.json,text/csv,application/json" required />
+            </label>
+            <label class="checkbox">
+              <input id="migration-replace" type="checkbox" />
+              既存データを削除して置き換える
+            </label>
+            <button type="submit">移行インポートを実行</button>
+          </form>
+          <p class="small">
+            形式例: Bitwarden CSV/JSON、1Password CSV、LastPass CSV
+          </p>
+        </section>
+
+        <section class="panel-soft">
+          <h3>クラウド同期（有料）</h3>
+          <p class="small">
+            課金ユーザーはサーバー同期が使えます。先にWeb課金ページでプランを有効化してください。
+          </p>
+          <form id="cloud-auth-form" class="grid-form">
+            <label>
+              APIベースURL
+              <input id="cloud-base-url" type="url" placeholder="http://localhost:8787" value="http://localhost:8787" />
+            </label>
+            <label>
+              メール
+              <input id="cloud-email" type="email" autocomplete="email" />
+            </label>
+            <label>
+              パスワード
+              <input id="cloud-password" type="password" autocomplete="current-password" />
+            </label>
+            <div class="actions actions-3">
+              <button id="cloud-register-btn" type="button">登録</button>
+              <button id="cloud-login-btn" class="ghost" type="button">ログイン</button>
+              <button id="cloud-logout-btn" class="ghost" type="button">ログアウト</button>
+            </div>
+          </form>
+          <div class="actions actions-3">
+            <button id="cloud-pull-btn" class="ghost" type="button">クラウドから取得</button>
+            <button id="cloud-push-btn" class="ghost" type="button">クラウドへ送信</button>
+            <button id="cloud-refresh-btn" class="ghost" type="button">状態更新</button>
+          </div>
+          <pre id="cloud-status-box" class="report"></pre>
+        </section>
+
+        <section class="panel-soft">
           <h3>新規作成 / 編集</h3>
           <form id="item-form" class="grid-form">
             <input id="item-id" type="hidden" />

@@ -14,6 +14,21 @@ const elements = {
   lockButton: document.querySelector("#lock-btn"),
   exportButton: document.querySelector("#export-btn"),
   importInput: document.querySelector("#import-input"),
+  migrationForm: document.querySelector("#migration-form"),
+  migrationProvider: document.querySelector("#migration-provider"),
+  migrationFile: document.querySelector("#migration-file"),
+  migrationReplace: document.querySelector("#migration-replace"),
+  cloudAuthForm: document.querySelector("#cloud-auth-form"),
+  cloudBaseUrl: document.querySelector("#cloud-base-url"),
+  cloudEmail: document.querySelector("#cloud-email"),
+  cloudPassword: document.querySelector("#cloud-password"),
+  cloudRegisterButton: document.querySelector("#cloud-register-btn"),
+  cloudLoginButton: document.querySelector("#cloud-login-btn"),
+  cloudLogoutButton: document.querySelector("#cloud-logout-btn"),
+  cloudPullButton: document.querySelector("#cloud-pull-btn"),
+  cloudPushButton: document.querySelector("#cloud-push-btn"),
+  cloudRefreshButton: document.querySelector("#cloud-refresh-btn"),
+  cloudStatusBox: document.querySelector("#cloud-status-box"),
 
   domainLabel: document.querySelector("#domain-label"),
   suggestionList: document.querySelector("#suggestion-list"),
@@ -60,7 +75,8 @@ const elements = {
 
 const state = {
   settings: null,
-  currentItems: []
+  currentItems: [],
+  cloudStatus: null
 };
 
 function setStatus(message = "", isError = false) {
@@ -297,6 +313,31 @@ async function loadSettings() {
   elements.settingClipboard.value = state.settings.clipboardClearSeconds;
 }
 
+function buildCloudStatusText(payload) {
+  if (!payload?.connected) {
+    return "未連携（ローカルモード）";
+  }
+
+  const lines = [];
+  lines.push(`接続先: ${payload.baseUrl}`);
+  lines.push(`ユーザー: ${payload.user?.email || "unknown"}`);
+  lines.push(`課金状態: ${payload.billing?.planStatus || payload.user?.planStatus || "unknown"}`);
+  lines.push(`有料プラン: ${payload.billing?.isPaid ? "はい" : "いいえ"}`);
+  lines.push(`同期リビジョン: ${payload.revision ?? 0}`);
+  lines.push(`最終同期: ${payload.lastSyncAt || "未実行"}`);
+  return lines.join("\n");
+}
+
+async function loadCloudStatus() {
+  const payload = await callBackground("cloudStatus");
+  state.cloudStatus = payload;
+  elements.cloudStatusBox.textContent = buildCloudStatusText(payload);
+
+  if (payload.baseUrl && !elements.cloudBaseUrl.value) {
+    elements.cloudBaseUrl.value = payload.baseUrl;
+  }
+}
+
 function editItem(item) {
   elements.itemId.value = item.id;
   elements.itemType.value = item.type;
@@ -371,9 +412,35 @@ function downloadJson(filename, data) {
   URL.revokeObjectURL(url);
 }
 
+function buildMigrationMessage(result) {
+  const parts = [
+    `移行完了: 追加 ${result.added} 件`,
+    `重複スキップ ${result.skippedDuplicates} 件`,
+    `形式 ${result.sourceProvider}/${result.format}`
+  ];
+
+  if (result.skippedInvalid > 0) {
+    parts.push(`変換不可 ${result.skippedInvalid} 件`);
+  }
+
+  if (Array.isArray(result.warnings) && result.warnings.length) {
+    parts.push(`注意: ${result.warnings[0]}`);
+  }
+
+  return parts.join(" / ");
+}
+
+function cloudCredentials() {
+  return {
+    baseUrl: elements.cloudBaseUrl.value.trim() || "http://localhost:8787",
+    email: elements.cloudEmail.value.trim(),
+    password: elements.cloudPassword.value
+  };
+}
+
 async function refreshMainScreen() {
   await loadSettings();
-  await Promise.all([loadItems(), loadSuggestions(), loadCaptures(), loadSecurityReport()]);
+  await Promise.all([loadItems(), loadSuggestions(), loadCaptures(), loadSecurityReport(), loadCloudStatus()]);
 }
 
 function bindEvents() {
@@ -448,6 +515,97 @@ function bindEvents() {
       setStatus("バックアップを復元しました。解錠してください。", false);
     } catch (error) {
       setStatus(`復元に失敗: ${error.message}`, true);
+    }
+  });
+
+  elements.migrationForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
+
+    const file = elements.migrationFile.files?.[0];
+    if (!file) {
+      setStatus("移行ファイルを選択してください。", true);
+      return;
+    }
+
+    try {
+      const rawText = await file.text();
+      const result = await callBackground("importExternalData", {
+        provider: elements.migrationProvider.value,
+        rawText,
+        filename: file.name,
+        replaceExisting: elements.migrationReplace.checked
+      });
+
+      await Promise.all([loadItems(), loadSuggestions(), loadCaptures(), loadSecurityReport()]);
+      elements.migrationForm.reset();
+      setStatus(buildMigrationMessage(result), false);
+    } catch (error) {
+      setStatus(`移行に失敗: ${error.message}`, true);
+    }
+  });
+
+  elements.cloudRegisterButton.addEventListener("click", async () => {
+    try {
+      const response = await callBackground("cloudRegister", cloudCredentials());
+      await loadCloudStatus();
+      setStatus(`クラウド登録完了: ${response.user.email}`, false);
+    } catch (error) {
+      setStatus(`クラウド登録失敗: ${error.message}`, true);
+    }
+  });
+
+  elements.cloudLoginButton.addEventListener("click", async () => {
+    try {
+      const response = await callBackground("cloudLogin", cloudCredentials());
+      await loadCloudStatus();
+      setStatus(`クラウドログイン成功: ${response.user.email}`, false);
+    } catch (error) {
+      setStatus(`クラウドログイン失敗: ${error.message}`, true);
+    }
+  });
+
+  elements.cloudLogoutButton.addEventListener("click", async () => {
+    try {
+      await callBackground("cloudLogout");
+      await loadCloudStatus();
+      setStatus("クラウド連携を解除しました。", false);
+    } catch (error) {
+      setStatus(error.message, true);
+    }
+  });
+
+  elements.cloudPullButton.addEventListener("click", async () => {
+    try {
+      const response = await callBackground("cloudSyncPull");
+      await loadCloudStatus();
+
+      if (response.pulled) {
+        setView("unlock");
+        setStatus("クラウドデータを取得しました。安全のため再解錠してください。", false);
+      } else {
+        setStatus("クラウド側に同期データがありません。", false);
+      }
+    } catch (error) {
+      setStatus(`取得失敗: ${error.message}`, true);
+    }
+  });
+
+  elements.cloudPushButton.addEventListener("click", async () => {
+    try {
+      const response = await callBackground("cloudSyncPush");
+      await loadCloudStatus();
+      setStatus(`クラウドへ送信しました（revision ${response.revision}）。`, false);
+    } catch (error) {
+      setStatus(`送信失敗: ${error.message}`, true);
+    }
+  });
+
+  elements.cloudRefreshButton.addEventListener("click", async () => {
+    try {
+      await loadCloudStatus();
+      setStatus("クラウド状態を更新しました。", false);
+    } catch (error) {
+      setStatus(error.message, true);
     }
   });
 

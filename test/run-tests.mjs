@@ -3,6 +3,7 @@ import { createVaultEnvelope, unlockVaultEnvelope } from "../src/lib/crypto.js";
 import { generatePassword } from "../src/lib/password.js";
 import { generateTotp } from "../src/lib/totp.js";
 import { buildSecurityReport } from "../src/lib/security-audit.js";
+import { parseExternalItems } from "../src/lib/migration.js";
 
 async function run(name, testFn) {
   try {
@@ -63,6 +64,62 @@ await run("security report basics", () => {
 
   assert.equal(report.totals.reusedGroups, 1);
   assert.equal(report.totals.weak > 0, true);
+});
+
+await run("migration bitwarden csv", () => {
+  const csv = [
+    "folder,favorite,type,name,notes,login_uri,login_username,login_password,login_totp",
+    "work,1,login,GitHub,main account,https://github.com,alice,Secret123!,JBSWY3DPEHPK3PXP"
+  ].join("\n");
+
+  const result = parseExternalItems({
+    provider: "auto",
+    rawText: csv,
+    filename: "bitwarden.csv"
+  });
+
+  assert.equal(result.sourceProvider, "bitwarden");
+  assert.equal(result.items.length, 1);
+  assert.equal(result.items[0].title, "GitHub");
+  assert.equal(result.items[0].username, "alice");
+});
+
+await run("migration generic json array", () => {
+  const json = JSON.stringify([
+    {
+      title: "Example",
+      username: "bob@example.com",
+      password: "pass123",
+      url: "https://example.com"
+    }
+  ]);
+
+  const result = parseExternalItems({
+    provider: "auto",
+    rawText: json,
+    filename: "export.json"
+  });
+
+  assert.equal(result.format, "json");
+  assert.equal(result.items.length, 1);
+  assert.equal(result.items[0].title, "Example");
+});
+
+await run("migration lastpass csv", () => {
+  const csv = [
+    "url,username,password,totp,extra,name,grouping,fav",
+    "https://news.ycombinator.com,dev_user,Pass!234,,hacker news account,Hacker News,work,1"
+  ].join("\n");
+
+  const result = parseExternalItems({
+    provider: "auto",
+    rawText: csv,
+    filename: "lastpass.csv"
+  });
+
+  assert.equal(result.sourceProvider, "lastpass");
+  assert.equal(result.items[0].title, "Hacker News");
+  assert.equal(result.items[0].favorite, true);
 });
 
 if (process.exitCode) {
