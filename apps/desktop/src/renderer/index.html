@@ -1,0 +1,300 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>PasswordManeger Desktop</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=BIZ+UDGothic:wght@400;700&family=Cormorant+Garamond:wght@500;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main class="shell">
+      <header class="hero">
+        <p class="eyebrow">Native First Architecture</p>
+        <h1>PasswordManeger Desktop</h1>
+        <p class="sub">主役: ネイティブアプリ + ブラウザ拡張 / 補助: Web（課金・アカウント管理・緊急アクセス）</p>
+      </header>
+
+      <p id="status" class="status" role="status" aria-live="polite"></p>
+
+      <section id="setup-view" class="panel hidden">
+        <h2>1. 初期セットアップ</h2>
+        <p class="muted">最初にマスターパスワードを作成します。忘れると復元できません。</p>
+        <form id="setup-form" class="form-grid">
+          <label>
+            マスターパスワード（10文字以上）
+            <input id="setup-password" type="password" minlength="10" required autocomplete="new-password" />
+          </label>
+          <label>
+            確認入力
+            <input id="setup-confirm" type="password" minlength="10" required autocomplete="new-password" />
+          </label>
+          <button type="submit">Vaultを作成して開始</button>
+        </form>
+      </section>
+
+      <section id="unlock-view" class="panel hidden">
+        <h2>2. Vaultを解錠</h2>
+        <form id="unlock-form" class="form-grid">
+          <label>
+            マスターパスワード
+            <input id="unlock-password" type="password" required autocomplete="current-password" />
+          </label>
+          <button type="submit">解錠する</button>
+        </form>
+      </section>
+
+      <section id="main-view" class="main hidden">
+        <aside class="left-col">
+          <section class="panel card-surface">
+            <div class="toolbar">
+              <button id="lock-btn" class="ghost" type="button">ロック</button>
+              <button id="export-btn" class="ghost" type="button">暗号化バックアップ</button>
+              <label class="file-btn ghost">
+                復元
+                <input id="import-input" type="file" accept="application/json" hidden />
+              </label>
+            </div>
+          </section>
+
+          <section class="panel card-surface">
+            <h3>拡張機能との連携</h3>
+            <p class="muted">
+              自動入力はブラウザ拡張で行います。デスクトップはVault管理の中核です。
+            </p>
+            <pre id="platform-box" class="mono"></pre>
+            <div class="button-row">
+              <button id="open-extension-btn" class="ghost" type="button">拡張機能フォルダを開く</button>
+              <button id="open-billing-btn" class="ghost" type="button">Web課金ページを開く</button>
+              <button id="open-emergency-btn" class="ghost" type="button">緊急アクセス画面を開く</button>
+            </div>
+          </section>
+
+          <section class="panel card-surface">
+            <h3>クラウド同期（有料）</h3>
+            <form id="cloud-auth-form" class="form-grid">
+              <label>
+                APIベースURL
+                <input id="cloud-base-url" type="url" placeholder="http://localhost:8787" value="http://localhost:8787" />
+              </label>
+              <label>
+                メール
+                <input id="cloud-email" type="email" autocomplete="email" />
+              </label>
+              <label>
+                パスワード
+                <input id="cloud-password" type="password" autocomplete="current-password" />
+              </label>
+              <div class="button-row three">
+                <button id="cloud-register-btn" type="button">登録</button>
+                <button id="cloud-login-btn" class="ghost" type="button">ログイン</button>
+                <button id="cloud-logout-btn" class="ghost" type="button">ログアウト</button>
+              </div>
+            </form>
+            <div class="button-row three">
+              <button id="cloud-pull-btn" class="ghost" type="button">クラウドから取得</button>
+              <button id="cloud-push-btn" class="ghost" type="button">クラウドへ送信</button>
+              <button id="cloud-refresh-btn" class="ghost" type="button">状態更新</button>
+            </div>
+            <pre id="cloud-status-box" class="mono"></pre>
+          </section>
+
+          <section class="panel card-surface">
+            <h3>他サービスから移行</h3>
+            <form id="migration-form" class="form-grid">
+              <label>
+                移行元サービス
+                <select id="migration-provider">
+                  <option value="auto">自動判定（推奨）</option>
+                  <option value="1password">1Password</option>
+                  <option value="bitwarden">Bitwarden</option>
+                  <option value="lastpass">LastPass</option>
+                  <option value="generic">その他（汎用CSV/JSON）</option>
+                </select>
+              </label>
+              <label>
+                エクスポートファイル（CSV / JSON）
+                <input id="migration-file" type="file" accept=".csv,.json,text/csv,application/json" required />
+              </label>
+              <label class="checkbox">
+                <input id="migration-replace" type="checkbox" />
+                既存データを削除して置き換える
+              </label>
+              <button type="submit">移行インポートを実行</button>
+            </form>
+          </section>
+        </aside>
+
+        <section class="right-col">
+          <section class="panel card-surface">
+            <h3>新規作成 / 編集</h3>
+            <form id="item-form" class="form-grid">
+              <input id="item-id" type="hidden" />
+              <label>
+                種別
+                <select id="item-type">
+                  <option value="login">ログイン</option>
+                  <option value="card">クレジットカード</option>
+                  <option value="identity">個人情報</option>
+                  <option value="note">セキュアノート</option>
+                </select>
+              </label>
+              <label>
+                タイトル
+                <input id="item-title" type="text" required maxlength="140" placeholder="例: GitHub" />
+              </label>
+
+              <div class="type-login type-note type-identity">
+                <label>
+                  ユーザー名 / メール
+                  <input id="item-username" type="text" maxlength="200" />
+                </label>
+              </div>
+
+              <div class="type-login">
+                <label>
+                  パスワード
+                  <div class="inline">
+                    <input id="item-password" type="text" maxlength="500" />
+                    <button id="generate-btn" class="ghost" type="button">生成</button>
+                  </div>
+                </label>
+              </div>
+
+              <div class="type-login type-note">
+                <label>
+                  URL
+                  <input id="item-url" type="url" maxlength="300" placeholder="https://example.com" />
+                </label>
+              </div>
+
+              <div class="type-login">
+                <label>
+                  TOTPシークレット（2段階認証）
+                  <input id="item-otp" type="text" maxlength="300" placeholder="Base32 または otpauth://" />
+                </label>
+              </div>
+
+              <div class="type-identity grid-identity">
+                <label>
+                  氏名
+                  <input id="item-fullname" type="text" maxlength="200" />
+                </label>
+                <label>
+                  メール
+                  <input id="item-email" type="email" maxlength="200" />
+                </label>
+                <label>
+                  電話
+                  <input id="item-phone" type="text" maxlength="50" />
+                </label>
+                <label>
+                  住所
+                  <textarea id="item-address" rows="2" maxlength="400"></textarea>
+                </label>
+              </div>
+
+              <div class="type-card grid-card">
+                <label>
+                  名義人
+                  <input id="item-card-holder" type="text" maxlength="120" />
+                </label>
+                <label>
+                  カード番号
+                  <input id="item-card-number" type="text" maxlength="40" />
+                </label>
+                <label>
+                  有効期限 (MM/YY)
+                  <input id="item-card-expiry" type="text" maxlength="10" />
+                </label>
+                <label>
+                  CVC
+                  <input id="item-card-cvc" type="text" maxlength="10" />
+                </label>
+              </div>
+
+              <label>
+                タグ（カンマ区切り）
+                <input id="item-tags" type="text" maxlength="400" placeholder="work, personal" />
+              </label>
+              <label>
+                メモ
+                <textarea id="item-notes" rows="3" maxlength="4000"></textarea>
+              </label>
+              <label class="checkbox">
+                <input id="item-favorite" type="checkbox" />
+                よく使う項目にする
+              </label>
+
+              <div class="button-row">
+                <button type="submit">保存</button>
+                <button id="cancel-edit" class="ghost hidden" type="button">編集をキャンセル</button>
+              </div>
+            </form>
+          </section>
+
+          <section class="panel card-surface">
+            <h3>検索 / 一覧</h3>
+            <div class="filters">
+              <input id="search-input" type="search" placeholder="タイトル・ユーザー名・タグで検索" />
+              <select id="filter-type">
+                <option value="all">全種別</option>
+                <option value="login">ログイン</option>
+                <option value="card">カード</option>
+                <option value="identity">個人情報</option>
+                <option value="note">ノート</option>
+              </select>
+              <label class="checkbox compact">
+                <input id="only-favorite" type="checkbox" />
+                お気に入りのみ
+              </label>
+            </div>
+            <ul id="item-list" class="stack-list"></ul>
+          </section>
+
+          <section class="panel card-surface two-col">
+            <article>
+              <h3>セキュリティ診断</h3>
+              <button id="refresh-report" class="ghost" type="button">診断を更新</button>
+              <pre id="report-box" class="mono"></pre>
+            </article>
+            <article>
+              <h3>設定</h3>
+              <form id="settings-form" class="form-grid">
+                <label>
+                  自動ロック（分）
+                  <input id="setting-autolock" type="number" min="1" max="120" />
+                </label>
+                <label>
+                  クリップボード自動クリア（秒）
+                  <input id="setting-clipboard" type="number" min="0" max="120" />
+                </label>
+                <button type="submit">設定を保存</button>
+              </form>
+
+              <form id="master-form" class="form-grid mt-12">
+                <h4>マスターパスワード変更</h4>
+                <label>
+                  現在のマスターパスワード
+                  <input id="old-master" type="password" />
+                </label>
+                <label>
+                  新しいマスターパスワード
+                  <input id="new-master" type="password" minlength="10" />
+                </label>
+                <button type="submit">変更する</button>
+              </form>
+            </article>
+          </section>
+        </section>
+      </section>
+    </main>
+
+    <script type="module" src="./app.js"></script>
+  </body>
+</html>

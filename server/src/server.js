@@ -284,6 +284,21 @@ app.put("/api/vault/snapshot", authRequired, paidRequired, (req, res) => {
   return res.json({ ok: true, snapshot: saved });
 });
 
+app.get("/api/vault/emergency-export", authRequired, (req, res) => {
+  const snapshot = store.getVaultSnapshot(req.user.id);
+  if (!snapshot?.envelope) {
+    return res.status(404).json({
+      ok: false,
+      error: "緊急アクセス用のデータがありません。先に同期を実行してください。"
+    });
+  }
+
+  return res.json({
+    ok: true,
+    snapshot
+  });
+});
+
 app.use(express.static(publicDir));
 app.get("*", (req, res, next) => {
   if (req.path.startsWith("/api/")) {

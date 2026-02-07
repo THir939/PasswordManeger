@@ -8,7 +8,8 @@
 2. Stripe Checkoutによるサブスク課金
 3. Stripe Billing Portalによる契約管理
 4. 有料ユーザー限定のVault同期API（暗号化済みEnvelopeのみ保存）
-5. 課金状態を管理するWeb画面（`/`）
+5. 緊急アクセス用の暗号化スナップショット取得API
+6. 課金状態を管理するWeb画面（`/`）
 
 ## セットアップ
 
@@ -55,6 +56,7 @@ npm run webhook:test -- https://YOUR_PUBLIC_URL
 - `GET /api/billing/status`
 - `GET /api/vault/snapshot`（有料のみ）
 - `PUT /api/vault/snapshot`（有料のみ）
+- `GET /api/vault/emergency-export`（ログイン必須）
 
 ## データ保存
 

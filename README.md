@@ -1,248 +1,169 @@
-# PasswordManeger (Chrome拡張版)
+# PasswordManeger
 
-このプロジェクトは、**ブラウザ拡張機能として動くマルチプラットフォーム向けパスワードマネージャー**です。
+ネイティブアプリ主役のマルチプラットフォーム・パスワードマネージャーです。
 
-- 対応環境: Chrome / Edge / Brave などの Chromium 系ブラウザ
-- 実装方式: Manifest V3 (MV3)
-- データ保存先: `chrome.storage.local`（ブラウザ内）
-- 暗号方式: PBKDF2 + AES-GCM（Web Crypto API）
+- 主役: Desktop アプリ（Electron） + ブラウザ拡張（Chrome/Edge/Brave など）
+- 補助: Web（課金・アカウント管理・緊急アクセス）
+- サーバー: 認証 / Stripe課金 / 暗号化Vault同期API
 
----
+## 1. 現在の実装範囲
 
-## 1. 何を作ったか（現時点）
+### Desktop（`apps/desktop`）
+1. ローカル暗号化Vault（PBKDF2 + AES-GCM）
+2. ログイン / カード / 個人情報 / ノートの管理
+3. パスワード生成 / TOTP / セキュリティ診断
+4. 他サービス移行（1Password / Bitwarden / LastPass / 汎用CSV/JSON）
+5. 有料ユーザー向けクラウド同期（push / pull）
 
-実装済み機能:
+### Browser Extension（ルート直下 + `src/`）
+1. Webフォーム自動入力
+2. 保存候補検出
+3. Desktopと同等のVault管理機能
+4. クラウド同期（有料）
 
-1. マスターパスワードで Vault を作成 / 解錠 / ロック
-2. ログイン情報の保存・検索・編集・削除
-3. クレジットカード、個人情報、セキュアノートの保存
-4. パスワード自動生成
-5. TOTP（2段階認証コード）生成
-6. アクティブサイト向け候補表示 + 自動入力
-7. フォーム送信時のログイン候補検出（保存提案）
-8. 暗号化バックアップ（JSON）エクスポート / インポート
-9. セキュリティ診断（弱い/古い/再利用パスワードの可視化）
-10. 自動ロック、クリップボード自動クリア設定
-11. 他サービス移行インポート（1Password / Bitwarden / LastPass / 汎用CSV/JSON）
-12. 商用向けクラウド同期（有料ユーザーのみ）+ Web課金画面（Stripe）
+### Web + Server（`server/`）
+1. アカウント登録 / ログイン
+2. Stripe Checkout / Billing Portal
+3. 同期API（有料ユーザーのみ）
+4. 緊急アクセス: 暗号化スナップショットのダウンロード
 
----
+## 2. なぜこの構成にしたか
 
-## 2. なぜこの設計にしたか
+### 採用理由
+1. ネイティブ主役にすると、ブラウザが閉じていてもVault管理できる
+2. 拡張機能を併用すると、ログイン画面での自動入力体験を維持できる
+3. Webは課金と復旧導線に絞ることで、責務が明確になる
 
-### 2-1. 拡張機能を選んだ理由
+### メリット
+1. 役割分離が明確（Desktop=保管庫、Extension=自動入力、Web=契約/復旧）
+2. 学習しやすい（1機能1責務）
+3. 商用運用で必要な課金と同期を最初から持てる
 
-理由:
-- Webアプリ単体より、ログイン画面に直接アクセスして自動入力できるため
-- RoboForm / 1Password の主要体験（ブラウザ統合）に近づけるため
+### デメリット・注意点
+1. クライアントが複数あるため、配布手順が増える
+2. ネイティブ署名（macコード署名、Windows署名）は商用配布時に追加作業が必要
+3. PBKDF2は実用的だが、将来的にはArgon2id移行が望ましい
 
-メリット:
-- ユーザー体験がよい（入力の手間が減る）
-- ブラウザごとの導入が簡単（拡張を読み込むだけ）
+## 3. セットアップ
 
-デメリット:
-- ブラウザAPIの制約が強い
-- サイトごとのHTML構造差で自動入力の精度がぶれることがある
-
-### 2-2. ローカル暗号化を選んだ理由
-
-理由:
-- まずはサーバー不要で安全性の土台を作るため
-- 初学者でも動作を追いやすい構成にするため
-
-メリット:
-- サーバー攻撃面が減る
-- 実装が比較的シンプル
-
-デメリット:
-- デバイス間同期は標準ではできない
-- バックアップ管理をユーザー側で行う必要がある
-
-### 2-3. MV3（Manifest V3）を選んだ理由
-
-補足: MV3 は Chrome拡張の新しい標準仕様です。
-
-理由:
-- Chromeで今後の主流仕様のため
-- セキュリティモデルが改善されているため
-
-メリット:
-- 現行Chromeの推奨構成に沿える
-
-デメリット:
-- バックグラウンドが常駐しないので状態管理が難しい
-
----
-
-## 3. 1Password比較（現状）
-
-「1Passwordの全機能」を完全再現するには、以下の未実装領域があります。
-
-実装済み（同系統）:
-- ログイン保存
-- 自動入力
-- パスワード生成
-- TOTPコード生成
-- セキュリティチェック（簡易Watchtower相当）
-- ロック機能
-- 暗号化バックアップ
-
-未実装（今後必要）:
-- デバイス間リアルタイム同期
-- チーム共有Vault / 権限管理
-- Passkey（FIDO/WebAuthn）フル管理
-- 侵害データベース連携による漏えい検知
-- OSレベル生体認証連携（Face ID / Touch ID / Windows Hello）
-- 監査ログや企業向け管理機能
-
-結論:
-- **今は「個人利用の基盤機能」を実装済み**
-- **商用1Password完全同等までは、サーバー基盤と認証・同期機能が追加で必要**
-
----
-
-## 4. 差別化として入れた機能
-
-1. ローカル完結型のセキュリティ診断（オフラインでも動作）
-2. フォーム送信検出による「保存候補キュー」
-3. 項目種別（ログイン/カード/個人情報/ノート）を1画面で管理
-
----
-
-## 5. 使い方
-
-### 5-1. ローカル実行
+### 3-1. 依存インストール
 
 ```bash
-git clone https://github.com/THir939/PasswordManeger.git
-cd PasswordManeger
-npm test
-```
-
-### 5-2. Chromeに読み込む
-
-1. `chrome://extensions` を開く
-2. 右上の「デベロッパーモード」をON
-3. 「パッケージ化されていない拡張機能を読み込む」
-4. このプロジェクトフォルダを選択
-
-### 5-3. 初期セットアップ
-
-1. 拡張アイコンをクリック
-2. マスターパスワードでVault作成
-3. ログイン項目を追加
-4. 対応サイトで「このサイト向け候補」から自動入力
-
-### 5-4. 他サービスから移行
-
-1. 移行元サービスでCSVまたはJSONをエクスポート
-2. 拡張機能の「他サービスから移行」を開く
-3. 移行元を選択（通常は「自動判定」）
-4. ファイルを選択して「移行インポートを実行」
-
-対応形式:
-- Bitwarden: CSV / JSON
-- 1Password: CSV
-- LastPass: CSV
-- 上記以外: 汎用CSV/JSON（主要列があれば自動マッピング）
-
-### 5-5. 商用モード（クラウド同期 + Web課金）
-
-1. サーバー依存をインストール
-
-```bash
+npm install
 npm run server:install
+npm run desktop:install
 ```
 
-2. 環境変数を準備
+### 3-2. サーバー環境変数
 
 ```bash
 cp server/.env.example server/.env
 ```
 
-3. サーバー起動
+`server/.env` に最低限以下を設定:
+
+1. `JWT_SECRET`
+2. `STRIPE_SECRET_KEY`（テストなら `sk_test_...`）
+3. `STRIPE_PRICE_ID`（`price_...`）
+4. `STRIPE_WEBHOOK_SECRET`（`whsec_...`）
+5. `APP_BASE_URL`（例: `http://localhost:8787`）
+6. `CORS_ORIGIN`（例: `http://localhost:8787`）
+
+### 3-3. 起動
 
 ```bash
 npm run server:dev
+npm run desktop:dev
 ```
 
-4. Web課金画面を開く  
-`http://localhost:8787`
+- Webポータル: `http://localhost:8787`
+- Desktop起動後、画面内の「拡張機能フォルダを開く」から拡張機能読み込みが可能
 
-5. アカウント登録 -> Stripe課金 -> 拡張機能でクラウドログイン
+### 3-4. Chrome拡張の読み込み
+
+1. `chrome://extensions` を開く
+2. デベロッパーモードをON
+3. 「パッケージ化されていない拡張機能を読み込む」
+4. このリポジトリのルートフォルダを選択
+
+## 4. mac / Windows で試す
+
+### mac（Apple Silicon）
+
+```bash
+npm run desktop:dist:mac -- --dir
+```
+
+出力例:
+- `apps/desktop/dist/mac-arm64/PasswordManeger.app`
+
+### Windows（x64）
+
+```bash
+npm run desktop:dist:win -- --dir
+```
+
+出力例:
+- `apps/desktop/dist/win-unpacked/PasswordManeger.exe`
 
 補足:
-- 同期APIは有料プランのみ利用可能です
-- サーバーには暗号化済みVaultのみ保存され、平文は保存しません
+- `--dir` はインストーラ生成なしの検証用ビルド
+- 商用配布では署名とインストーラ（dmg / nsis）を使う
 
----
+## 5. Webhook自動セットアップ（テスト）
 
-## 6. ディレクトリ構成
+公開URLがある場合（例: ngrok）:
 
-```text
-manifest.json
-src/
-  background.js            # 暗号化保管・状態管理・APIハンドラ
-  content-script.js        # 自動入力・フォーム送信検出
-  lib/
-    crypto.js              # PBKDF2 + AES-GCM
-    password.js            # 生成器 + 強度評価
-    security-audit.js      # セキュリティ診断
-    totp.js                # TOTP生成
-  popup/
-    popup.html
-    popup.css
-    popup.js               # メインUI
-  options/
-    options.html
-    options.css
-test/
-  run-tests.mjs
-server/
-  src/server.js             # 認証・課金・同期API
-  public/index.html         # Web課金画面
-  public/app.js
-  data/db.json              # 開発用JSON DB
+```bash
+npm run stripe:webhook:test -- https://<公開URL>
 ```
 
----
+このコマンドは以下を自動実行します。
+1. StripeにWebhook endpointを作成
+2. `server/.env` の `STRIPE_WEBHOOK_SECRET` を更新
 
-## 7. テスト
+## 6. テスト
 
 ```bash
 npm test
 ```
 
-テスト内容:
-1. 暗号化/復号の往復
-2. 間違ったマスターパスワードの失敗確認
-3. パスワード生成器の基本検証
-4. TOTPの既知ベクトル検証
-5. セキュリティ診断ロジック検証
+## 7. API一覧（主要）
 
----
+### 認証
+1. `POST /api/auth/register`
+2. `POST /api/auth/login`
+3. `GET /api/auth/me`
 
-## 8. 注意点（重要）
+### 課金
+1. `POST /api/billing/checkout-session`
+2. `POST /api/billing/portal-session`
+3. `GET /api/billing/status`
+4. `POST /api/billing/webhook`
 
-1. マスターパスワードを忘れるとVaultは復元できません。
-2. このバージョンはクラウド同期がありません。
-3. 自動入力はサイト実装により成功率が変わります。
-4. 金融・業務用途の本番利用前には追加の監査が必要です。
+### Vault同期
+1. `GET /api/vault/snapshot`
+2. `PUT /api/vault/snapshot`
 
----
+### 緊急アクセス
+1. `GET /api/vault/emergency-export`
 
-## 9. 次の拡張候補
+## 8. いま出来ること / まだ出来ないこと
 
-1. クラウド同期（E2E暗号化）
-2. Passkey管理
-3. 侵害検知API連携
-4. 共有Vault / 権限管理
-5. ネイティブアプリ連携（生体認証）
+### 出来ること
+1. Desktop中心で日常利用（保存・編集・生成・診断）
+2. 拡張機能でWeb自動入力
+3. Stripe課金と有料ユーザー同期
+4. 緊急時に暗号化スナップショットをWebから回収
 
----
+### まだ出来ないこと
+1. ネイティブ生体認証（Face ID / Touch ID / Windows Hello）
+2. Passkeyのフル管理
+3. 企業向けSSO / SCIM /監査ログの本実装
 
-## 10. 詳細設計書
+## 9. 重要なセキュリティ注意
 
-設計の全体像（単体モード + 連携モード）は以下を参照してください。
-
-- `docs/detailed-design-ja.md`
+1. テストキー（`sk_test_...`）でも公開は避ける（不正利用やノイズ発生の原因）
+2. `.env` はGitに含めない
+3. マスターパスワード紛失時はVault復元できない
+4. 商用公開前に暗号・認証・決済の監査を推奨

@@ -13,7 +13,8 @@ const buttons = {
   login: document.querySelector("#login-btn"),
   logout: document.querySelector("#logout-btn"),
   checkout: document.querySelector("#checkout-btn"),
-  portal: document.querySelector("#portal-btn")
+  portal: document.querySelector("#portal-btn"),
+  emergency: document.querySelector("#emergency-btn")
 };
 
 const state = {
@@ -132,6 +133,23 @@ async function openPortal() {
   window.location.href = data.url;
 }
 
+function downloadJson(filename, data) {
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = filename;
+  anchor.click();
+  URL.revokeObjectURL(url);
+}
+
+async function emergencyExport() {
+  const data = await api("/api/vault/emergency-export");
+  const date = new Date().toISOString().slice(0, 19).replaceAll(":", "-");
+  downloadJson(`passwordmaneger-emergency-export-${date}.json`, data.snapshot);
+  setStatus("暗号化データをダウンロードしました。マスターパスワードと一緒に安全な場所へ保管してください。", false);
+}
+
 buttons.register.addEventListener("click", () => {
   register().catch((error) => setStatus(error.message, true));
 });
@@ -151,5 +169,14 @@ buttons.checkout.addEventListener("click", () => {
 buttons.portal.addEventListener("click", () => {
   openPortal().catch((error) => setStatus(error.message, true));
 });
+
+buttons.emergency.addEventListener("click", () => {
+  emergencyExport().catch((error) => setStatus(error.message, true));
+});
+
+const params = new URLSearchParams(window.location.search);
+if (params.get("view") === "emergency") {
+  setStatus("緊急アクセス画面です。ログイン後に「緊急アクセス」を押して暗号化データを取得してください。", false);
+}
 
 refreshAccount().catch((error) => setStatus(error.message, true));
