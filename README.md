@@ -11,21 +11,24 @@
 ### Desktop（`apps/desktop`）
 1. ローカル暗号化Vault（PBKDF2 + AES-GCM）
 2. ログイン / カード / 個人情報 / ノートの管理
-3. パスワード生成 / TOTP / セキュリティ診断
-4. 他サービス移行（1Password / Bitwarden / LastPass / 汎用CSV/JSON）
+3. パスワード生成 / TOTP / セキュリティ診断 + 改善優先度コーチ
+4. 他サービス移行（1Password / Bitwarden / LastPass / 汎用CSV/JSON）+ 差分プレビュー
 5. 有料ユーザー向けクラウド同期（push / pull）
 
 ### Browser Extension（ルート直下 + `src/`）
 1. Webフォーム自動入力
-2. 保存候補検出
-3. Desktopと同等のVault管理機能
-4. クラウド同期（有料）
+2. リスクベース自動入力（高リスク時は確認必須）
+3. サイト別フォーム学習（誤学習リセット対応）
+4. 保存候補検出
+5. Desktopと同等のVault管理機能
+6. クラウド同期（有料）
 
 ### Web + Server（`server/`）
 1. アカウント登録 / ログイン
 2. Stripe Checkout / Billing Portal
 3. 同期API（有料ユーザーのみ）
 4. 緊急アクセス: 暗号化スナップショットのダウンロード
+5. 緊急復旧オプション: 鍵分割（ブラウザ内で分割/復元）
 
 ## 2. なぜこの構成にしたか
 

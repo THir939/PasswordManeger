@@ -64,6 +64,9 @@ await run("security report basics", () => {
 
   assert.equal(report.totals.reusedGroups, 1);
   assert.equal(report.totals.weak > 0, true);
+  assert.equal(Array.isArray(report.coach), true);
+  assert.equal(report.coach.length > 0, true);
+  assert.equal(report.coach[0].priority <= report.coach[report.coach.length - 1].priority, true);
 });
 
 await run("migration bitwarden csv", () => {

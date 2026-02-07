@@ -231,6 +231,72 @@ function buildDedupFingerprint(item) {
   return [type, title, String(item.notes || "").trim().toLowerCase()].join("|");
 }
 
+function summarizeImportItem(item) {
+  return {
+    title: item.title,
+    type: item.type,
+    username: item.username || "",
+    url: item.url || ""
+  };
+}
+
+function analyzeImportRequest(sessionItems, { provider, rawText, filename, replaceExisting = false }) {
+  const imported = parseExternalItems({
+    provider,
+    rawText,
+    filename
+  });
+
+  const existingFingerprints = new Set(
+    (replaceExisting ? [] : sessionItems).map((item) => buildDedupFingerprint(item))
+  );
+  const seenIncoming = new Set();
+
+  const normalizedItems = [];
+  const duplicateItems = [];
+  const invalidItems = [];
+
+  for (const rawItem of imported.items) {
+    try {
+      const normalized = normalizeItem(rawItem);
+      const fingerprint = buildDedupFingerprint(normalized);
+
+      if (existingFingerprints.has(fingerprint) || seenIncoming.has(fingerprint)) {
+        duplicateItems.push(summarizeImportItem(normalized));
+        continue;
+      }
+
+      seenIncoming.add(fingerprint);
+      normalizedItems.push(normalized);
+    } catch (error) {
+      invalidItems.push({
+        title: String(rawItem?.title || rawItem?.name || "Unknown"),
+        reason: error?.message || "形式不正"
+      });
+    }
+  }
+
+  return {
+    imported,
+    normalizedItems,
+    duplicateItems,
+    invalidItems,
+    preview: {
+      sourceProvider: imported.sourceProvider,
+      format: imported.format,
+      replaceExisting: Boolean(replaceExisting),
+      totalParsed: imported.totalParsed,
+      wouldAdd: normalizedItems.length,
+      wouldSkipDuplicates: duplicateItems.length,
+      wouldSkipInvalid: invalidItems.length,
+      warnings: imported.warnings || [],
+      addSamples: normalizedItems.slice(0, 8).map(summarizeImportItem),
+      duplicateSamples: duplicateItems.slice(0, 8),
+      invalidSamples: invalidItems.slice(0, 8)
+    }
+  };
+}
+
 export class DesktopVaultService {
   constructor(options) {
     this.envelopeFile = path.join(options.dataDir, "vault-envelope.json");
@@ -598,52 +664,74 @@ export class DesktopVaultService {
         return { settings: this.session.vault.settings };
       }
 
-      case "importExternalData": {
+      case "previewExternalImport": {
         this.ensureUnlocked();
-        const imported = parseExternalItems({
+        const analyzed = analyzeImportRequest(this.session.vault.items, {
           provider: message.provider,
           rawText: message.rawText,
-          filename: message.filename
+          filename: message.filename,
+          replaceExisting: Boolean(message.replaceExisting)
+        });
+        return { preview: analyzed.preview };
+      }
+
+      case "applyExternalImport": {
+        this.ensureUnlocked();
+        const analyzed = analyzeImportRequest(this.session.vault.items, {
+          provider: message.provider,
+          rawText: message.rawText,
+          filename: message.filename,
+          replaceExisting: Boolean(message.replaceExisting)
         });
 
-        const replaceExisting = Boolean(message.replaceExisting);
-        if (replaceExisting) {
+        if (analyzed.preview.replaceExisting) {
           this.session.vault.items = [];
         }
 
-        const existingFingerprints = new Set(this.session.vault.items.map((item) => buildDedupFingerprint(item)));
-        let added = 0;
-        let skippedDuplicates = 0;
-        let skippedInvalid = 0;
-
-        for (const rawItem of imported.items) {
-          try {
-            const normalized = normalizeItem(rawItem);
-            const fingerprint = buildDedupFingerprint(normalized);
-
-            if (existingFingerprints.has(fingerprint)) {
-              skippedDuplicates += 1;
-              continue;
-            }
-
-            this.session.vault.items.unshift(normalized);
-            existingFingerprints.add(fingerprint);
-            added += 1;
-          } catch {
-            skippedInvalid += 1;
-          }
+        for (const item of analyzed.normalizedItems) {
+          this.session.vault.items.unshift(item);
         }
 
         await this.persistVault();
 
         return {
-          added,
-          skippedDuplicates,
-          skippedInvalid,
-          sourceProvider: imported.sourceProvider,
-          format: imported.format,
-          totalParsed: imported.totalParsed,
-          warnings: imported.warnings
+          added: analyzed.normalizedItems.length,
+          skippedDuplicates: analyzed.duplicateItems.length,
+          skippedInvalid: analyzed.invalidItems.length,
+          sourceProvider: analyzed.imported.sourceProvider,
+          format: analyzed.imported.format,
+          totalParsed: analyzed.imported.totalParsed,
+          warnings: analyzed.imported.warnings
+        };
+      }
+
+      case "importExternalData": {
+        this.ensureUnlocked();
+        const analyzed = analyzeImportRequest(this.session.vault.items, {
+          provider: message.provider,
+          rawText: message.rawText,
+          filename: message.filename,
+          replaceExisting: Boolean(message.replaceExisting)
+        });
+
+        if (analyzed.preview.replaceExisting) {
+          this.session.vault.items = [];
+        }
+
+        for (const item of analyzed.normalizedItems) {
+          this.session.vault.items.unshift(item);
+        }
+
+        await this.persistVault();
+
+        return {
+          added: analyzed.normalizedItems.length,
+          skippedDuplicates: analyzed.duplicateItems.length,
+          skippedInvalid: analyzed.invalidItems.length,
+          sourceProvider: analyzed.imported.sourceProvider,
+          format: analyzed.imported.format,
+          totalParsed: analyzed.imported.totalParsed,
+          warnings: analyzed.imported.warnings
         };
       }
 

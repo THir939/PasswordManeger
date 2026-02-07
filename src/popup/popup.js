@@ -18,6 +18,9 @@ const elements = {
   migrationProvider: document.querySelector("#migration-provider"),
   migrationFile: document.querySelector("#migration-file"),
   migrationReplace: document.querySelector("#migration-replace"),
+  migrationPreviewButton: document.querySelector("#migration-preview-btn"),
+  migrationApplyButton: document.querySelector("#migration-apply-btn"),
+  migrationPreviewBox: document.querySelector("#migration-preview-box"),
   cloudAuthForm: document.querySelector("#cloud-auth-form"),
   cloudBaseUrl: document.querySelector("#cloud-base-url"),
   cloudEmail: document.querySelector("#cloud-email"),
@@ -33,6 +36,10 @@ const elements = {
   domainLabel: document.querySelector("#domain-label"),
   suggestionList: document.querySelector("#suggestion-list"),
   captureList: document.querySelector("#capture-list"),
+  formLearningRefreshButton: document.querySelector("#form-learning-refresh"),
+  formLearningResetSiteButton: document.querySelector("#form-learning-reset-site"),
+  formLearningResetAllButton: document.querySelector("#form-learning-reset-all"),
+  formLearningBox: document.querySelector("#form-learning-box"),
 
   itemForm: document.querySelector("#item-form"),
   itemId: document.querySelector("#item-id"),
@@ -76,7 +83,9 @@ const elements = {
 const state = {
   settings: null,
   currentItems: [],
-  cloudStatus: null
+  cloudStatus: null,
+  currentDomain: "",
+  migrationDraft: null
 };
 
 function setStatus(message = "", isError = false) {
@@ -113,6 +122,86 @@ function escapeHtml(value) {
 
 function showEmpty(target, message) {
   target.innerHTML = `<li class="empty">${escapeHtml(message)}</li>`;
+}
+
+function riskLabel(risk) {
+  if (!risk) {
+    return "評価なし";
+  }
+  if (risk.level === "high") {
+    return `高リスク (${risk.score})`;
+  }
+  if (risk.level === "medium") {
+    return `注意 (${risk.score})`;
+  }
+  return `低リスク (${risk.score})`;
+}
+
+function buildMigrationPreviewText(preview) {
+  if (!preview) {
+    return "差分プレビュー未実行";
+  }
+
+  const lines = [];
+  lines.push(`移行元: ${preview.sourceProvider} / ${preview.format}`);
+  lines.push(`置換モード: ${preview.replaceExisting ? "ON（既存削除）" : "OFF（追加）"}`);
+  lines.push(`解析件数: ${preview.totalParsed}`);
+  lines.push(`追加予定: ${preview.wouldAdd}`);
+  lines.push(`重複スキップ予定: ${preview.wouldSkipDuplicates}`);
+  lines.push(`形式不正スキップ予定: ${preview.wouldSkipInvalid}`);
+
+  if (Array.isArray(preview.addSamples) && preview.addSamples.length) {
+    lines.push("\n[追加予定サンプル]");
+    preview.addSamples.slice(0, 6).forEach((item) => {
+      lines.push(`- ${item.title} (${item.type})`);
+    });
+  }
+
+  if (Array.isArray(preview.duplicateSamples) && preview.duplicateSamples.length) {
+    lines.push("\n[重複サンプル]");
+    preview.duplicateSamples.slice(0, 4).forEach((item) => {
+      lines.push(`- ${item.title} (${item.type})`);
+    });
+  }
+
+  if (Array.isArray(preview.invalidSamples) && preview.invalidSamples.length) {
+    lines.push("\n[形式不正サンプル]");
+    preview.invalidSamples.slice(0, 4).forEach((item) => {
+      lines.push(`- ${item.title}: ${item.reason}`);
+    });
+  }
+
+  if (Array.isArray(preview.warnings) && preview.warnings.length) {
+    lines.push("\n[注意]");
+    preview.warnings.forEach((warning) => lines.push(`- ${warning}`));
+  }
+
+  return lines.join("\n");
+}
+
+function buildFormLearningText(payload) {
+  const rows = Array.isArray(payload?.rows) ? payload.rows : [];
+  if (!payload || rows.length === 0) {
+    return "学習データはありません。自動入力を使うとサイト別プロファイルが作成されます。";
+  }
+
+  const lines = [];
+  lines.push(`学習プロファイル数: ${rows.length}`);
+
+  const focused = state.currentDomain
+    ? rows.filter((row) => row.domain === state.currentDomain)
+    : [];
+
+  if (state.currentDomain) {
+    lines.push(`現在サイト(${state.currentDomain})の学習: ${focused.length} 件`);
+  }
+
+  lines.push("\n[最新プロファイル]");
+  rows.slice(0, 6).forEach((row) => {
+    lines.push(`- ${row.domain} / ${row.mode} / 学習回数${row.fillCount}`);
+  });
+
+  return lines.join("\n");
 }
 
 function currentFilters() {
@@ -216,6 +305,7 @@ async function loadItems() {
 }
 
 function renderSuggestions(domain, items) {
+  state.currentDomain = domain || "";
   elements.domainLabel.textContent = domain ? `現在のドメイン: ${domain}` : "現在のタブ情報を取得できませんでした。";
 
   if (!items.length) {
@@ -228,7 +318,7 @@ function renderSuggestions(domain, items) {
       (item) => `
         <li class="card">
           <p class="card-title">${escapeHtml(item.title)}</p>
-          <p class="meta">${escapeHtml(item.username || "ユーザー名未設定")}</p>
+          <p class="meta">${escapeHtml(`${item.username || "ユーザー名未設定"}\n自動入力リスク: ${riskLabel(item.autofillRisk)}`)}</p>
           <div class="card-actions">
             <button type="button" data-action="suggest-fill" data-id="${escapeHtml(item.id)}" class="ghost">このサイトに入力</button>
           </div>
@@ -263,6 +353,7 @@ function renderCaptures(captures) {
 async function loadSuggestions() {
   const response = await callBackground("getSuggestionsForActiveTab");
   renderSuggestions(response.domain, response.items || []);
+  await loadFormLearningSummary();
 }
 
 async function loadCaptures() {
@@ -296,6 +387,15 @@ function buildReportText(report) {
   if (report.oldItems.length) {
     lines.push("\n[更新推奨]");
     report.oldItems.slice(0, 5).forEach((item) => lines.push(`- ${item.title} (${item.ageDays} 日)`));
+  }
+
+  if (Array.isArray(report.coach) && report.coach.length) {
+    lines.push("\n[改善優先度つきセキュリティコーチ]");
+    report.coach.forEach((task, index) => {
+      lines.push(`${index + 1}. ${task.priorityLabel}: ${task.title} (${task.affectedCount}件)`);
+      lines.push(`   - 効果: ${task.impact}`);
+      lines.push(`   - 次の一手: ${task.nextStep}`);
+    });
   }
 
   return lines.join("\n");
@@ -336,6 +436,11 @@ async function loadCloudStatus() {
   if (payload.baseUrl && !elements.cloudBaseUrl.value) {
     elements.cloudBaseUrl.value = payload.baseUrl;
   }
+}
+
+async function loadFormLearningSummary() {
+  const payload = await callBackground("getFormLearningSummary");
+  elements.formLearningBox.textContent = buildFormLearningText(payload);
 }
 
 function editItem(item) {
@@ -438,9 +543,46 @@ function cloudCredentials() {
   };
 }
 
+function clearMigrationDraft() {
+  state.migrationDraft = null;
+  elements.migrationPreviewBox.classList.add("hidden");
+  elements.migrationPreviewBox.textContent = "";
+}
+
+async function buildMigrationDraftFromForm() {
+  const file = elements.migrationFile.files?.[0];
+  if (!file) {
+    throw new Error("移行ファイルを選択してください。");
+  }
+
+  const rawText = await file.text();
+  const request = {
+    provider: elements.migrationProvider.value,
+    rawText,
+    filename: file.name,
+    replaceExisting: elements.migrationReplace.checked
+  };
+
+  const { preview } = await callBackground("previewExternalImport", request);
+  state.migrationDraft = {
+    ...request,
+    preview
+  };
+
+  elements.migrationPreviewBox.classList.remove("hidden");
+  elements.migrationPreviewBox.textContent = buildMigrationPreviewText(preview);
+  return state.migrationDraft;
+}
+
 async function refreshMainScreen() {
   await loadSettings();
-  await Promise.all([loadItems(), loadSuggestions(), loadCaptures(), loadSecurityReport(), loadCloudStatus()]);
+  await Promise.all([
+    loadItems(),
+    loadSuggestions(),
+    loadCaptures(),
+    loadSecurityReport(),
+    loadCloudStatus()
+  ]);
 }
 
 function bindEvents() {
@@ -521,28 +663,37 @@ function bindEvents() {
   elements.migrationForm.addEventListener("submit", async (event) => {
     event.preventDefault();
 
-    const file = elements.migrationFile.files?.[0];
-    if (!file) {
-      setStatus("移行ファイルを選択してください。", true);
-      return;
-    }
-
     try {
-      const rawText = await file.text();
-      const result = await callBackground("importExternalData", {
-        provider: elements.migrationProvider.value,
-        rawText,
-        filename: file.name,
-        replaceExisting: elements.migrationReplace.checked
+      const draft = state.migrationDraft || (await buildMigrationDraftFromForm());
+
+      const result = await callBackground("applyExternalImport", {
+        provider: draft.provider,
+        rawText: draft.rawText,
+        filename: draft.filename,
+        replaceExisting: draft.replaceExisting
       });
 
       await Promise.all([loadItems(), loadSuggestions(), loadCaptures(), loadSecurityReport()]);
       elements.migrationForm.reset();
+      clearMigrationDraft();
       setStatus(buildMigrationMessage(result), false);
     } catch (error) {
       setStatus(`移行に失敗: ${error.message}`, true);
     }
   });
+
+  elements.migrationPreviewButton.addEventListener("click", async () => {
+    try {
+      await buildMigrationDraftFromForm();
+      setStatus("差分プレビューを更新しました。内容を確認してから実行してください。", false);
+    } catch (error) {
+      setStatus(`プレビュー失敗: ${error.message}`, true);
+    }
+  });
+
+  elements.migrationProvider.addEventListener("change", clearMigrationDraft);
+  elements.migrationFile.addEventListener("change", clearMigrationDraft);
+  elements.migrationReplace.addEventListener("change", clearMigrationDraft);
 
   elements.cloudRegisterButton.addEventListener("click", async () => {
     try {
@@ -604,6 +755,44 @@ function bindEvents() {
     try {
       await loadCloudStatus();
       setStatus("クラウド状態を更新しました。", false);
+    } catch (error) {
+      setStatus(error.message, true);
+    }
+  });
+
+  elements.formLearningRefreshButton.addEventListener("click", async () => {
+    try {
+      await loadFormLearningSummary();
+      setStatus("フォーム学習状態を更新しました。", false);
+    } catch (error) {
+      setStatus(error.message, true);
+    }
+  });
+
+  elements.formLearningResetSiteButton.addEventListener("click", async () => {
+    if (!state.currentDomain) {
+      setStatus("現在サイトのドメインが取得できないためリセットできません。", true);
+      return;
+    }
+
+    try {
+      const result = await callBackground("resetFormLearning", { domain: state.currentDomain });
+      await loadFormLearningSummary();
+      setStatus(`サイト学習をリセットしました（${result.removed}件削除）。`, false);
+    } catch (error) {
+      setStatus(error.message, true);
+    }
+  });
+
+  elements.formLearningResetAllButton.addEventListener("click", async () => {
+    if (!window.confirm("フォーム学習データを全削除します。よろしいですか？")) {
+      return;
+    }
+
+    try {
+      const result = await callBackground("resetFormLearning");
+      await loadFormLearningSummary();
+      setStatus(`全学習をリセットしました（${result.removed}件削除）。`, false);
     } catch (error) {
       setStatus(error.message, true);
     }
@@ -683,8 +872,23 @@ function bindEvents() {
       }
 
       if (action === "autofill") {
-        await callBackground("autofillActiveTab", { id });
-        setStatus("アクティブタブへ自動入力しました。", false);
+        const { risk } = await callBackground("checkAutofillRisk", { id });
+        let forceHighRisk = false;
+
+        if (risk.level === "high") {
+          forceHighRisk = window.confirm(
+            `高リスク判定です（${risk.score}）。\n理由: ${risk.reasons.join(" / ")}\nそれでも入力しますか？`
+          );
+          if (!forceHighRisk) {
+            setStatus("高リスクのため自動入力を中止しました。", false);
+            return;
+          }
+        }
+
+        const response = await callBackground("autofillActiveTab", { id, forceHighRisk });
+        const learnedText = response.learned ? " フォーム学習を更新しました。" : "";
+        setStatus(`アクティブタブへ自動入力しました（${riskLabel(response.risk)}）。${learnedText}`, false);
+        await loadSuggestions();
         return;
       }
 
@@ -721,8 +925,22 @@ function bindEvents() {
     }
 
     try {
-      await callBackground("autofillActiveTab", { id });
-      setStatus("候補を使って自動入力しました。", false);
+      const { risk } = await callBackground("checkAutofillRisk", { id });
+      let forceHighRisk = false;
+      if (risk.level === "high") {
+        forceHighRisk = window.confirm(
+          `高リスク判定です（${risk.score}）。\n理由: ${risk.reasons.join(" / ")}\nそれでも入力しますか？`
+        );
+        if (!forceHighRisk) {
+          setStatus("高リスクのため自動入力を中止しました。", false);
+          return;
+        }
+      }
+
+      const response = await callBackground("autofillActiveTab", { id, forceHighRisk });
+      const learnedText = response.learned ? " フォーム学習を更新しました。" : "";
+      setStatus(`候補を使って自動入力しました（${riskLabel(response.risk)}）。${learnedText}`, false);
+      await loadSuggestions();
     } catch (error) {
       setStatus(error.message, true);
     }

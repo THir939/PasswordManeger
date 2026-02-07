@@ -30,6 +30,9 @@ const elements = {
   migrationProvider: document.querySelector("#migration-provider"),
   migrationFile: document.querySelector("#migration-file"),
   migrationReplace: document.querySelector("#migration-replace"),
+  migrationPreviewButton: document.querySelector("#migration-preview-btn"),
+  migrationApplyButton: document.querySelector("#migration-apply-btn"),
+  migrationPreviewBox: document.querySelector("#migration-preview-box"),
 
   cloudAuthForm: document.querySelector("#cloud-auth-form"),
   cloudBaseUrl: document.querySelector("#cloud-base-url"),
@@ -86,7 +89,8 @@ const state = {
   settings: null,
   currentItems: [],
   cloudStatus: null,
-  platformInfo: null
+  platformInfo: null,
+  migrationDraft: null
 };
 
 function setStatus(message = "", isError = false) {
@@ -144,6 +148,48 @@ function escapeHtml(value) {
 
 function showEmpty(target, message) {
   target.innerHTML = `<li class="empty">${escapeHtml(message)}</li>`;
+}
+
+function buildMigrationPreviewText(preview) {
+  if (!preview) {
+    return "差分プレビュー未実行";
+  }
+
+  const lines = [];
+  lines.push(`移行元: ${preview.sourceProvider} / ${preview.format}`);
+  lines.push(`置換モード: ${preview.replaceExisting ? "ON（既存削除）" : "OFF（追加）"}`);
+  lines.push(`解析件数: ${preview.totalParsed}`);
+  lines.push(`追加予定: ${preview.wouldAdd}`);
+  lines.push(`重複スキップ予定: ${preview.wouldSkipDuplicates}`);
+  lines.push(`形式不正スキップ予定: ${preview.wouldSkipInvalid}`);
+
+  if (Array.isArray(preview.addSamples) && preview.addSamples.length) {
+    lines.push("\n[追加予定サンプル]");
+    preview.addSamples.slice(0, 6).forEach((item) => {
+      lines.push(`- ${item.title} (${item.type})`);
+    });
+  }
+
+  if (Array.isArray(preview.duplicateSamples) && preview.duplicateSamples.length) {
+    lines.push("\n[重複サンプル]");
+    preview.duplicateSamples.slice(0, 4).forEach((item) => {
+      lines.push(`- ${item.title} (${item.type})`);
+    });
+  }
+
+  if (Array.isArray(preview.invalidSamples) && preview.invalidSamples.length) {
+    lines.push("\n[形式不正サンプル]");
+    preview.invalidSamples.slice(0, 4).forEach((item) => {
+      lines.push(`- ${item.title}: ${item.reason}`);
+    });
+  }
+
+  if (Array.isArray(preview.warnings) && preview.warnings.length) {
+    lines.push("\n[注意]");
+    preview.warnings.forEach((warning) => lines.push(`- ${warning}`));
+  }
+
+  return lines.join("\n");
 }
 
 function currentFilters() {
@@ -271,6 +317,15 @@ function buildReportText(report) {
   if (report.oldItems.length) {
     lines.push("\n[更新推奨]");
     report.oldItems.slice(0, 5).forEach((item) => lines.push(`- ${item.title} (${item.ageDays} 日)`));
+  }
+
+  if (Array.isArray(report.coach) && report.coach.length) {
+    lines.push("\n[改善優先度つきセキュリティコーチ]");
+    report.coach.forEach((task, index) => {
+      lines.push(`${index + 1}. ${task.priorityLabel}: ${task.title} (${task.affectedCount}件)`);
+      lines.push(`   - 効果: ${task.impact}`);
+      lines.push(`   - 次の一手: ${task.nextStep}`);
+    });
   }
 
   return lines.join("\n");
@@ -433,6 +488,37 @@ function cloudCredentials() {
   };
 }
 
+function clearMigrationDraft() {
+  state.migrationDraft = null;
+  elements.migrationPreviewBox.classList.add("hidden");
+  elements.migrationPreviewBox.textContent = "";
+}
+
+async function buildMigrationDraftFromForm() {
+  const file = elements.migrationFile.files?.[0];
+  if (!file) {
+    throw new Error("移行ファイルを選択してください。");
+  }
+
+  const rawText = await file.text();
+  const request = {
+    provider: elements.migrationProvider.value,
+    rawText,
+    filename: file.name,
+    replaceExisting: elements.migrationReplace.checked
+  };
+
+  const { preview } = await callService("previewExternalImport", request);
+  state.migrationDraft = {
+    ...request,
+    preview
+  };
+
+  elements.migrationPreviewBox.classList.remove("hidden");
+  elements.migrationPreviewBox.textContent = buildMigrationPreviewText(preview);
+  return state.migrationDraft;
+}
+
 async function refreshMainScreen() {
   await Promise.all([loadPlatformInfo(), loadSettings(), loadItems(), loadSecurityReport(), loadCloudStatus()]);
 }
@@ -544,28 +630,36 @@ function bindEvents() {
   elements.migrationForm.addEventListener("submit", async (event) => {
     event.preventDefault();
 
-    const file = elements.migrationFile.files?.[0];
-    if (!file) {
-      setStatus("移行ファイルを選択してください。", true);
-      return;
-    }
-
     try {
-      const rawText = await file.text();
-      const result = await callService("importExternalData", {
-        provider: elements.migrationProvider.value,
-        rawText,
-        filename: file.name,
-        replaceExisting: elements.migrationReplace.checked
+      const draft = state.migrationDraft || (await buildMigrationDraftFromForm());
+      const result = await callService("applyExternalImport", {
+        provider: draft.provider,
+        rawText: draft.rawText,
+        filename: draft.filename,
+        replaceExisting: draft.replaceExisting
       });
 
       await Promise.all([loadItems(), loadSecurityReport()]);
       elements.migrationForm.reset();
+      clearMigrationDraft();
       setStatus(buildMigrationMessage(result), false);
     } catch (error) {
       setStatus(`移行に失敗: ${error.message}`, true);
     }
   });
+
+  elements.migrationPreviewButton.addEventListener("click", async () => {
+    try {
+      await buildMigrationDraftFromForm();
+      setStatus("差分プレビューを更新しました。内容を確認してから実行してください。", false);
+    } catch (error) {
+      setStatus(`プレビュー失敗: ${error.message}`, true);
+    }
+  });
+
+  elements.migrationProvider.addEventListener("change", clearMigrationDraft);
+  elements.migrationFile.addEventListener("change", clearMigrationDraft);
+  elements.migrationReplace.addEventListener("change", clearMigrationDraft);
 
   elements.cloudRegisterButton.addEventListener("click", async () => {
     try {

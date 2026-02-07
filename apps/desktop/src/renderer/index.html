@@ -125,8 +125,12 @@
                 <input id="migration-replace" type="checkbox" />
                 既存データを削除して置き換える
               </label>
-              <button type="submit">移行インポートを実行</button>
+              <div class="button-row">
+                <button id="migration-preview-btn" type="button">差分プレビュー</button>
+                <button id="migration-apply-btn" class="ghost" type="submit">プレビュー確認後に実行</button>
+              </div>
             </form>
+            <pre id="migration-preview-box" class="mono hidden"></pre>
           </section>
         </aside>
 

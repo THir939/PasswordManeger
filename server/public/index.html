@@ -94,18 +94,21 @@
       }
 
       input,
+      textarea,
       button {
         font: inherit;
       }
 
-      input {
+      input,
+      textarea {
         width: 100%;
         border: 1px solid #cbc0ac;
         border-radius: 10px;
         padding: 0.55rem 0.65rem;
       }
 
-      input:focus {
+      input:focus,
+      textarea:focus {
         outline: 3px solid #d4c5a7;
       }
 
@@ -163,6 +166,12 @@
         font-size: 0.82rem;
         color: var(--muted);
       }
+
+      .two-col {
+        display: grid;
+        gap: 0.7rem;
+        grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      }
     </style>
   </head>
   <body>
@@ -219,6 +228,47 @@
       <section class="panel">
         <h2>アカウント状態</h2>
         <pre id="account-box" class="mono">未ログイン</pre>
+      </section>
+
+      <section class="panel">
+        <h2>4. 緊急復旧オプション（鍵分割）</h2>
+        <p class="hint">
+          復旧キーをブラウザ内で分割し、複数人・複数デバイスに配布できます。サーバーには送信しません。
+        </p>
+        <div class="two-col">
+          <article>
+            <label>
+              復旧キー（未入力なら自動生成）
+              <input id="recovery-secret-input" type="text" placeholder="例: PM-RECOVERY-..." />
+            </label>
+            <div class="row">
+              <button id="recovery-generate-btn" type="button" class="ghost">キー生成</button>
+            </div>
+            <label>
+              分割数（N）
+              <input id="share-total-input" type="number" min="2" max="10" value="5" />
+            </label>
+            <label>
+              復元に必要な数（K）
+              <input id="share-threshold-input" type="number" min="2" max="10" value="3" />
+            </label>
+            <div class="row">
+              <button id="split-shares-btn" type="button">鍵を分割</button>
+              <button id="download-shares-btn" type="button" class="ghost">分割結果を保存</button>
+            </div>
+            <textarea id="shares-output" rows="10" placeholder="ここに分割結果が表示されます"></textarea>
+          </article>
+          <article>
+            <label>
+              復元に使うシェア（1行に1つ）
+              <textarea id="shares-input" rows="10" placeholder="PM-SHARE-1:..."></textarea>
+            </label>
+            <div class="row">
+              <button id="recover-secret-btn" type="button">シェアから復元</button>
+            </div>
+            <pre id="recovered-secret-box" class="mono">未復元</pre>
+          </article>
+        </div>
       </section>
     </main>
 

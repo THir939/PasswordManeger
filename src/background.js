@@ -11,6 +11,8 @@ import { parseExternalItems } from "./lib/migration.js";
 const STORAGE_KEY = "pm_encrypted_vault";
 const AUTO_LOCK_ALARM = "pm-auto-lock";
 const CLOUD_AUTH_KEY = "pm_cloud_auth";
+const FORM_LEARNING_KEY = "pm_form_learning_profiles";
+const AUTOFILL_TRUST_KEY = "pm_autofill_trust";
 
 const session = {
   unlocked: false,
@@ -21,6 +23,47 @@ const session = {
 };
 
 const pendingCaptures = [];
+
+function clamp(value, min, max) {
+  return Math.min(max, Math.max(min, value));
+}
+
+function normalizeHostForCompare(value) {
+  return String(value || "").toLowerCase().replace(/^www\./, "").trim();
+}
+
+function getRegistrableDomain(host) {
+  const normalized = normalizeHostForCompare(host);
+  const parts = normalized.split(".").filter(Boolean);
+  if (parts.length <= 2) {
+    return normalized;
+  }
+  return parts.slice(-2).join(".");
+}
+
+function levenshteinDistance(left, right) {
+  const a = String(left || "");
+  const b = String(right || "");
+  const rows = a.length + 1;
+  const cols = b.length + 1;
+  const matrix = Array.from({ length: rows }, () => Array(cols).fill(0));
+
+  for (let row = 0; row < rows; row += 1) matrix[row][0] = row;
+  for (let col = 0; col < cols; col += 1) matrix[0][col] = col;
+
+  for (let row = 1; row < rows; row += 1) {
+    for (let col = 1; col < cols; col += 1) {
+      const cost = a[row - 1] === b[col - 1] ? 0 : 1;
+      matrix[row][col] = Math.min(
+        matrix[row - 1][col] + 1,
+        matrix[row][col - 1] + 1,
+        matrix[row - 1][col - 1] + cost
+      );
+    }
+  }
+
+  return matrix[rows - 1][cols - 1];
+}
 
 function nowIso() {
   return new Date().toISOString();
@@ -60,6 +103,30 @@ async function setCloudState(next) {
 
 async function clearCloudState() {
   await chrome.storage.local.remove(CLOUD_AUTH_KEY);
+}
+
+async function getFormLearningProfiles() {
+  const result = await chrome.storage.local.get(FORM_LEARNING_KEY);
+  const payload = result[FORM_LEARNING_KEY];
+  return payload && typeof payload === "object" ? payload : {};
+}
+
+async function setFormLearningProfiles(next) {
+  await chrome.storage.local.set({
+    [FORM_LEARNING_KEY]: next
+  });
+}
+
+async function getAutofillTrust() {
+  const result = await chrome.storage.local.get(AUTOFILL_TRUST_KEY);
+  const payload = result[AUTOFILL_TRUST_KEY];
+  return payload && typeof payload === "object" ? payload : {};
+}
+
+async function setAutofillTrust(next) {
+  await chrome.storage.local.set({
+    [AUTOFILL_TRUST_KEY]: next
+  });
 }
 
 async function cloudRequest(cloudState, endpoint, options = {}) {
@@ -276,6 +343,192 @@ function isItemForDomain(item, domain) {
   return Boolean(itemDomain && (itemDomain === domain || itemDomain.endsWith(`.${domain}`) || domain.endsWith(`.${itemDomain}`)));
 }
 
+function buildAutofillRisk(item, tabUrl, trust = {}) {
+  const itemDomain = extractDomain(item?.url || "");
+  const tabDomain = extractDomain(tabUrl || "");
+  let protocol = "";
+
+  try {
+    protocol = new URL(tabUrl || "").protocol;
+  } catch {
+    protocol = "";
+  }
+
+  const reasons = [];
+  let score = 0;
+
+  if (!tabDomain) {
+    score += 80;
+    reasons.push("現在のタブURLを判定できません。");
+  }
+
+  if (protocol && protocol !== "https:") {
+    score += 35;
+    reasons.push("HTTPSではないページです。");
+  }
+
+  if (tabDomain.includes("xn--")) {
+    score += 30;
+    reasons.push("国際化ドメイン（Punycode）が含まれています。");
+  }
+
+  if (!itemDomain) {
+    score += 30;
+    reasons.push("保存データにURLがないため照合が弱いです。");
+  } else if (tabDomain && itemDomain !== tabDomain) {
+    if (tabDomain.endsWith(`.${itemDomain}`) || itemDomain.endsWith(`.${tabDomain}`)) {
+      score += 15;
+      reasons.push("サブドメイン差分があります。");
+    } else {
+      score += 45;
+      reasons.push("保存先URLと別ドメインです。");
+    }
+
+    const tabRoot = getRegistrableDomain(tabDomain);
+    const itemRoot = getRegistrableDomain(itemDomain);
+    const distance = levenshteinDistance(tabRoot, itemRoot);
+    if (distance > 0 && distance <= 2) {
+      score += 18;
+      reasons.push("似たドメイン名です（フィッシングの可能性）。");
+    }
+  }
+
+  const trustCount = Number(trust?.[item.id]?.hosts?.[tabDomain]?.count || 0);
+  if (tabDomain && trustCount === 0) {
+    score += 12;
+    reasons.push("このサイトへの初回自動入力です。");
+  }
+  if (trustCount >= 3) {
+    score -= 10;
+  }
+
+  score = clamp(score, 0, 100);
+  const level = score >= 60 ? "high" : score >= 30 ? "medium" : "low";
+
+  if (reasons.length === 0) {
+    reasons.push("重大なリスク要因は検出されませんでした。");
+  }
+
+  return {
+    score,
+    level,
+    reasons,
+    tabDomain,
+    itemDomain,
+    trustCount,
+    blockedByPolicy: level === "high"
+  };
+}
+
+async function recordAutofillTrust(itemId, tabDomain) {
+  if (!itemId || !tabDomain) {
+    return;
+  }
+
+  const trust = await getAutofillTrust();
+  const itemEntry = trust[itemId] || { hosts: {} };
+  const hostEntry = itemEntry.hosts?.[tabDomain] || { count: 0, lastFilledAt: null };
+
+  const next = {
+    ...trust,
+    [itemId]: {
+      ...itemEntry,
+      hosts: {
+        ...(itemEntry.hosts || {}),
+        [tabDomain]: {
+          count: Number(hostEntry.count || 0) + 1,
+          lastFilledAt: nowIso()
+        }
+      }
+    }
+  };
+
+  await setAutofillTrust(next);
+}
+
+function buildFormLearningKey(domain, mode) {
+  return `${normalizeHostForCompare(domain)}::${mode}`;
+}
+
+async function getLearnedFormProfile(domain, mode) {
+  const key = buildFormLearningKey(domain, mode);
+  const profiles = await getFormLearningProfiles();
+  return profiles[key] || null;
+}
+
+async function updateLearnedFormProfile(domain, learnedProfile) {
+  const mode = String(learnedProfile?.mode || "");
+  const mapping = learnedProfile?.mapping || {};
+  if (!domain || !mode || Object.keys(mapping).length === 0) {
+    return;
+  }
+
+  const key = buildFormLearningKey(domain, mode);
+  const profiles = await getFormLearningProfiles();
+  const current = profiles[key] || {
+    domain,
+    mode,
+    mapping: {},
+    fillCount: 0,
+    createdAt: nowIso(),
+    updatedAt: nowIso()
+  };
+
+  profiles[key] = {
+    ...current,
+    domain,
+    mode,
+    mapping: {
+      ...(current.mapping || {}),
+      ...mapping
+    },
+    fillCount: Number(current.fillCount || 0) + 1,
+    updatedAt: nowIso()
+  };
+
+  await setFormLearningProfiles(profiles);
+}
+
+async function resetFormLearning({ domain = "", mode = "" } = {}) {
+  const profiles = await getFormLearningProfiles();
+  const normalizedDomain = normalizeHostForCompare(domain);
+  const normalizedMode = String(mode || "").trim();
+  const next = {};
+  let removed = 0;
+
+  for (const [key, value] of Object.entries(profiles)) {
+    const domainMatched = normalizedDomain ? normalizeHostForCompare(value?.domain || "") === normalizedDomain : true;
+    const modeMatched = normalizedMode ? String(value?.mode || "") === normalizedMode : true;
+
+    if (domainMatched && modeMatched) {
+      removed += 1;
+      continue;
+    }
+
+    next[key] = value;
+  }
+
+  await setFormLearningProfiles(next);
+  return { removed };
+}
+
+async function getFormLearningSummary() {
+  const profiles = await getFormLearningProfiles();
+  const rows = Object.values(profiles)
+    .map((entry) => ({
+      domain: entry.domain || "",
+      mode: entry.mode || "",
+      fillCount: Number(entry.fillCount || 0),
+      updatedAt: entry.updatedAt || null
+    }))
+    .sort((left, right) => (Date.parse(right.updatedAt || 0) || 0) - (Date.parse(left.updatedAt || 0) || 0));
+
+  return {
+    totalProfiles: rows.length,
+    rows
+  };
+}
+
 function sortByUpdated(items) {
   return [...items].sort((left, right) => Date.parse(right.updatedAt) - Date.parse(left.updatedAt));
 }
@@ -292,6 +545,72 @@ function buildDedupFingerprint(item) {
   }
 
   return [type, title, String(item.notes || "").trim().toLowerCase()].join("|");
+}
+
+function summarizeImportItem(item) {
+  return {
+    title: item.title,
+    type: item.type,
+    username: item.username || "",
+    url: item.url || ""
+  };
+}
+
+function analyzeImportRequest({ provider, rawText, filename, replaceExisting = false }) {
+  const imported = parseExternalItems({
+    provider,
+    rawText,
+    filename
+  });
+
+  const existingFingerprints = new Set(
+    (replaceExisting ? [] : session.vault.items).map((item) => buildDedupFingerprint(item))
+  );
+  const seenIncoming = new Set();
+
+  const normalizedItems = [];
+  const duplicateItems = [];
+  const invalidItems = [];
+
+  for (const rawItem of imported.items) {
+    try {
+      const normalized = normalizeItem(rawItem);
+      const fingerprint = buildDedupFingerprint(normalized);
+
+      if (existingFingerprints.has(fingerprint) || seenIncoming.has(fingerprint)) {
+        duplicateItems.push(summarizeImportItem(normalized));
+        continue;
+      }
+
+      seenIncoming.add(fingerprint);
+      normalizedItems.push(normalized);
+    } catch (error) {
+      invalidItems.push({
+        title: String(rawItem?.title || rawItem?.name || "Unknown"),
+        reason: error?.message || "形式不正"
+      });
+    }
+  }
+
+  return {
+    imported,
+    normalizedItems,
+    duplicateItems,
+    invalidItems,
+    preview: {
+      sourceProvider: imported.sourceProvider,
+      format: imported.format,
+      replaceExisting: Boolean(replaceExisting),
+      totalParsed: imported.totalParsed,
+      wouldAdd: normalizedItems.length,
+      wouldSkipDuplicates: duplicateItems.length,
+      wouldSkipInvalid: invalidItems.length,
+      warnings: imported.warnings || [],
+      addSamples: normalizedItems.slice(0, 8).map(summarizeImportItem),
+      duplicateSamples: duplicateItems.slice(0, 8),
+      invalidSamples: invalidItems.slice(0, 8)
+    }
+  };
 }
 
 async function persistVault() {
@@ -548,10 +867,30 @@ async function handleAction(message, sender) {
       ensureUnlocked();
       const tab = await withActiveTab(async (activeTab) => activeTab);
       const domain = extractDomain(tab.url || "");
-      const items = listItems({ domain, type: "login" }).slice(0, 5);
+      const trust = await getAutofillTrust();
+      const items = listItems({ domain, type: "login" })
+        .slice(0, 5)
+        .map((item) => ({
+          ...item,
+          autofillRisk: buildAutofillRisk(item, tab.url || "", trust)
+        }));
       return {
         domain,
         items
+      };
+    }
+
+    case "checkAutofillRisk": {
+      ensureUnlocked();
+      const item = session.vault.items.find((entry) => entry.id === message.id);
+      if (!item) {
+        throw new Error("対象アイテムが見つかりません。");
+      }
+
+      const tab = await withActiveTab(async (activeTab) => activeTab);
+      const trust = await getAutofillTrust();
+      return {
+        risk: buildAutofillRisk(item, tab.url || "", trust)
       };
     }
 
@@ -562,16 +901,50 @@ async function handleAction(message, sender) {
         throw new Error("対象アイテムが見つかりません。");
       }
 
-      await withActiveTab(async (tab) => {
-        await chrome.tabs.sendMessage(tab.id, {
+      const forceHighRisk = Boolean(message.forceHighRisk);
+      const trust = await getAutofillTrust();
+
+      const fillResult = await withActiveTab(async (tab) => {
+        const tabUrl = tab.url || "";
+        const tabDomain = extractDomain(tabUrl);
+        const risk = buildAutofillRisk(item, tabUrl, trust);
+
+        if (risk.blockedByPolicy && !forceHighRisk) {
+          throw new Error(
+            `高リスクのため自動入力を停止しました。理由: ${risk.reasons.join(" / ")}`
+          );
+        }
+
+        const payload = buildFillPayload(item);
+        const learnedProfile = await getLearnedFormProfile(tabDomain, payload.mode);
+        const response = await chrome.tabs.sendMessage(tab.id, {
           type: "PM_FILL",
-          payload: buildFillPayload(item)
+          payload: {
+            ...payload,
+            profile: learnedProfile
+          }
         });
+
+        if (!response?.ok || !response?.filled) {
+          throw new Error("入力対象フィールドが見つかりませんでした。");
+        }
+
+        await updateLearnedFormProfile(tabDomain, response.learnedProfile);
+        await recordAutofillTrust(item.id, tabDomain);
+
+        return {
+          risk,
+          learned: Boolean(response.learnedProfile && Object.keys(response.learnedProfile.mapping || {}).length)
+        };
       });
 
       item.lastUsedAt = nowIso();
       await persistVault();
-      return { filled: true };
+      return {
+        filled: true,
+        risk: fillResult.risk,
+        learned: fillResult.learned
+      };
     }
 
     case "generatePassword": {
@@ -700,52 +1073,87 @@ async function handleAction(message, sender) {
       return { discarded: true };
     }
 
-    case "importExternalData": {
+    case "getFormLearningSummary": {
       ensureUnlocked();
-      const imported = parseExternalItems({
+      return await getFormLearningSummary();
+    }
+
+    case "resetFormLearning": {
+      ensureUnlocked();
+      return await resetFormLearning({
+        domain: message.domain || "",
+        mode: message.mode || ""
+      });
+    }
+
+    case "previewExternalImport": {
+      ensureUnlocked();
+      const analyzed = analyzeImportRequest({
         provider: message.provider,
         rawText: message.rawText,
-        filename: message.filename
+        filename: message.filename,
+        replaceExisting: Boolean(message.replaceExisting)
+      });
+      return { preview: analyzed.preview };
+    }
+
+    case "applyExternalImport": {
+      ensureUnlocked();
+      const analyzed = analyzeImportRequest({
+        provider: message.provider,
+        rawText: message.rawText,
+        filename: message.filename,
+        replaceExisting: Boolean(message.replaceExisting)
       });
 
-      const replaceExisting = Boolean(message.replaceExisting);
-      if (replaceExisting) {
+      if (analyzed.preview.replaceExisting) {
         session.vault.items = [];
       }
 
-      const existingFingerprints = new Set(session.vault.items.map((item) => buildDedupFingerprint(item)));
-      let added = 0;
-      let skippedDuplicates = 0;
-      let skippedInvalid = 0;
-
-      for (const rawItem of imported.items) {
-        try {
-          const normalized = normalizeItem(rawItem);
-          const fingerprint = buildDedupFingerprint(normalized);
-
-          if (existingFingerprints.has(fingerprint)) {
-            skippedDuplicates += 1;
-            continue;
-          }
-
-          session.vault.items.unshift(normalized);
-          existingFingerprints.add(fingerprint);
-          added += 1;
-        } catch {
-          skippedInvalid += 1;
-        }
+      for (const item of analyzed.normalizedItems) {
+        session.vault.items.unshift(item);
       }
 
       await persistVault();
 
       return {
-        added,
-        skippedDuplicates,
-        skippedInvalid,
-        sourceProvider: imported.sourceProvider,
-        format: imported.format,
-        totalParsed: imported.totalParsed,
-        warnings: imported.warnings
+        added: analyzed.normalizedItems.length,
+        skippedDuplicates: analyzed.duplicateItems.length,
+        skippedInvalid: analyzed.invalidItems.length,
+        sourceProvider: analyzed.imported.sourceProvider,
+        format: analyzed.imported.format,
+        totalParsed: analyzed.imported.totalParsed,
+        warnings: analyzed.imported.warnings
+      };
+    }
+
+    case "importExternalData": {
+      ensureUnlocked();
+      const analyzed = analyzeImportRequest({
+        provider: message.provider,
+        rawText: message.rawText,
+        filename: message.filename,
+        replaceExisting: Boolean(message.replaceExisting)
+      });
+
+      if (analyzed.preview.replaceExisting) {
+        session.vault.items = [];
+      }
+
+      for (const item of analyzed.normalizedItems) {
+        session.vault.items.unshift(item);
+      }
+
+      await persistVault();
+
+      return {
+        added: analyzed.normalizedItems.length,
+        skippedDuplicates: analyzed.duplicateItems.length,
+        skippedInvalid: analyzed.invalidItems.length,
+        sourceProvider: analyzed.imported.sourceProvider,
+        format: analyzed.imported.format,
+        totalParsed: analyzed.imported.totalParsed,
+        warnings: analyzed.imported.warnings
       };
     }
 

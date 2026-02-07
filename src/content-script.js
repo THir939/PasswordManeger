@@ -1,12 +1,7 @@
 function isVisible(element) {
   const style = window.getComputedStyle(element);
   const rect = element.getBoundingClientRect();
-  return (
-    style.visibility !== "hidden" &&
-    style.display !== "none" &&
-    rect.width > 0 &&
-    rect.height > 0
-  );
+  return style.visibility !== "hidden" && style.display !== "none" && rect.width > 0 && rect.height > 0;
 }
 
 function getFieldSignature(field) {
@@ -24,6 +19,18 @@ function getFieldSignature(field) {
   return attributes;
 }
 
+function describeField(field) {
+  return {
+    tag: field.tagName.toLowerCase(),
+    type: String(field.type || "").toLowerCase(),
+    name: String(field.name || ""),
+    id: String(field.id || ""),
+    autocomplete: String(field.getAttribute("autocomplete") || "").toLowerCase(),
+    placeholder: String(field.placeholder || "").toLowerCase(),
+    ariaLabel: String(field.getAttribute("aria-label") || "").toLowerCase()
+  };
+}
+
 function setNativeValue(input, value) {
   const descriptor = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "value");
   descriptor?.set?.call(input, value);
@@ -31,31 +38,154 @@ function setNativeValue(input, value) {
   input.dispatchEvent(new Event("change", { bubbles: true }));
 }
 
-function fillLogin(fields) {
+function setFieldValue(field, value) {
+  if (!field) {
+    return;
+  }
+
+  if (field instanceof HTMLTextAreaElement) {
+    field.value = value;
+    field.dispatchEvent(new Event("input", { bubbles: true }));
+    field.dispatchEvent(new Event("change", { bubbles: true }));
+    return;
+  }
+
+  setNativeValue(field, value);
+}
+
+function scoreDescriptorMatch(field, descriptor) {
+  if (!descriptor || typeof descriptor !== "object") {
+    return 0;
+  }
+
+  let score = 0;
+  const signature = getFieldSignature(field);
+
+  if (descriptor.id && field.id && descriptor.id === field.id) {
+    score += 10;
+  }
+  if (descriptor.name && field.name && descriptor.name === field.name) {
+    score += 7;
+  }
+  if (descriptor.type && field.type && descriptor.type === String(field.type).toLowerCase()) {
+    score += 4;
+  }
+  if (descriptor.autocomplete && signature.includes(descriptor.autocomplete)) {
+    score += 4;
+  }
+  if (descriptor.placeholder && signature.includes(descriptor.placeholder)) {
+    score += 2;
+  }
+  if (descriptor.ariaLabel && signature.includes(descriptor.ariaLabel)) {
+    score += 2;
+  }
+
+  return score;
+}
+
+function findFieldByDescriptor(candidates, descriptor, usedSet = new Set()) {
+  let best = null;
+  let bestScore = 0;
+
+  for (const field of candidates) {
+    if (usedSet.has(field)) {
+      continue;
+    }
+
+    const score = scoreDescriptorMatch(field, descriptor);
+    if (score > bestScore) {
+      best = field;
+      bestScore = score;
+    }
+  }
+
+  return bestScore >= 8 ? best : null;
+}
+
+function fillLogin(fields, profileMapping = {}) {
   const inputs = [...document.querySelectorAll("input")].filter(isVisible);
-  const passwordFields = inputs.filter((field) => field.type === "password");
+  const used = new Set();
+  const learned = {};
 
-  let usernameTarget = inputs.find((field) => {
-    const signature = getFieldSignature(field);
-    return field.type !== "password" && /(user|email|login|account|id)/i.test(signature);
-  });
-
+  let usernameTarget = findFieldByDescriptor(inputs, profileMapping.username, used);
+  if (!usernameTarget) {
+    usernameTarget = inputs.find((field) => {
+      const signature = getFieldSignature(field);
+      return field.type !== "password" && /(user|email|login|account|id)/i.test(signature);
+    });
+  }
   if (!usernameTarget) {
     usernameTarget = inputs.find((field) => field.type === "text" || field.type === "email");
   }
 
+  let passwordTarget = findFieldByDescriptor(inputs, profileMapping.password, used);
+  if (!passwordTarget) {
+    passwordTarget = inputs.find((field) => field.type === "password");
+  }
+
   if (usernameTarget && fields.username) {
-    setNativeValue(usernameTarget, fields.username);
+    setFieldValue(usernameTarget, fields.username);
+    learned.username = describeField(usernameTarget);
+    used.add(usernameTarget);
   }
 
-  if (passwordFields[0] && fields.password) {
-    setNativeValue(passwordFields[0], fields.password);
+  if (passwordTarget && fields.password) {
+    setFieldValue(passwordTarget, fields.password);
+    learned.password = describeField(passwordTarget);
+    used.add(passwordTarget);
   }
 
-  return Boolean(usernameTarget || passwordFields[0]);
+  return {
+    filled: Boolean((usernameTarget && fields.username) || (passwordTarget && fields.password)),
+    learnedProfile: {
+      mode: "login",
+      mapping: learned
+    }
+  };
 }
 
-function fillCard(fields) {
+function fillByRules(inputs, fields, rules, profileMapping = {}) {
+  const used = new Set();
+  const learned = {};
+  let filled = false;
+
+  for (const rule of rules) {
+    const value = fields[rule.key];
+    if (!value) {
+      continue;
+    }
+
+    let target = findFieldByDescriptor(inputs, profileMapping[rule.key], used);
+
+    if (!target) {
+      target = inputs.find((input) => {
+        if (used.has(input)) {
+          return false;
+        }
+        const signature = getFieldSignature(input);
+        return rule.regex.test(signature);
+      });
+    }
+
+    if (!target) {
+      continue;
+    }
+
+    setFieldValue(target, value);
+    learned[rule.key] = describeField(target);
+    used.add(target);
+    filled = true;
+  }
+
+  return {
+    filled,
+    learnedProfile: {
+      mapping: learned
+    }
+  };
+}
+
+function fillCard(fields, profileMapping = {}) {
   const inputs = [...document.querySelectorAll("input")].filter(isVisible);
   const rules = [
     { key: "cardNumber", regex: /(card.?number|cc-number|番号|カード)/i },
@@ -64,23 +194,13 @@ function fillCard(fields) {
     { key: "cardCvc", regex: /(cvc|cvv|security.?code|セキュリティ)/i }
   ];
 
-  let filled = false;
-  for (const input of inputs) {
-    const signature = getFieldSignature(input);
-    for (const rule of rules) {
-      if (fields[rule.key] && rule.regex.test(signature)) {
-        setNativeValue(input, fields[rule.key]);
-        filled = true;
-        break;
-      }
-    }
-  }
-
-  return filled;
+  const result = fillByRules(inputs, fields, rules, profileMapping);
+  result.learnedProfile.mode = "card";
+  return result;
 }
 
-function fillIdentity(fields) {
-  const textInputs = [...document.querySelectorAll("input, textarea")].filter(isVisible);
+function fillIdentity(fields, profileMapping = {}) {
+  const inputs = [...document.querySelectorAll("input, textarea")].filter(isVisible);
   const rules = [
     { key: "fullName", regex: /(name|fullname|氏名|名前)/i },
     { key: "email", regex: /(email|mail)/i },
@@ -88,25 +208,9 @@ function fillIdentity(fields) {
     { key: "address", regex: /(address|住所|street)/i }
   ];
 
-  let filled = false;
-  for (const input of textInputs) {
-    const signature = getFieldSignature(input);
-    for (const rule of rules) {
-      if (fields[rule.key] && rule.regex.test(signature)) {
-        if (input.tagName === "TEXTAREA") {
-          input.value = fields[rule.key];
-          input.dispatchEvent(new Event("input", { bubbles: true }));
-          input.dispatchEvent(new Event("change", { bubbles: true }));
-        } else {
-          setNativeValue(input, fields[rule.key]);
-        }
-        filled = true;
-        break;
-      }
-    }
-  }
-
-  return filled;
+  const result = fillByRules(inputs, fields, rules, profileMapping);
+  result.learnedProfile.mode = "identity";
+  return result;
 }
 
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
@@ -114,17 +218,21 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     return;
   }
 
-  let filled = false;
+  const profileMapping = message.payload?.profile?.mapping || {};
+  let result = {
+    filled: false,
+    learnedProfile: null
+  };
 
   if (message.payload?.mode === "login") {
-    filled = fillLogin(message.payload.fields || {});
+    result = fillLogin(message.payload.fields || {}, profileMapping);
   } else if (message.payload?.mode === "card") {
-    filled = fillCard(message.payload.fields || {});
+    result = fillCard(message.payload.fields || {}, profileMapping);
   } else if (message.payload?.mode === "identity") {
-    filled = fillIdentity(message.payload.fields || {});
+    result = fillIdentity(message.payload.fields || {}, profileMapping);
   }
 
-  sendResponse({ ok: true, filled });
+  sendResponse({ ok: true, ...result });
   return true;
 });
 

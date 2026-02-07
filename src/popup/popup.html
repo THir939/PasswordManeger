@@ -60,6 +60,17 @@
         </section>
 
         <section class="panel-soft">
+          <h3>サイト別フォーム学習</h3>
+          <p class="small">手動修正した入力欄を学習し、次回の自動入力精度を上げます。誤学習したらリセットできます。</p>
+          <div class="actions actions-3">
+            <button id="form-learning-refresh" class="ghost" type="button">学習状態を更新</button>
+            <button id="form-learning-reset-site" class="ghost" type="button">このサイトをリセット</button>
+            <button id="form-learning-reset-all" class="ghost" type="button">全学習をリセット</button>
+          </div>
+          <pre id="form-learning-box" class="report"></pre>
+        </section>
+
+        <section class="panel-soft">
           <h3>保存候補（フォーム送信から検出）</h3>
           <ul id="capture-list" class="stack-list"></ul>
         </section>
@@ -88,8 +99,12 @@
               <input id="migration-replace" type="checkbox" />
               既存データを削除して置き換える
             </label>
-            <button type="submit">移行インポートを実行</button>
+            <div class="actions">
+              <button id="migration-preview-btn" type="button">差分プレビュー</button>
+              <button id="migration-apply-btn" class="ghost" type="submit">プレビューを確認して実行</button>
+            </div>
           </form>
+          <pre id="migration-preview-box" class="report hidden"></pre>
           <p class="small">
             形式例: Bitwarden CSV/JSON、1Password CSV、LastPass CSV
           </p>
