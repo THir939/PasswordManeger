@@ -110,6 +110,24 @@ npm run desktop:dist:win -- --dir
 - `--dir` はインストーラ生成なしの検証用ビルド
 - 商用配布では署名とインストーラ（dmg / nsis）を使う
 
+## 4-1. 署名（ローカル試用）
+
+この環境では Developer ID 証明書がない場合でも、ローカル試用向け ad-hoc 署名を実行できます。
+
+```bash
+npm run desktop:sign:local
+```
+
+実行内容:
+1. macアプリをビルド
+2. `codesign` で署名
+3. 署名検証
+
+注意:
+1. ad-hoc署名は「ローカル試用」向けです
+2. App Store配布や一般配布では Developer ID + Notarization が必要です
+3. 初回起動で警告が出た場合は、Finderでアプリを右クリック -> 「開く」を1回実行してください
+
 ## 5. Webhook自動セットアップ（テスト）
 
 公開URLがある場合（例: ngrok）:
@@ -127,6 +145,16 @@ npm run stripe:webhook:test -- https://<公開URL>
 ```bash
 npm test
 ```
+
+## 6-1. すぐ試す（サーバー + Desktop同時起動）
+
+```bash
+npm run desktop:run:local
+```
+
+このコマンドは次を自動で行います。
+1. サーバー起動（`http://localhost:8787`）
+2. Desktop起動
 
 ## 7. API一覧（主要）
 
