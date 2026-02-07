@@ -8,6 +8,8 @@
   --accent-2: #2f4653;
   --alert: #af1f32;
   --ok: #0f766e;
+  --focus-outline: rgba(222, 207, 184, 0.75);
+  --focus-border: #886f49;
   --radius: 16px;
   --shadow: 0 14px 36px rgba(36, 32, 25, 0.12);
 }
@@ -68,8 +70,27 @@ body {
 .status {
   margin: 0;
   min-height: 1.2rem;
+  background: rgba(255, 255, 255, 0.78);
+  border: 1px solid rgba(202, 189, 167, 0.75);
+  border-radius: 12px;
+  padding: 0.56rem 0.72rem;
   font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--ink-soft);
+}
+
+.status.ok {
+  color: var(--ok);
+  border-color: rgba(15, 118, 110, 0.32);
+}
+
+.status.error {
   color: var(--alert);
+  border-color: rgba(175, 31, 50, 0.3);
+}
+
+.status:empty {
+  display: none;
 }
 
 .main {
@@ -149,8 +170,8 @@ select {
 input:focus,
 textarea:focus,
 select:focus {
-  outline: 3px solid #decfb8;
-  border-color: #886f49;
+  outline: 3px solid var(--focus-outline);
+  border-color: var(--focus-border);
 }
 
 button,
@@ -174,6 +195,12 @@ button:hover,
 button:active,
 .file-btn:active {
   transform: translateY(0);
+}
+
+button:focus-visible,
+.file-btn:focus-visible {
+  outline: 3px solid var(--focus-outline);
+  outline-offset: 2px;
 }
 
 button.ghost,

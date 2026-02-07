@@ -90,7 +90,8 @@ const state = {
 
 function setStatus(message = "", isError = false) {
   elements.status.textContent = message;
-  elements.status.style.color = isError ? "#be123c" : "#0f766e";
+  elements.status.classList.toggle("error", Boolean(message) && isError);
+  elements.status.classList.toggle("ok", Boolean(message) && !isError);
 }
 
 function setView(viewName) {

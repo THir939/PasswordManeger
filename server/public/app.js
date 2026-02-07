@@ -233,7 +233,7 @@ async function login() {
 
 function logout() {
   saveToken("");
-  accountBox.textContent = "未ログイン";
+  renderLoggedOutAccount();
   setStatus("ログアウトしました。", false);
 }
 

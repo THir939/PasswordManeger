@@ -1,16 +1,28 @@
 :root {
-  --bg: #f8fafc;
-  --panel: #ffffff;
-  --line: #d9e2ec;
-  --text: #0f172a;
-  --muted: #475569;
+  --paper-0: #f5efe4;
+  --paper-1: #e9ddc8;
+  --ink: #141312;
+  --ink-soft: #51493f;
+  --line: #cfbfa7;
+  --accent: #1f2e34;
+  --accent-2: #2f4653;
+  --radius: 18px;
+  --shadow: 0 16px 36px rgba(36, 32, 25, 0.12);
+}
+
+* {
+  box-sizing: border-box;
 }
 
 body {
   margin: 0;
-  font-family: "Avenir Next", "Hiragino Kaku Gothic ProN", "Noto Sans JP", sans-serif;
-  background: var(--bg);
-  color: var(--text);
+  font-family: "BIZ UDGothic", "Hiragino Kaku Gothic ProN", "Noto Sans JP", sans-serif;
+  color: var(--ink);
+  min-height: 100vh;
+  background:
+    radial-gradient(1100px 600px at 110% -10%, rgba(47, 70, 83, 0.16), transparent 60%),
+    radial-gradient(900px 540px at -15% 0%, rgba(31, 46, 52, 0.08), transparent 55%),
+    linear-gradient(138deg, var(--paper-0) 0%, var(--paper-1) 100%);
 }
 
 .wrap {
@@ -20,11 +32,59 @@ body {
   gap: 1rem;
 }
 
+header.hero {
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: rgba(255, 255, 255, 0.86);
+  box-shadow: var(--shadow);
+  padding: 1.2rem 1.25rem;
+}
+
+.kicker {
+  margin: 0;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  font-size: 0.78rem;
+  color: var(--ink-soft);
+}
+
+header.hero h1 {
+  margin: 0.25rem 0 0.4rem;
+  font-family: ui-serif, "Palatino", "Times New Roman", serif;
+  font-size: clamp(1.85rem, 4vw, 2.35rem);
+  line-height: 1.05;
+}
+
+.sub {
+  margin: 0;
+  color: var(--ink-soft);
+  line-height: 1.6;
+  max-width: 70ch;
+}
+
+.hero-meta {
+  margin-top: 0.85rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+}
+
+.pill {
+  border: 1px solid rgba(31, 46, 52, 0.22);
+  background: rgba(255, 255, 255, 0.7);
+  border-radius: 999px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  padding: 0.3rem 0.62rem;
+  color: rgba(31, 46, 52, 0.88);
+}
+
 section {
   border: 1px solid var(--line);
-  border-radius: 12px;
-  background: var(--panel);
-  padding: 1rem;
+  border-radius: var(--radius);
+  background: rgba(255, 255, 255, 0.86);
+  box-shadow: var(--shadow);
+  padding: 1rem 1.1rem;
 }
 
 h1,
@@ -32,9 +92,25 @@ h2 {
   margin-top: 0;
 }
 
+.hint {
+  margin: 0.25rem 0 0.7rem;
+  color: var(--ink-soft);
+  line-height: 1.65;
+}
+
 ul,
 ol {
   margin: 0;
   padding-left: 1.3rem;
-  color: var(--muted);
+  color: var(--ink-soft);
+}
+
+code {
+  font-family: ui-monospace, Menlo, monospace;
+  font-size: 0.92em;
+  padding: 0.05rem 0.35rem;
+  border-radius: 8px;
+  border: 1px solid rgba(207, 191, 167, 0.7);
+  background: rgba(252, 250, 245, 0.95);
+  color: rgba(31, 46, 52, 0.92);
 }

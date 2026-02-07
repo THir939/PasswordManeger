@@ -1,13 +1,23 @@
 :root {
-  --bg: linear-gradient(160deg, #f8fafc 0%, #e2e8f0 100%);
-  --panel: #ffffff;
-  --line: #d7e0ea;
-  --text: #0f172a;
-  --muted: #475569;
-  --primary: #0b1324;
-  --primary-hover: #1e293b;
-  --danger: #be123c;
-  --radius: 12px;
+  --bg:
+    radial-gradient(900px 540px at 110% -10%, rgba(47, 70, 83, 0.18), transparent 60%),
+    radial-gradient(800px 500px at -18% 6%, rgba(31, 46, 52, 0.1), transparent 58%),
+    linear-gradient(138deg, #f5efe4 0%, #e9ddc8 100%);
+  --panel: rgba(255, 255, 255, 0.86);
+  --panel-strong: rgba(255, 255, 255, 0.94);
+  --line: #cfbfa7;
+  --text: #141312;
+  --muted: #51493f;
+  --primary: #1f2e34;
+  --primary-hover: #2f4653;
+  --danger: #af1f32;
+  --ok: #0f766e;
+  --radius: 16px;
+  --shadow: 0 14px 30px rgba(36, 32, 25, 0.12);
+  --shadow-soft: 0 10px 20px rgba(36, 32, 25, 0.08);
+  --input-bg: #fffef9;
+  --focus-outline: rgba(222, 207, 184, 0.75);
+  --focus-border: #886f49;
 }
 
 * {
@@ -20,7 +30,7 @@ body {
   min-height: 600px;
   max-height: 700px;
   overflow: hidden;
-  font-family: "Avenir Next", "Hiragino Kaku Gothic ProN", "Noto Sans JP", sans-serif;
+  font-family: "BIZ UDGothic", "Hiragino Kaku Gothic ProN", "Noto Sans JP", sans-serif;
   color: var(--text);
   background: var(--bg);
 }
@@ -35,14 +45,31 @@ body {
 
 .hero {
   border: 1px solid var(--line);
-  background: rgba(255, 255, 255, 0.9);
+  background: var(--panel);
   border-radius: var(--radius);
   padding: 0.9rem;
+  box-shadow: var(--shadow);
+  position: relative;
+  overflow: hidden;
+}
+
+.hero::after {
+  content: "";
+  position: absolute;
+  right: -18%;
+  top: -55%;
+  width: 280px;
+  height: 280px;
+  border-radius: 50%;
+  pointer-events: none;
+  background: radial-gradient(circle at 30% 30%, rgba(47, 70, 83, 0.22), transparent 70%);
 }
 
 .hero h1 {
   margin: 0.2rem 0;
-  font-size: 1.2rem;
+  font-family: ui-serif, "Palatino", "Times New Roman", serif;
+  font-size: 1.45rem;
+  letter-spacing: 0.01em;
 }
 
 .eyebrow {
@@ -61,9 +88,28 @@ body {
 
 .status {
   margin: 0;
-  min-height: 1rem;
+  min-height: 1.2rem;
+  background: rgba(255, 255, 255, 0.78);
+  border: 1px solid rgba(202, 189, 167, 0.75);
+  border-radius: 12px;
+  padding: 0.56rem 0.72rem;
+  font-size: 0.84rem;
+  font-weight: 700;
+  color: var(--muted);
+}
+
+.status.ok {
+  color: var(--ok);
+  border-color: rgba(15, 118, 110, 0.32);
+}
+
+.status.error {
   color: var(--danger);
-  font-size: 0.83rem;
+  border-color: rgba(175, 31, 50, 0.3);
+}
+
+.status:empty {
+  display: none;
 }
 
 .panel,
@@ -72,6 +118,7 @@ body {
   border-radius: var(--radius);
   background: var(--panel);
   padding: 0.8rem;
+  box-shadow: var(--shadow-soft);
 }
 
 .panel-soft {
@@ -116,15 +163,16 @@ textarea,
 select {
   width: 100%;
   padding: 0.45rem 0.5rem;
-  border: 1px solid #cad5e2;
+  border: 1px solid #c7b79f;
   border-radius: 10px;
+  background: var(--input-bg);
 }
 
 input:focus,
 textarea:focus,
 select:focus {
-  outline: 3px solid #bfdbfe;
-  border-color: #2563eb;
+  outline: 3px solid var(--focus-outline);
+  border-color: var(--focus-border);
 }
 
 button,
@@ -143,16 +191,22 @@ button:hover,
   background: var(--primary-hover);
 }
 
+button:focus-visible,
+.file-btn:focus-visible {
+  outline: 3px solid var(--focus-outline);
+  outline-offset: 2px;
+}
+
 button.ghost,
 .file-btn.ghost {
   background: transparent;
   color: var(--text);
-  border-color: #cad5e2;
+  border-color: #c0b098;
 }
 
 button.ghost:hover,
 .file-btn.ghost:hover {
-  background: #f8fafc;
+  background: rgba(245, 239, 226, 0.7);
 }
 
 .toolbar {
@@ -197,10 +251,10 @@ button.ghost:hover,
 }
 
 .card {
-  border: 1px solid #d7e0ea;
+  border: 1px solid #cfbfa7;
   border-radius: 10px;
   padding: 0.55rem;
-  background: #fff;
+  background: rgba(255, 255, 255, 0.92);
   display: grid;
   gap: 0.4rem;
 }
@@ -253,14 +307,14 @@ button.ghost:hover,
 }
 
 .report {
-  border: 1px dashed #b9c7d8;
+  border: 1px dashed #d5cab3;
   border-radius: 10px;
   padding: 0.6rem;
   font-size: 0.82rem;
   white-space: pre-line;
-  color: #1e293b;
+  color: #2b2927;
   min-height: 5rem;
-  background: #f8fafc;
+  background: rgba(252, 250, 245, 0.95);
 }
 
 .hidden {
@@ -276,7 +330,7 @@ button.ghost:hover,
 }
 
 .empty {
-  border: 1px dashed #c8d2df;
+  border: 1px dashed #d5cab3;
   border-radius: 10px;
   padding: 0.6rem;
   font-size: 0.8rem;

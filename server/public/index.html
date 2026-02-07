@@ -185,6 +185,11 @@
         transform: translateY(-1px);
       }
 
+      button:focus-visible {
+        outline: 3px solid rgba(120, 153, 187, 0.32);
+        outline-offset: 2px;
+      }
+
       button.ghost {
         background: rgba(255, 255, 255, 0.72);
         color: var(--ink);
@@ -391,6 +396,17 @@
         to {
           opacity: 1;
           transform: translateY(0);
+        }
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        .panel,
+        .hero {
+          animation: none;
+        }
+
+        button {
+          transition: none;
         }
       }
 
