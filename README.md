@@ -131,6 +131,24 @@ npm run desktop:sign:local
 2. App Store配布や一般配布では Developer ID + Notarization が必要です
 3. 初回起動で警告が出た場合は、Finderでアプリを右クリック -> 「開く」を1回実行してください
 
+## 4-2. GitHub Actions で Windows/Mac ビルドを作る（おすすめ）
+
+Windows実機が手元にない場合でも、GitHub上でビルドして `.exe` をダウンロードできます。
+
+1. GitHub のリポジトリ画面を開く
+2. 上部メニューの `Actions` を開く
+3. `Build Desktop Apps` を選ぶ
+4. `Run workflow` を押す（または `main` に push すると自動で走ります）
+5. 実行が終わったら、成果物（artifact）をダウンロード
+
+artifactの中身の目安:
+- `passwordmaneger-desktop-win-x64`: `PasswordManeger Setup ...exe`（インストーラ）と `PasswordManeger ...exe`（ポータブル）
+- `passwordmaneger-desktop-mac-arm64`: `.dmg` / `.zip` など
+
+注意:
+- 署名（Code Signing）をしていないビルドは、Windows の SmartScreen や macOS の Gatekeeper で警告が出やすいです
+- まずは「試す」目的で使い、一般配布（商用リリース）では必ず署名 + Notarization（mac）/コード署名（Windows）を行ってください
+
 ## 5. Webhook自動セットアップ（テスト）
 
 公開URLがある場合（例: ngrok）:
