@@ -23,7 +23,8 @@ export const config = {
   stripeSecretKey: process.env.STRIPE_SECRET_KEY || "",
   stripePriceId: process.env.STRIPE_PRICE_ID || "",
   stripeWebhookSecret: process.env.STRIPE_WEBHOOK_SECRET || "",
-  appBaseUrl: process.env.APP_BASE_URL || "http://localhost:8787"
+  appBaseUrl: process.env.APP_BASE_URL || "http://localhost:8787",
+  entitlementIngestToken: process.env.ENTITLEMENT_INGEST_TOKEN || ""
 };
 
 export function assertBillingEnv() {

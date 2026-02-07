@@ -26,9 +26,10 @@
 ### Web + Server（`server/`）
 1. アカウント登録 / ログイン
 2. Stripe Checkout / Billing Portal
-3. 同期API（有料ユーザーのみ）
-4. 緊急アクセス: 暗号化スナップショットのダウンロード
-5. 緊急復旧オプション: 鍵分割（ブラウザ内で分割/復元）
+3. エンタイトルメント（利用権）一元管理
+4. 同期API（有料ユーザーのみ）
+5. 緊急アクセス: 暗号化スナップショットのダウンロード
+6. 緊急復旧オプション: 鍵分割（ブラウザ内で分割/復元）
 
 ## 2. なぜこの構成にしたか
 
@@ -69,8 +70,9 @@ cp server/.env.example server/.env
 2. `STRIPE_SECRET_KEY`（テストなら `sk_test_...`）
 3. `STRIPE_PRICE_ID`（`price_...`）
 4. `STRIPE_WEBHOOK_SECRET`（`whsec_...`）
-5. `APP_BASE_URL`（例: `http://localhost:8787`）
-6. `CORS_ORIGIN`（例: `http://localhost:8787`）
+5. `ENTITLEMENT_INGEST_TOKEN`（他ストア課金連携用の共有トークン）
+6. `APP_BASE_URL`（例: `http://localhost:8787`）
+7. `CORS_ORIGIN`（例: `http://localhost:8787`）
 
 ### 3-3. 起動
 
@@ -189,6 +191,8 @@ npm run desktop:run:local
 2. `POST /api/billing/portal-session`
 3. `GET /api/billing/status`
 4. `POST /api/billing/webhook`
+5. `GET /api/entitlements/status`
+6. `POST /api/entitlements/ingest`（サーバー間連携用）
 
 ### Vault同期
 1. `GET /api/vault/snapshot`
@@ -202,8 +206,9 @@ npm run desktop:run:local
 ### 出来ること
 1. Desktop中心で日常利用（保存・編集・生成・診断）
 2. 拡張機能でWeb自動入力
-3. Stripe課金と有料ユーザー同期
-4. 緊急時に暗号化スナップショットをWebから回収
+3. Stripe課金を含むエンタイトルメント一元管理
+4. 有料ユーザー同期
+5. 緊急時に暗号化スナップショットをWebから回収
 
 ### まだ出来ないこと
 1. ネイティブ生体認証（Face ID / Touch ID / Windows Hello）

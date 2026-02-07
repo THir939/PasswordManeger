@@ -14,6 +14,11 @@ import {
   issueToken,
   sanitizeUser
 } from "./auth.js";
+import {
+  FEATURE_CLOUD_SYNC,
+  mapStripeStatusToEntitlementStatus,
+  summarizeFeatureAccess
+} from "./entitlements.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -54,6 +59,28 @@ const corsOptions = {
 
 app.use(cors(corsOptions));
 
+function buildCloudSyncBillingStatus(user) {
+  const cloudSync = summarizeFeatureAccess(user, FEATURE_CLOUD_SYNC);
+  return {
+    feature: FEATURE_CLOUD_SYNC,
+    planStatus: cloudSync.effectiveStatus,
+    isPaid: cloudSync.isActive,
+    currentPeriodEnd: cloudSync.currentPeriodEnd,
+    activeSources: cloudSync.activeSources,
+    entitlements: cloudSync.entitlements
+  };
+}
+
+function findEntitlementTargetUser({ userId, email }) {
+  if (userId) {
+    return store.findUserById(userId);
+  }
+  if (email) {
+    return store.findUserByEmail(email);
+  }
+  return null;
+}
+
 app.post("/api/billing/webhook", express.raw({ type: "application/json" }), async (req, res) => {
   if (!stripe) {
     return res.status(400).send("Stripe is not configured");
@@ -82,10 +109,26 @@ app.post("/api/billing/webhook", express.raw({ type: "application/json" }), asyn
 
       const periodEndUnix = Number(subscription.current_period_end || 0);
       const periodEndIso = periodEndUnix > 0 ? new Date(periodEndUnix * 1000).toISOString() : null;
+      const startedAtUnix = Number(subscription.start_date || 0);
+      const startedAtIso = startedAtUnix > 0 ? new Date(startedAtUnix * 1000).toISOString() : null;
+      const mappedStatus = mapStripeStatusToEntitlementStatus(subscription.status);
+
+      store.upsertEntitlement(user.id, {
+        feature: FEATURE_CLOUD_SYNC,
+        source: "stripe",
+        sourceRef: String(subscription.id || ""),
+        status: mappedStatus,
+        startedAt: startedAtIso,
+        expiresAt: periodEndIso,
+        metadata: {
+          stripeStatus: String(subscription.status || "unknown"),
+          stripeCustomerId: customerId
+        }
+      });
 
       store.updateUser(user.id, {
-        planStatus: subscription.status,
         subscriptionId: subscription.id,
+        stripeCustomerId: customerId,
         currentPeriodEnd: periodEndIso
       });
     };
@@ -107,8 +150,20 @@ app.post("/api/billing/webhook", express.raw({ type: "application/json" }), asyn
       const customerId = String(subscription.customer || "");
       const user = store.findUserByStripeCustomerId(customerId);
       if (user) {
+        store.upsertEntitlement(user.id, {
+          feature: FEATURE_CLOUD_SYNC,
+          source: "stripe",
+          sourceRef: String(subscription.id || ""),
+          status: "canceled",
+          expiresAt: null,
+          metadata: {
+            stripeStatus: "canceled",
+            stripeCustomerId: customerId
+          }
+        });
+
         store.updateUser(user.id, {
-          planStatus: "canceled",
+          subscriptionId: subscription.id || user.subscriptionId,
           currentPeriodEnd: null
         });
       }
@@ -180,11 +235,20 @@ app.get("/api/auth/me", authRequired, (req, res) => {
 });
 
 app.get("/api/billing/status", authRequired, (req, res) => {
+  const status = buildCloudSyncBillingStatus(req.user);
   res.json({
     ok: true,
-    planStatus: req.user.planStatus,
-    isPaid: isPaidUser(req.user),
-    currentPeriodEnd: req.user.currentPeriodEnd
+    ...status
+  });
+});
+
+app.get("/api/entitlements/status", authRequired, (req, res) => {
+  const status = buildCloudSyncBillingStatus(req.user);
+  return res.json({
+    ok: true,
+    features: {
+      [FEATURE_CLOUD_SYNC]: status
+    }
   });
 });
 
@@ -232,12 +296,89 @@ app.post("/api/billing/portal-session", authRequired, async (req, res) => {
   return res.json({ ok: true, url: portal.url });
 });
 
+app.post("/api/entitlements/ingest", (req, res, next) => {
+  if (!config.entitlementIngestToken) {
+    return res.status(503).json({
+      ok: false,
+      error: "ENTITLEMENT_INGEST_TOKEN が未設定です。"
+    });
+  }
+
+  const token = String(req.headers["x-entitlement-token"] || "");
+  if (!token || token !== config.entitlementIngestToken) {
+    return res.status(401).json({
+      ok: false,
+      error: "entitlement token が無効です。"
+    });
+  }
+
+  return next();
+}, (req, res) => {
+  const userId = String(req.body?.userId || "").trim();
+  const email = String(req.body?.email || "").trim();
+  const source = String(req.body?.source || "manual").trim();
+  const sourceRef = String(req.body?.sourceRef || "").trim();
+  const status = String(req.body?.status || "inactive").trim();
+  const feature = String(req.body?.feature || FEATURE_CLOUD_SYNC).trim();
+  const startedAt = req.body?.startedAt || null;
+  const expiresAt = req.body?.expiresAt || null;
+  const metadata = req.body?.metadata && typeof req.body.metadata === "object" ? req.body.metadata : {};
+
+  if (!userId && !email) {
+    return res.status(422).json({
+      ok: false,
+      error: "userId か email のどちらかが必要です。"
+    });
+  }
+
+  const user = findEntitlementTargetUser({ userId, email });
+  if (!user) {
+    return res.status(404).json({
+      ok: false,
+      error: "対象ユーザーが見つかりません。"
+    });
+  }
+
+  const updatedUser = store.upsertEntitlement(user.id, {
+    feature,
+    source,
+    sourceRef,
+    status,
+    startedAt,
+    expiresAt,
+    metadata
+  });
+
+  if (!updatedUser) {
+    return res.status(500).json({
+      ok: false,
+      error: "利用権の更新に失敗しました。"
+    });
+  }
+
+  if (source === "stripe" && sourceRef) {
+    store.updateUser(updatedUser.id, {
+      subscriptionId: sourceRef
+    });
+  }
+
+  const featureStatus = summarizeFeatureAccess(updatedUser, feature);
+
+  return res.json({
+    ok: true,
+    user: sanitizeUser(updatedUser),
+    featureStatus
+  });
+});
+
 function paidRequired(req, res, next) {
   if (!isPaidUser(req.user)) {
+    const status = buildCloudSyncBillingStatus(req.user);
     return res.status(402).json({
       ok: false,
       error: "この機能は有料プラン専用です。Web課金を完了してください。",
-      planStatus: req.user.planStatus
+      planStatus: status.planStatus,
+      activeSources: status.activeSources
     });
   }
 

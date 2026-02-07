@@ -99,12 +99,13 @@ flowchart LR
 
 ### 4-2. サーバー保存（暗号化）
 
-1. `users`: 認証・課金状態
+1. `users`: 認証・エンタイトルメント状態
 2. `vaults`: `userId`, `revision`, `envelope`, `updatedAt`
 
 注意:
 - `envelope` は暗号文とKDF情報のみ
 - サーバーで平文復号はしない
+- 有料判定は `users.entitlements[]` から計算する（購入元に依存しない）
 
 ---
 
@@ -162,6 +163,8 @@ flowchart LR
 2. `POST /api/billing/portal-session`
 3. `GET /api/billing/status`
 4. `POST /api/billing/webhook`
+5. `GET /api/entitlements/status`
+6. `POST /api/entitlements/ingest`（サーバー間連携）
 
 ### 同期
 1. `GET /api/vault/snapshot`
@@ -188,6 +191,11 @@ Webhookで扱うイベント:
 2. `customer.subscription.created`
 3. `customer.subscription.updated`
 4. `customer.subscription.deleted`
+
+方針:
+1. Stripe固有の `subscription.status` をそのまま機能判定に使わない
+2. 一度 `entitlements` の共通ステータスへ正規化してから判定する
+3. 将来の App Store / Google Play 連携も同じ `entitlements` に取り込む
 
 ---
 

@@ -4,6 +4,11 @@ import { generatePassword } from "../src/lib/password.js";
 import { generateTotp } from "../src/lib/totp.js";
 import { buildSecurityReport } from "../src/lib/security-audit.js";
 import { parseExternalItems } from "../src/lib/migration.js";
+import {
+  FEATURE_CLOUD_SYNC,
+  mapStripeStatusToEntitlementStatus,
+  summarizeFeatureAccess
+} from "../server/src/entitlements.js";
 
 async function run(name, testFn) {
   try {
@@ -123,6 +128,42 @@ await run("migration lastpass csv", () => {
   assert.equal(result.sourceProvider, "lastpass");
   assert.equal(result.items[0].title, "Hacker News");
   assert.equal(result.items[0].favorite, true);
+});
+
+await run("entitlement summary unifies multi-source purchase", () => {
+  const summary = summarizeFeatureAccess(
+    {
+      entitlements: [
+        {
+          feature: FEATURE_CLOUD_SYNC,
+          source: "stripe",
+          sourceRef: "sub_1",
+          status: "canceled",
+          expiresAt: "2025-01-01T00:00:00.000Z"
+        },
+        {
+          feature: FEATURE_CLOUD_SYNC,
+          source: "apple",
+          sourceRef: "tx_9",
+          status: "active",
+          expiresAt: "2030-01-01T00:00:00.000Z"
+        }
+      ]
+    },
+    FEATURE_CLOUD_SYNC
+  );
+
+  assert.equal(summary.isActive, true);
+  assert.equal(summary.effectiveStatus, "active");
+  assert.equal(summary.activeSources.includes("apple"), true);
+});
+
+await run("stripe status mapping", () => {
+  assert.equal(mapStripeStatusToEntitlementStatus("active"), "active");
+  assert.equal(mapStripeStatusToEntitlementStatus("trialing"), "trialing");
+  assert.equal(mapStripeStatusToEntitlementStatus("past_due"), "grace_period");
+  assert.equal(mapStripeStatusToEntitlementStatus("incomplete_expired"), "expired");
+  assert.equal(mapStripeStatusToEntitlementStatus("unpaid"), "inactive");
 });
 
 if (process.exitCode) {

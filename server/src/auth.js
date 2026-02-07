@@ -1,6 +1,7 @@
 import jwt from "jsonwebtoken";
 import bcrypt from "bcryptjs";
 import { config } from "./config.js";
+import { FEATURE_CLOUD_SYNC, canUseFeature, summarizeFeatureAccess } from "./entitlements.js";
 
 export function issueToken(user) {
   return jwt.sign(
@@ -58,15 +59,23 @@ export function authMiddleware(store) {
 }
 
 export function sanitizeUser(user) {
+  const cloudSync = summarizeFeatureAccess(user, FEATURE_CLOUD_SYNC);
   return {
     id: user.id,
     email: user.email,
     createdAt: user.createdAt,
-    planStatus: user.planStatus,
-    currentPeriodEnd: user.currentPeriodEnd
+    planStatus: cloudSync.effectiveStatus,
+    currentPeriodEnd: cloudSync.currentPeriodEnd,
+    entitlements: {
+      cloudSync: {
+        isActive: cloudSync.isActive,
+        effectiveStatus: cloudSync.effectiveStatus,
+        activeSources: cloudSync.activeSources
+      }
+    }
   };
 }
 
 export function isPaidUser(user) {
-  return ["active", "trialing"].includes(String(user.planStatus || ""));
+  return canUseFeature(user, FEATURE_CLOUD_SYNC);
 }

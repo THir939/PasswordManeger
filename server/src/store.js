@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import crypto from "node:crypto";
+import { normalizeEntitlement, normalizeUserRecord } from "./entitlements.js";
 
 const DEFAULT_DB = {
   users: [],
@@ -26,7 +27,7 @@ export class JsonStore {
     try {
       const parsed = JSON.parse(raw);
       return {
-        users: Array.isArray(parsed.users) ? parsed.users : [],
+        users: Array.isArray(parsed.users) ? parsed.users.map((user) => normalizeUserRecord(user)) : [],
         vaults: Array.isArray(parsed.vaults) ? parsed.vaults : []
       };
     } catch {
@@ -61,7 +62,7 @@ export class JsonStore {
     const db = this.read();
     const now = new Date().toISOString();
 
-    const user = {
+    const user = normalizeUserRecord({
       id: crypto.randomUUID(),
       email,
       emailLower: email.toLowerCase(),
@@ -70,8 +71,9 @@ export class JsonStore {
       planStatus: "inactive",
       subscriptionId: null,
       stripeCustomerId: null,
-      currentPeriodEnd: null
-    };
+      currentPeriodEnd: null,
+      entitlements: []
+    });
 
     db.users.push(user);
     this.write(db);
@@ -85,10 +87,48 @@ export class JsonStore {
       return null;
     }
 
-    db.users[index] = {
+    db.users[index] = normalizeUserRecord({
       ...db.users[index],
       ...updates
-    };
+    });
+
+    this.write(db);
+    return db.users[index];
+  }
+
+  upsertEntitlement(userId, entitlementInput) {
+    const db = this.read();
+    const index = db.users.findIndex((user) => user.id === userId);
+    if (index < 0) {
+      return null;
+    }
+
+    const normalized = normalizeEntitlement(entitlementInput || {});
+    const entitlements = Array.isArray(db.users[index].entitlements) ? [...db.users[index].entitlements] : [];
+
+    const matchIndex = entitlements.findIndex(
+      (item) =>
+        String(item.feature || "") === normalized.feature &&
+        String(item.source || "") === normalized.source &&
+        String(item.sourceRef || "") === normalized.sourceRef
+    );
+
+    if (matchIndex >= 0) {
+      const existing = normalizeEntitlement(entitlements[matchIndex]);
+      entitlements[matchIndex] = normalizeEntitlement({
+        ...existing,
+        ...normalized,
+        id: existing.id,
+        startedAt: normalized.startedAt || existing.startedAt
+      });
+    } else {
+      entitlements.push(normalized);
+    }
+
+    db.users[index] = normalizeUserRecord({
+      ...db.users[index],
+      entitlements
+    });
 
     this.write(db);
     return db.users[index];
