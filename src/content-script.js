@@ -213,6 +213,14 @@ function fillIdentity(fields, profileMapping = {}) {
   return result;
 }
 
+function rememberLastFill(mode) {
+  window.__PM_LAST_FILL_CONTEXT__ = {
+    mode: String(mode || ""),
+    origin: location.origin,
+    filledAt: Date.now()
+  };
+}
+
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (message?.type !== "PM_FILL") {
     return;
@@ -230,6 +238,10 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     result = fillCard(message.payload.fields || {}, profileMapping);
   } else if (message.payload?.mode === "identity") {
     result = fillIdentity(message.payload.fields || {}, profileMapping);
+  }
+
+  if (result?.filled && result?.learnedProfile?.mode) {
+    rememberLastFill(result.learnedProfile.mode);
   }
 
   sendResponse({ ok: true, ...result });
@@ -252,7 +264,9 @@ function detectCredentialsFromForm(form) {
     username: userInput?.value || "",
     password: passwordInput.value,
     url: location.href,
-    title: document.title || extractHostname(location.href)
+    title: document.title || extractHostname(location.href),
+    usernameField: userInput || null,
+    passwordField: passwordInput
   };
 }
 
@@ -281,8 +295,38 @@ if (!window.__PM_FORM_CAPTURE_ATTACHED__) {
 
       chrome.runtime.sendMessage({
         type: "PM_CAPTURE_LOGIN",
-        payload
+        payload: {
+          username: payload.username,
+          password: payload.password,
+          url: payload.url,
+          title: payload.title
+        }
       });
+
+      const lastFill = window.__PM_LAST_FILL_CONTEXT__;
+      if (
+        lastFill &&
+        lastFill.mode === "login" &&
+        lastFill.origin === location.origin &&
+        Date.now() - Number(lastFill.filledAt || 0) < 2 * 60 * 1000 &&
+        payload.passwordField &&
+        payload.usernameField
+      ) {
+        chrome.runtime.sendMessage({
+          type: "PM_LEARN_PROFILE",
+          payload: {
+            learnedProfile: {
+              mode: "login",
+              mapping: {
+                username: describeField(payload.usernameField),
+                password: describeField(payload.passwordField)
+              }
+            }
+          }
+        });
+
+        window.__PM_LAST_FILL_CONTEXT__ = null;
+      }
     },
     true
   );

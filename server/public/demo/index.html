@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>PasswordManeger Demo</title>
+    <link rel="stylesheet" href="./demo.css" />
+  </head>
+  <body>
+    <main class="wrap">
+      <header class="hero">
+        <p class="kicker">Autofill Playground</p>
+        <h1>PasswordManeger Demo Pages</h1>
+        <p class="sub">
+          ブラウザ拡張の「自動入力」「保存候補検出」「サイト別フォーム学習」を安全に試すためのデモページです。
+          ここはローカル開発用で、実際の外部サイトにはアクセスしません。
+        </p>
+      </header>
+
+      <section class="panel">
+        <h2>使い方（最短）</h2>
+        <p class="hint">
+          1. サーバー起動: <span class="mono">npm run server:dev</span><br />
+          2. 拡張機能を読み込み（Chrome: <span class="mono">chrome://extensions</span>）<br />
+          3. 拡張機能のポップアップでVault作成→ログイン項目を作成（URLは <span class="mono">http://localhost:8787/demo/login.html</span> など）<br />
+          4. このページから各フォームへ移動し、ポップアップの候補から自動入力
+        </p>
+      </section>
+
+      <section class="grid">
+        <article class="panel">
+          <h2>Login フォーム</h2>
+          <p class="hint">
+            標準フォームと、少しクセがあるフォームを切り替えられます。<br />
+            Trickyフォームでは <span class="mono">id/name</span> を変えて、フォーム学習の効き方も確認できます。
+          </p>
+          <div class="row">
+            <a href="./login.html"><button type="button">login.html を開く</button></a>
+          </div>
+        </article>
+
+        <article class="panel">
+          <h2>Card フォーム</h2>
+          <p class="hint">カード番号/名義/期限/CVC を入力するフォームです。</p>
+          <div class="row">
+            <a href="./card.html"><button type="button">card.html を開く</button></a>
+          </div>
+        </article>
+
+        <article class="panel">
+          <h2>Identity フォーム</h2>
+          <p class="hint">氏名/メール/電話/住所 の入力フォームです。</p>
+          <div class="row">
+            <a href="./identity.html"><button type="button">identity.html を開く</button></a>
+          </div>
+        </article>
+      </section>
+
+      <section class="panel">
+        <h2>リスクベース自動入力の試し方</h2>
+        <p class="hint">
+          リスク判定は「保存したURLのドメイン」と「今見ているページのドメイン」が一致するか、HTTPSか、などで決まります。<br />
+          たとえば「URLが <span class="mono">https://example.com</span> のログイン項目」を作って、このデモページ（<span class="mono">localhost</span>）で自動入力すると、
+          高リスクになりやすいです（ブロック or 確認）。
+        </p>
+      </section>
+    </main>
+  </body>
+</html>
+

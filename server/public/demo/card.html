@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>PasswordManeger Demo Card</title>
+    <link rel="stylesheet" href="./demo.css" />
+  </head>
+  <body>
+    <main class="wrap">
+      <header class="hero">
+        <p class="kicker">Demo</p>
+        <h1>Card Form Playground</h1>
+        <p class="sub">
+          拡張機能の「カード自動入力」を試すページです。送信しても通信はしません。
+        </p>
+      </header>
+
+      <p id="demo-status" class="status" role="status" aria-live="polite"></p>
+
+      <section class="panel">
+        <div class="row">
+          <a href="./index.html"><button type="button" class="ghost">一覧へ戻る</button></a>
+        </div>
+      </section>
+
+      <section class="panel">
+        <h2>Card</h2>
+        <form data-demo-form autocomplete="on">
+          <label>
+            Card Number
+            <input type="text" name="cc-number" aria-label="card number" placeholder="4242 4242 4242 4242" />
+          </label>
+          <label>
+            Cardholder Name
+            <input type="text" name="cc-name" aria-label="cardholder" placeholder="Taro Yamada" />
+          </label>
+          <div class="grid">
+            <label>
+              Expiry
+              <input type="text" name="cc-exp" aria-label="expiry" placeholder="MM/YY" />
+            </label>
+            <label>
+              CVC
+              <input type="text" name="cc-csc" aria-label="cvc" placeholder="123" />
+            </label>
+          </div>
+          <div class="row">
+            <button type="submit">Submit (Demo)</button>
+            <button
+              type="button"
+              class="ghost"
+              onclick="document.querySelector('[aria-label=\"card number\"]').value='';document.querySelector('[aria-label=\"cardholder\"]').value='';document.querySelector('[aria-label=\"expiry\"]').value='';document.querySelector('[aria-label=\"cvc\"]').value='';"
+            >
+              Clear
+            </button>
+          </div>
+        </form>
+      </section>
+
+      <script src="./demo.js"></script>
+    </main>
+  </body>
+</html>
+

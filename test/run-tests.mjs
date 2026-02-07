@@ -4,6 +4,7 @@ import { generatePassword } from "../src/lib/password.js";
 import { generateTotp } from "../src/lib/totp.js";
 import { buildSecurityReport } from "../src/lib/security-audit.js";
 import { parseExternalItems } from "../src/lib/migration.js";
+import { buildAutofillRisk } from "../src/lib/autofill-risk.js";
 import {
   FEATURE_CLOUD_SYNC,
   mapStripeStatusToEntitlementStatus,
@@ -164,6 +165,28 @@ await run("stripe status mapping", () => {
   assert.equal(mapStripeStatusToEntitlementStatus("past_due"), "grace_period");
   assert.equal(mapStripeStatusToEntitlementStatus("incomplete_expired"), "expired");
   assert.equal(mapStripeStatusToEntitlementStatus("unpaid"), "inactive");
+});
+
+await run("autofill risk low on same-domain https", () => {
+  const risk = buildAutofillRisk(
+    { id: "1", url: "https://example.com/login" },
+    "https://example.com/signin",
+    {}
+  );
+
+  assert.equal(risk.level, "low");
+  assert.equal(risk.blockedByPolicy, false);
+});
+
+await run("autofill risk high on different domain", () => {
+  const risk = buildAutofillRisk(
+    { id: "1", url: "https://example.com/login" },
+    "https://evil.com/login",
+    {}
+  );
+
+  assert.equal(risk.level, "high");
+  assert.equal(risk.blockedByPolicy, true);
 });
 
 if (process.exitCode) {
