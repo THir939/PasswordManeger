@@ -13,9 +13,9 @@
     "desktop:start": "npm --prefix apps/desktop run start",
     "desktop:sign:local": "./scripts/sign-desktop-local.sh",
     "desktop:run:local": "./scripts/run-local-app.sh",
-    "desktop:dist:mac": "npm --prefix apps/desktop run dist:mac",
-    "desktop:dist:win": "npm --prefix apps/desktop run dist:win",
-    "desktop:dist:win:arm64": "npm --prefix apps/desktop run dist:win:arm64",
+    "desktop:dist:mac": "npm --prefix apps/desktop run dist:mac --",
+    "desktop:dist:win": "npm --prefix apps/desktop run dist:win --",
+    "desktop:dist:win:arm64": "npm --prefix apps/desktop run dist:win:arm64 --",
     "stripe:mcp": "./scripts/run-stripe-mcp.sh",
     "stripe:webhook:test": "npm --prefix server run webhook:test --"
   },

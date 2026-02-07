@@ -1,0 +1,51 @@
+name: Build Desktop Apps
+
+on:
+  workflow_dispatch:
+  push:
+    branches: ["main"]
+    paths:
+      - "apps/desktop/**"
+      - "package.json"
+      - "package-lock.json"
+      - ".github/workflows/desktop-build.yml"
+
+jobs:
+  build:
+    name: Build (${{ matrix.artifact }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest
+            script: dist:mac
+            artifact: mac-arm64
+          - os: windows-latest
+            script: dist:win
+            artifact: win-x64
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: "apps/desktop/package-lock.json"
+
+      - name: Install (apps/desktop)
+        run: npm ci --prefix apps/desktop
+
+      - name: Build (apps/desktop)
+        run: npm --prefix apps/desktop run ${{ matrix.script }}
+
+      - name: Upload Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: passwordmaneger-desktop-${{ matrix.artifact }}
+          path: apps/desktop/dist/**
+          if-no-files-found: error
+
