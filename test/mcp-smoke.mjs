@@ -63,7 +63,8 @@ async function run() {
     stderr: "pipe",
     env: {
       PM_MCP_DATA_DIR: mcpDataDir,
-      PM_MCP_WEB_BASE_URL: cloudServer.baseUrl
+      PM_MCP_WEB_BASE_URL: cloudServer.baseUrl,
+      PM_MCP_ALLOW_SECRET_EXPORT: "1"
     }
   });
 

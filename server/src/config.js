@@ -18,12 +18,13 @@ function required(name) {
 
 export const config = {
   port: Number(process.env.PORT || 8787),
-  jwtSecret: process.env.JWT_SECRET || "dev-local-secret-change-me",
+  jwtSecret: required("JWT_SECRET"),
   corsOrigin: process.env.CORS_ORIGIN || "http://localhost:8787",
   dataFilePath: process.env.DATA_FILE || "",
   stripeSecretKey: process.env.STRIPE_SECRET_KEY || "",
   stripePriceId: process.env.STRIPE_PRICE_ID || "",
   stripeWebhookSecret: process.env.STRIPE_WEBHOOK_SECRET || "",
+  allowInsecureWebhook: String(process.env.ALLOW_INSECURE_WEBHOOK || "") === "1",
   appBaseUrl: process.env.APP_BASE_URL || "http://localhost:8787",
   entitlementIngestToken: process.env.ENTITLEMENT_INGEST_TOKEN || ""
 };

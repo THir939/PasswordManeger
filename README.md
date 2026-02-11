@@ -73,6 +73,7 @@ cp server/.env.example server/.env
 5. `ENTITLEMENT_INGEST_TOKEN`（他ストア課金連携用の共有トークン）
 6. `APP_BASE_URL`（例: `http://localhost:8787`）
 7. `CORS_ORIGIN`（例: `http://localhost:8787`）
+8. `ALLOW_INSECURE_WEBHOOK`（通常は `0`。ローカルで署名なしWebhookを使う場合だけ `1`）
 
 ### 3-3. 起動
 
@@ -146,10 +147,12 @@ npm run mcp:start
 1. `PM_MCP_WEB_BASE_URL`（デフォルト: `http://localhost:8787`）
 2. `PM_MCP_DATA_DIR`（MCP実行時のローカルデータ保存先）
 3. `PM_MCP_EXTENSION_PATH`（拡張フォルダのパス上書き）
+4. `PM_MCP_ALLOW_SECRET_EXPORT`（`1` のときだけ `includeSecrets: true` を許可）
 
 注意:
 1. `pm_list_items` は初期状態で秘密値をマスクします（`includeSecrets: true` で明示的に開示）
 2. 課金や同期系ツールは、先に `pm_cloud_login` 等でクラウド認証が必要です
+3. クラウド認証トークンは永続保存しない設計にしているため、再起動後は再ログインが必要です
 
 ## 4. mac / Windows で試す
 
@@ -302,3 +305,5 @@ npm run desktop:run:local
 2. `.env` はGitに含めない
 3. マスターパスワード紛失時はVault復元できない
 4. 商用公開前に暗号・認証・決済の監査を推奨
+5. `JWT_SECRET` 未設定ではサーバー起動しない仕様です（固定デフォルト鍵を禁止）
+6. Webhook署名検証は既定で必須です（`ALLOW_INSECURE_WEBHOOK=1` はローカル検証専用）

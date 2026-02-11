@@ -22,6 +22,7 @@ function resolveDataDir() {
 
 const dataDir = resolveDataDir();
 const webBaseUrl = String(process.env.PM_MCP_WEB_BASE_URL || "http://localhost:8787").trim();
+const allowSecretExport = String(process.env.PM_MCP_ALLOW_SECRET_EXPORT || "") === "1";
 const extensionPath = process.env.PM_MCP_EXTENSION_PATH
   ? path.resolve(process.cwd(), String(process.env.PM_MCP_EXTENSION_PATH))
   : projectRoot;
@@ -146,7 +147,8 @@ registerTool(
       runtime: {
         dataDir,
         webBaseUrl,
-        extensionPath
+        extensionPath,
+        allowSecretExport
       },
       local,
       cloud
@@ -203,6 +205,11 @@ registerTool(
     }
   },
   async ({ type, search, onlyFavorites, includeSecrets }) => {
+    const wantsSecrets = Boolean(includeSecrets);
+    if (wantsSecrets && !allowSecretExport) {
+      throw new Error("秘密値の取得は無効です。PM_MCP_ALLOW_SECRET_EXPORT=1 を設定した場合のみ許可されます。");
+    }
+
     const response = await callAction("listItems", {
       filters: {
         type: type || "all",
@@ -213,8 +220,8 @@ registerTool(
 
     return {
       itemCount: Array.isArray(response.items) ? response.items.length : 0,
-      includeSecrets: Boolean(includeSecrets),
-      items: (response.items || []).map((item) => redactSecrets(item, Boolean(includeSecrets)))
+      includeSecrets: wantsSecrets && allowSecretExport,
+      items: (response.items || []).map((item) => redactSecrets(item, wantsSecrets && allowSecretExport))
     };
   }
 );

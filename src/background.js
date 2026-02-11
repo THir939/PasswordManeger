@@ -11,7 +11,8 @@ import { buildAutofillRisk, extractDomain } from "./lib/autofill-risk.js";
 
 const STORAGE_KEY = "pm_encrypted_vault";
 const AUTO_LOCK_ALARM = "pm-auto-lock";
-const CLOUD_AUTH_KEY = "pm_cloud_auth";
+const CLOUD_AUTH_PUBLIC_KEY = "pm_cloud_auth_public";
+const CLOUD_AUTH_TOKEN_KEY = "pm_cloud_auth_token";
 const FORM_LEARNING_KEY = "pm_form_learning_profiles";
 const AUTOFILL_TRUST_KEY = "pm_autofill_trust";
 
@@ -41,12 +42,26 @@ function normalizeBaseUrl(baseUrl) {
   return value.replace(/\/+$/, "");
 }
 
+function getCloudTokenStorage() {
+  if (chrome.storage.session && typeof chrome.storage.session.get === "function") {
+    return chrome.storage.session;
+  }
+  return chrome.storage.local;
+}
+
 async function getCloudState() {
-  const result = await chrome.storage.local.get(CLOUD_AUTH_KEY);
-  const payload = result[CLOUD_AUTH_KEY] || {};
+  const tokenStorage = getCloudTokenStorage();
+  const [publicResult, tokenResult] = await Promise.all([
+    chrome.storage.local.get(CLOUD_AUTH_PUBLIC_KEY),
+    tokenStorage.get(CLOUD_AUTH_TOKEN_KEY)
+  ]);
+
+  const payload = publicResult[CLOUD_AUTH_PUBLIC_KEY] || {};
+  const tokenPayload = tokenResult[CLOUD_AUTH_TOKEN_KEY] || {};
+
   return {
     baseUrl: normalizeBaseUrl(payload.baseUrl || ""),
-    token: String(payload.token || ""),
+    token: String(tokenPayload.token || ""),
     revision: Number(payload.revision) || 0,
     lastSyncAt: payload.lastSyncAt || null,
     user: payload.user || null
@@ -54,20 +69,59 @@ async function getCloudState() {
 }
 
 async function setCloudState(next) {
-  await chrome.storage.local.set({
-    [CLOUD_AUTH_KEY]: {
-      baseUrl: normalizeBaseUrl(next.baseUrl || ""),
-      token: String(next.token || ""),
-      revision: Number(next.revision) || 0,
-      lastSyncAt: next.lastSyncAt || null,
-      user: next.user || null
-    }
-  });
+  const tokenStorage = getCloudTokenStorage();
+  await Promise.all([
+    chrome.storage.local.set({
+      [CLOUD_AUTH_PUBLIC_KEY]: {
+        baseUrl: normalizeBaseUrl(next.baseUrl || ""),
+        revision: Number(next.revision) || 0,
+        lastSyncAt: next.lastSyncAt || null,
+        user: next.user || null
+      }
+    }),
+    tokenStorage.set({
+      [CLOUD_AUTH_TOKEN_KEY]: {
+        token: String(next.token || "")
+      }
+    })
+  ]);
 }
 
 async function clearCloudState() {
-  await chrome.storage.local.remove(CLOUD_AUTH_KEY);
+  const removals = [
+    chrome.storage.local.remove(CLOUD_AUTH_PUBLIC_KEY),
+    chrome.storage.local.remove(CLOUD_AUTH_TOKEN_KEY)
+  ];
+
+  if (chrome.storage.session && typeof chrome.storage.session.remove === "function") {
+    removals.push(chrome.storage.session.remove(CLOUD_AUTH_TOKEN_KEY));
+  }
+
+  await Promise.all(removals);
 }
+
+async function ensureCloudStateMigration() {
+  try {
+    const legacy = await chrome.storage.local.get("pm_cloud_auth");
+    const payload = legacy.pm_cloud_auth;
+    if (!payload || typeof payload !== "object") {
+      return;
+    }
+
+    await setCloudState({
+      baseUrl: normalizeBaseUrl(payload.baseUrl || ""),
+      token: String(payload.token || ""),
+      revision: Number(payload.revision) || 0,
+      lastSyncAt: payload.lastSyncAt || null,
+      user: payload.user || null
+    });
+    await chrome.storage.local.remove("pm_cloud_auth");
+  } catch {
+    // migration failure should not block extension startup
+  }
+}
+
+ensureCloudStateMigration();
 
 async function getFormLearningProfiles() {
   const result = await chrome.storage.local.get(FORM_LEARNING_KEY);

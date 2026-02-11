@@ -182,6 +182,16 @@ MCP（Model Context Protocol）サーバーを追加し、AIがVault操作や同
 2. 一定時間操作がなければ自動ロック
 3. コピー情報は設定秒数でクリア
 
+### 5-3. 認証・Webhookハードニング
+
+1. `JWT_SECRET` は必須にし、固定デフォルト値を禁止する
+2. `/api/auth/login` と `/api/auth/register` にレート制限を入れて総当たり耐性を上げる
+3. Stripe Webhookは署名必須にする（ローカル検証時のみ `ALLOW_INSECURE_WEBHOOK=1` で例外）
+4. クラウド認証トークンは平文で長期保存しない（Desktopはメモリ保持、拡張は `storage.session` 優先）
+
+注意:
+1. トークンを永続しない設計は安全性が上がる反面、再起動後の再ログインが必要になる
+
 ---
 
 ## 6. 同期設計

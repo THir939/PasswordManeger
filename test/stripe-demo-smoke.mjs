@@ -3,7 +3,13 @@ import fs from "node:fs/promises";
 import { apiJson, startTempServer } from "./e2e-helpers.mjs";
 
 async function run() {
-  const server = await startTempServer({ label: "stripe-smoke" });
+  const server = await startTempServer({
+    label: "stripe-smoke",
+    env: {
+      ALLOW_INSECURE_WEBHOOK: "1",
+      STRIPE_WEBHOOK_SECRET: ""
+    }
+  });
 
   try {
     const healthResponse = await apiJson(server.baseUrl, "/api/health");

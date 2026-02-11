@@ -85,6 +85,7 @@ export async function startTempServer({ port = 0, label = "e2e", env = {} } = {}
       PORT: String(selectedPort),
       APP_BASE_URL: baseUrl,
       CORS_ORIGIN: baseUrl,
+      JWT_SECRET: process.env.JWT_SECRET || "test-jwt-secret-local-only",
       DATA_FILE: dataFile,
       ...(env || {})
     }

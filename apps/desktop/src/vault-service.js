@@ -304,6 +304,7 @@ export class DesktopVaultService {
     this.defaultCloudBaseUrl = normalizeBaseUrl(options.defaultCloudBaseUrl || "http://localhost:8787");
     this.extensionPath = options.extensionPath;
     this.webBaseUrl = options.webBaseUrl || this.defaultCloudBaseUrl;
+    this.cloudToken = "";
 
     this.session = {
       unlocked: false,
@@ -363,9 +364,26 @@ export class DesktopVaultService {
 
   async getCloudState() {
     const payload = await readJsonFile(this.cloudStateFile, {});
+    const diskToken = String(payload.token || "");
+
+    if (!this.cloudToken && diskToken) {
+      this.cloudToken = diskToken;
+      try {
+        await writeJsonFile(this.cloudStateFile, {
+          baseUrl: normalizeBaseUrl(payload.baseUrl || this.defaultCloudBaseUrl),
+          token: "",
+          revision: Number(payload.revision) || 0,
+          lastSyncAt: payload.lastSyncAt || null,
+          user: payload.user || null
+        });
+      } catch {
+        // token scrub failure should not break runtime behavior
+      }
+    }
+
     return {
       baseUrl: normalizeBaseUrl(payload.baseUrl || this.defaultCloudBaseUrl),
-      token: String(payload.token || ""),
+      token: this.cloudToken,
       revision: Number(payload.revision) || 0,
       lastSyncAt: payload.lastSyncAt || null,
       user: payload.user || null
@@ -373,9 +391,10 @@ export class DesktopVaultService {
   }
 
   async setCloudState(next) {
+    this.cloudToken = String(next.token || "");
     await writeJsonFile(this.cloudStateFile, {
       baseUrl: normalizeBaseUrl(next.baseUrl || this.defaultCloudBaseUrl),
-      token: String(next.token || ""),
+      token: "",
       revision: Number(next.revision) || 0,
       lastSyncAt: next.lastSyncAt || null,
       user: next.user || null
@@ -383,9 +402,10 @@ export class DesktopVaultService {
   }
 
   async clearCloudState() {
+    this.cloudToken = "";
     await this.setCloudState({
       baseUrl: this.defaultCloudBaseUrl,
-      token: "",
+      token: this.cloudToken,
       revision: 0,
       lastSyncAt: null,
       user: null

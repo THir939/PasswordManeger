@@ -33,7 +33,8 @@ cp server/.env.example server/.env
 - `JWT_SECRET`: 長いランダム値
 - `STRIPE_SECRET_KEY`: Stripeのシークレットキー
 - `STRIPE_PRICE_ID`: サブスクPrice ID
-- `STRIPE_WEBHOOK_SECRET`: Webhook署名シークレット（必要なら）
+- `STRIPE_WEBHOOK_SECRET`: Webhook署名シークレット（必須）
+- `ALLOW_INSECURE_WEBHOOK`: ローカル検証で署名なしWebhookを許可したい場合のみ `1`（本番は必ず `0`）
 - `ENTITLEMENT_INGEST_TOKEN`: 外部課金連携から利用権を取り込むための共有トークン
 - `APP_BASE_URL`: 例 `http://localhost:8787`
 
@@ -51,6 +52,7 @@ npm run webhook:test -- https://YOUR_PUBLIC_URL
 
 - 指定URLの `/api/billing/webhook` をStripeに登録します
 - 取得した `whsec_...` を `server/.env` の `STRIPE_WEBHOOK_SECRET` に自動反映します
+- 通常運用では署名なしWebhookは拒否されます（`ALLOW_INSECURE_WEBHOOK=1` のときだけ例外）
 
 ## API（主要）
 

@@ -1,5 +1,6 @@
 import path from "node:path";
 import fs from "node:fs";
+import { timingSafeEqual } from "node:crypto";
 import { fileURLToPath } from "node:url";
 import express from "express";
 import cors from "cors";
@@ -63,6 +64,91 @@ const corsOptions = {
 
 app.use(cors(corsOptions));
 
+function getClientIp(req) {
+  const forwarded = String(req.headers["x-forwarded-for"] || "")
+    .split(",")[0]
+    .trim();
+
+  return forwarded || req.ip || req.socket?.remoteAddress || "unknown";
+}
+
+function createMemoryRateLimiter({
+  windowMs,
+  maxRequests,
+  keyFn,
+  errorMessage
+}) {
+  const buckets = new Map();
+
+  const cleanup = () => {
+    const now = Date.now();
+    for (const [key, value] of buckets.entries()) {
+      if (!value || value.resetAt <= now) {
+        buckets.delete(key);
+      }
+    }
+  };
+
+  const timer = setInterval(cleanup, windowMs);
+  timer.unref?.();
+
+  return (req, res, next) => {
+    const key = String(keyFn(req) || "unknown");
+    const now = Date.now();
+    const current = buckets.get(key);
+
+    if (!current || current.resetAt <= now) {
+      buckets.set(key, {
+        count: 1,
+        resetAt: now + windowMs
+      });
+      return next();
+    }
+
+    if (current.count >= maxRequests) {
+      const retryAfterSec = Math.max(1, Math.ceil((current.resetAt - now) / 1000));
+      res.setHeader("retry-after", String(retryAfterSec));
+      return res.status(429).json({
+        ok: false,
+        error: errorMessage,
+        retryAfterSec
+      });
+    }
+
+    current.count += 1;
+    buckets.set(key, current);
+    return next();
+  };
+}
+
+function safeTokenEquals(expected, provided) {
+  const left = Buffer.from(String(expected || ""), "utf8");
+  const right = Buffer.from(String(provided || ""), "utf8");
+
+  if (!left.length || !right.length || left.length !== right.length) {
+    return false;
+  }
+
+  return timingSafeEqual(left, right);
+}
+
+const registerRateLimiter = createMemoryRateLimiter({
+  windowMs: 60 * 60 * 1000,
+  maxRequests: 20,
+  keyFn: (req) => getClientIp(req),
+  errorMessage: "登録試行が多すぎます。しばらく待って再試行してください。"
+});
+
+const loginRateLimiter = createMemoryRateLimiter({
+  windowMs: 15 * 60 * 1000,
+  maxRequests: 10,
+  keyFn: (req) => {
+    const email = String(req.body?.email || "").trim().toLowerCase();
+    return `${getClientIp(req)}:${email || "-"}`;
+  },
+  errorMessage: "ログイン試行が多すぎます。しばらく待って再試行してください。"
+});
+
 function buildCloudSyncBillingStatus(user) {
   const cloudSync = summarizeFeatureAccess(user, FEATURE_CLOUD_SYNC);
   return {
@@ -92,12 +178,19 @@ app.post("/api/billing/webhook", express.raw({ type: "application/json" }), asyn
 
   let event;
   const signature = req.headers["stripe-signature"];
+  const rawBody = Buffer.isBuffer(req.body) ? req.body : Buffer.from(req.body || "");
 
   try {
-    if (config.stripeWebhookSecret && signature) {
-      event = stripe.webhooks.constructEvent(req.body, signature, config.stripeWebhookSecret);
+    if (config.stripeWebhookSecret) {
+      if (!signature || Array.isArray(signature)) {
+        return res.status(400).send("Webhook signature is required");
+      }
+
+      event = stripe.webhooks.constructEvent(rawBody, signature, config.stripeWebhookSecret);
+    } else if (config.allowInsecureWebhook) {
+      event = JSON.parse(rawBody.toString("utf8"));
     } else {
-      event = JSON.parse(Buffer.from(req.body).toString("utf8"));
+      return res.status(503).send("STRIPE_WEBHOOK_SECRET must be set (or ALLOW_INSECURE_WEBHOOK=1 for local-only testing)");
     }
   } catch (error) {
     return res.status(400).send(`Webhook error: ${error.message}`);
@@ -189,7 +282,7 @@ app.get("/api/health", (_req, res) => {
   });
 });
 
-app.post("/api/auth/register", async (req, res) => {
+app.post("/api/auth/register", registerRateLimiter, async (req, res) => {
   const email = String(req.body?.email || "").trim();
   const password = String(req.body?.password || "");
 
@@ -216,7 +309,7 @@ app.post("/api/auth/register", async (req, res) => {
   });
 });
 
-app.post("/api/auth/login", async (req, res) => {
+app.post("/api/auth/login", loginRateLimiter, async (req, res) => {
   const email = String(req.body?.email || "").trim();
   const password = String(req.body?.password || "");
 
@@ -309,7 +402,7 @@ app.post("/api/entitlements/ingest", (req, res, next) => {
   }
 
   const token = String(req.headers["x-entitlement-token"] || "");
-  if (!token || token !== config.entitlementIngestToken) {
+  if (!safeTokenEquals(config.entitlementIngestToken, token)) {
     return res.status(401).json({
       ok: false,
       error: "entitlement token が無効です。"
