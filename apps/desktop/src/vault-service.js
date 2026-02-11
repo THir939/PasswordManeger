@@ -842,6 +842,51 @@ export class DesktopVaultService {
         }
       }
 
+      case "cloudEntitlementsStatus": {
+        const state = await this.getCloudState();
+        if (!state.token) {
+          throw new Error("先にクラウドログインしてください。");
+        }
+
+        const payload = await this.cloudRequest(state, "/api/entitlements/status", {
+          method: "GET"
+        });
+
+        return {
+          features: payload.features || {}
+        };
+      }
+
+      case "cloudCheckoutSession": {
+        const state = await this.getCloudState();
+        if (!state.token) {
+          throw new Error("先にクラウドログインしてください。");
+        }
+
+        const payload = await this.cloudRequest(state, "/api/billing/checkout-session", {
+          method: "POST"
+        });
+
+        return {
+          url: payload.url || ""
+        };
+      }
+
+      case "cloudPortalSession": {
+        const state = await this.getCloudState();
+        if (!state.token) {
+          throw new Error("先にクラウドログインしてください。");
+        }
+
+        const payload = await this.cloudRequest(state, "/api/billing/portal-session", {
+          method: "POST"
+        });
+
+        return {
+          url: payload.url || ""
+        };
+      }
+
       case "cloudSyncPush": {
         this.ensureUnlocked();
         const state = await this.getCloudState();

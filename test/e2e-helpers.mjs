@@ -58,7 +58,7 @@ export async function waitForServer(baseUrl, timeoutMs = 30_000) {
   throw new Error(`Server did not become healthy: ${baseUrl}`);
 }
 
-export async function startTempServer({ port = 0, label = "e2e" } = {}) {
+export async function startTempServer({ port = 0, label = "e2e", env = {} } = {}) {
   const selectedPort = port || (await getFreePort());
   const baseUrl = `http://localhost:${selectedPort}`;
 
@@ -85,7 +85,8 @@ export async function startTempServer({ port = 0, label = "e2e" } = {}) {
       PORT: String(selectedPort),
       APP_BASE_URL: baseUrl,
       CORS_ORIGIN: baseUrl,
-      DATA_FILE: dataFile
+      DATA_FILE: dataFile,
+      ...(env || {})
     }
   });
 

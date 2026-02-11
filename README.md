@@ -123,6 +123,34 @@ npm run test:e2e:extension
 4. 手動修正して送信（保存候補 + 学習更新）
 5. 再度自動入力し、学習後に本来欄へ入ることを検証
 
+### 3-7. MCPでAIから操作する（AIネイティブ運用）
+
+MCP（Model Context Protocol）は、AIがアプリを安全に操作するための共通インターフェースです。  
+このプロジェクトでは Desktop のVaultサービスをそのままMCP化しているため、GUI操作と同じロジックをAIから実行できます。
+
+起動:
+
+```bash
+npm run mcp:start
+```
+
+主なツール:
+1. `pm_setup_vault` / `pm_unlock_vault` / `pm_lock_vault`
+2. `pm_list_items` / `pm_save_item` / `pm_delete_item`
+3. `pm_preview_external_import` / `pm_apply_external_import`
+4. `pm_cloud_register` / `pm_cloud_login` / `pm_cloud_status`
+5. `pm_cloud_entitlements_status` / `pm_cloud_sync_push` / `pm_cloud_sync_pull`
+6. `pm_cloud_checkout_link` / `pm_cloud_portal_link`
+
+環境変数（必要なら設定）:
+1. `PM_MCP_WEB_BASE_URL`（デフォルト: `http://localhost:8787`）
+2. `PM_MCP_DATA_DIR`（MCP実行時のローカルデータ保存先）
+3. `PM_MCP_EXTENSION_PATH`（拡張フォルダのパス上書き）
+
+注意:
+1. `pm_list_items` は初期状態で秘密値をマスクします（`includeSecrets: true` で明示的に開示）
+2. 課金や同期系ツールは、先に `pm_cloud_login` 等でクラウド認証が必要です
+
 ## 4. mac / Windows で試す
 
 ### mac（Apple Silicon）
@@ -204,12 +232,14 @@ npm test
 追加の検証:
 
 ```bash
+npm run test:mcp
 npm run test:stripe:demo
 npm run test:full
 ```
 
+- `test:mcp`: MCP経由で登録/保存/利用権/同期までをスモーク検証
 - `test:stripe:demo`: Checkout / Billing Portal / Webhook / 利用権反映のスモークテスト
-- `test:full`: 単体テスト + 拡張E2E + Stripeデモをまとめて実行
+- `test:full`: 単体テスト + MCP + 拡張E2E + Stripeデモをまとめて実行
 
 ### 6-2. GitHub Actionsで `test:full` を自動実行
 

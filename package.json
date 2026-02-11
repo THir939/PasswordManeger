@@ -5,9 +5,10 @@
   "type": "module",
   "scripts": {
     "test": "node test/run-tests.mjs",
+    "test:mcp": "node test/mcp-smoke.mjs",
     "test:e2e:extension": "node test/e2e-extension-learn.mjs",
     "test:stripe:demo": "node test/stripe-demo-smoke.mjs",
-    "test:full": "npm test && npm run test:e2e:extension && npm run test:stripe:demo",
+    "test:full": "npm test && npm run test:mcp && npm run test:e2e:extension && npm run test:stripe:demo",
     "server:install": "npm --prefix server install",
     "server:dev": "npm --prefix server run dev",
     "server:start": "npm --prefix server run start",
@@ -19,11 +20,14 @@
     "desktop:dist:mac": "npm --prefix apps/desktop run dist:mac --",
     "desktop:dist:win": "npm --prefix apps/desktop run dist:win --",
     "desktop:dist:win:arm64": "npm --prefix apps/desktop run dist:win:arm64 --",
+    "mcp:start": "node mcp/server.mjs",
     "stripe:mcp": "./scripts/run-stripe-mcp.sh",
     "stripe:webhook:test": "npm --prefix server run webhook:test --"
   },
   "devDependencies": {
+    "@modelcontextprotocol/sdk": "^1.26.0",
     "@stripe/mcp": "^0.2.5",
-    "playwright": "^1.58.2"
+    "playwright": "^1.58.2",
+    "zod": "^3.25.76"
   }
 }
