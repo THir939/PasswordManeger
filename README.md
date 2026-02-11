@@ -106,6 +106,23 @@ npm run desktop:dev
 - フォーム学習: `login.html` の Trickyフォームで自動入力 → 必要なら手動修正 → 送信 → 次回から当たりやすくなるか確認
 - リスクベース自動入力: URLが別ドメインの項目（例: `https://example.com`）を作り、`localhost` で自動入力すると高リスク扱いになりやすい
 
+学習検証専用ページ:
+- `http://localhost:8787/demo/learn-login.html`
+- 先頭に囮フィールドがあり、`手動修正 -> 送信 -> 再自動入力` で学習効果を確認しやすい
+
+### 3-6. 拡張込みE2E（自動入力→送信→学習）を自動実行
+
+```bash
+npm run test:e2e:extension
+```
+
+このテストが行うこと:
+1. 一時サーバーを起動（テスト専用DB）
+2. 拡張機能を読み込んだChromiumを起動
+3. `learn-login.html` で初回自動入力
+4. 手動修正して送信（保存候補 + 学習更新）
+5. 再度自動入力し、学習後に本来欄へ入ることを検証
+
 ## 4. mac / Windows で試す
 
 ### mac（Apple Silicon）
@@ -183,6 +200,16 @@ npm run stripe:webhook:test -- https://<公開URL>
 ```bash
 npm test
 ```
+
+追加の検証:
+
+```bash
+npm run test:stripe:demo
+npm run test:full
+```
+
+- `test:stripe:demo`: Checkout / Billing Portal / Webhook / 利用権反映のスモークテスト
+- `test:full`: 単体テスト + 拡張E2E + Stripeデモをまとめて実行
 
 ## 6-1. すぐ試す（サーバー + Desktop同時起動）
 

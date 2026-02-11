@@ -27,6 +27,43 @@ function randomToken(prefix) {
   return `${prefix}-${Math.random().toString(16).slice(2, 8)}`;
 }
 
+function setupLearningPage() {
+  const form = document.querySelector("#pm-learning-form");
+  if (!form) {
+    return;
+  }
+
+  const shuffleButton = document.querySelector("#pm-shuffle");
+  const clearButton = document.querySelector("#pm-clear");
+
+  if (shuffleButton) {
+    shuffleButton.addEventListener("click", () => {
+      const realUser = document.querySelector("#pm-target");
+      const realPass = document.querySelector("#pm-secret");
+      if (!(realUser instanceof HTMLInputElement) || !(realPass instanceof HTMLInputElement)) {
+        setStatus("本来欄が見つかりません。", "error");
+        return;
+      }
+
+      realUser.id = randomToken("real-user");
+      realUser.name = randomToken("real-user-name");
+      realPass.id = randomToken("real-pass");
+      realPass.name = randomToken("real-pass-name");
+
+      setStatus("本来欄の id/name を変更しました。学習が効くか確認できます。", "ok");
+    });
+  }
+
+  if (clearButton) {
+    clearButton.addEventListener("click", () => {
+      for (const field of form.querySelectorAll("input")) {
+        field.value = "";
+      }
+      setStatus("入力欄をクリアしました。", "ok");
+    });
+  }
+}
+
 function setupLoginPage() {
   const showStandard = document.querySelector("#show-standard");
   const showTricky = document.querySelector("#show-tricky");
@@ -79,5 +116,5 @@ function setupDemoForms() {
 document.addEventListener("DOMContentLoaded", () => {
   setupDemoForms();
   setupLoginPage();
+  setupLearningPage();
 });
-

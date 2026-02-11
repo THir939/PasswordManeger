@@ -131,8 +131,33 @@ function setTab(tabName) {
     panel.classList.toggle("hidden", !active);
     panel.setAttribute("aria-hidden", active ? "false" : "true");
   });
+}
 
-  elements.tabbar?.scrollIntoView({ block: "start" });
+function moveTabFocus(currentButton, direction) {
+  const tabs = elements.tabButtons;
+  const currentIndex = tabs.findIndex((button) => button === currentButton);
+  if (currentIndex < 0) {
+    return;
+  }
+
+  let nextIndex = currentIndex;
+  if (direction === "next") {
+    nextIndex = (currentIndex + 1) % tabs.length;
+  } else if (direction === "prev") {
+    nextIndex = (currentIndex - 1 + tabs.length) % tabs.length;
+  } else if (direction === "first") {
+    nextIndex = 0;
+  } else if (direction === "last") {
+    nextIndex = tabs.length - 1;
+  }
+
+  const nextButton = tabs[nextIndex];
+  if (!nextButton) {
+    return;
+  }
+
+  setTab(nextButton.dataset.tab || "autofill");
+  nextButton.focus();
 }
 
 async function callBackground(action, payload = {}) {
@@ -666,6 +691,36 @@ function bindEvents() {
     }
 
     setTab(tab);
+  });
+
+  elements.tabbar?.addEventListener("keydown", (event) => {
+    const target = event.target;
+    if (!(target instanceof HTMLButtonElement)) {
+      return;
+    }
+
+    if (event.key === "ArrowRight") {
+      event.preventDefault();
+      moveTabFocus(target, "next");
+      return;
+    }
+
+    if (event.key === "ArrowLeft") {
+      event.preventDefault();
+      moveTabFocus(target, "prev");
+      return;
+    }
+
+    if (event.key === "Home") {
+      event.preventDefault();
+      moveTabFocus(target, "first");
+      return;
+    }
+
+    if (event.key === "End") {
+      event.preventDefault();
+      moveTabFocus(target, "last");
+    }
   });
 
   elements.setupForm.addEventListener("submit", async (event) => {

@@ -24,7 +24,11 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const projectRoot = path.resolve(__dirname, "..");
 const publicDir = path.join(projectRoot, "public");
-const dataFile = path.join(projectRoot, "data", "db.json");
+const dataFile = config.dataFilePath
+  ? (path.isAbsolute(config.dataFilePath)
+      ? config.dataFilePath
+      : path.resolve(projectRoot, config.dataFilePath))
+  : path.join(projectRoot, "data", "db.json");
 
 const app = express();
 const store = new JsonStore(dataFile);

@@ -20,6 +20,7 @@ export const config = {
   port: Number(process.env.PORT || 8787),
   jwtSecret: process.env.JWT_SECRET || "dev-local-secret-change-me",
   corsOrigin: process.env.CORS_ORIGIN || "http://localhost:8787",
+  dataFilePath: process.env.DATA_FILE || "",
   stripeSecretKey: process.env.STRIPE_SECRET_KEY || "",
   stripePriceId: process.env.STRIPE_PRICE_ID || "",
   stripeWebhookSecret: process.env.STRIPE_WEBHOOK_SECRET || "",

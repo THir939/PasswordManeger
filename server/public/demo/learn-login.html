@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>PasswordManeger Demo Learn Login</title>
+    <link rel="stylesheet" href="./demo.css" />
+  </head>
+  <body>
+    <main class="wrap">
+      <header class="hero">
+        <p class="kicker">Demo</p>
+        <h1>Learning Login Form</h1>
+        <p class="sub">
+          自動入力が最初は外れやすいフォームを使い、「手動修正→送信」で学習が効くかを確認するページです。
+          通信はしません。
+        </p>
+      </header>
+
+      <p id="demo-status" class="status" role="status" aria-live="polite"></p>
+
+      <section class="panel">
+        <h2>使い方</h2>
+        <p class="hint">
+          1. 拡張でこのURL向けログイン項目を作成<br />
+          2. 「このサイトに入力」を押す（最初は囮フィールドに入る）<br />
+          3. 本来のユーザー名欄に手動修正して送信<br />
+          4. もう一度「このサイトに入力」で本来欄に入るか確認
+        </p>
+        <div class="row">
+          <button id="pm-shuffle" type="button" class="ghost">本来欄の id/name を変更</button>
+          <button id="pm-clear" type="button" class="ghost">入力をクリア</button>
+          <a href="./index.html"><button type="button" class="ghost">一覧へ戻る</button></a>
+        </div>
+      </section>
+
+      <section class="panel">
+        <h2>Learning Target Form</h2>
+        <p class="hint">
+          先頭の「メモ欄（囮）」があるため、未学習時はここに入ってしまうことがあります。<br />
+          本来欄は <span class="mono">placeholder + aria-label</span> を固定し、DOM変化時の学習適用を確認しやすくしています。
+        </p>
+        <form id="pm-learning-form" data-demo-form autocomplete="off">
+          <label>
+            メモ欄（囮）
+            <input id="pm-decoy" type="text" name="memo_noise" placeholder="memo-only" autocomplete="off" />
+          </label>
+          <label>
+            本来のユーザー名欄
+            <input
+              id="pm-target"
+              type="text"
+              name="handle_ref"
+              aria-label="signin-handle"
+              placeholder="handle"
+              autocomplete="off"
+            />
+          </label>
+          <label>
+            パスワード欄
+            <input
+              id="pm-secret"
+              type="password"
+              name="secret_key"
+              aria-label="password"
+              placeholder="secret"
+              autocomplete="current-password"
+            />
+          </label>
+          <div class="row">
+            <button id="pm-submit" type="submit">Submit (Demo)</button>
+          </div>
+        </form>
+      </section>
+    </main>
+
+    <script src="./demo.js"></script>
+  </body>
+</html>

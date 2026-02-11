@@ -5,6 +5,9 @@
   "type": "module",
   "scripts": {
     "test": "node test/run-tests.mjs",
+    "test:e2e:extension": "node test/e2e-extension-learn.mjs",
+    "test:stripe:demo": "node test/stripe-demo-smoke.mjs",
+    "test:full": "npm test && npm run test:e2e:extension && npm run test:stripe:demo",
     "server:install": "npm --prefix server install",
     "server:dev": "npm --prefix server run dev",
     "server:start": "npm --prefix server run start",
@@ -20,6 +23,7 @@
     "stripe:webhook:test": "npm --prefix server run webhook:test --"
   },
   "devDependencies": {
-    "@stripe/mcp": "^0.2.5"
+    "@stripe/mcp": "^0.2.5",
+    "playwright": "^1.58.2"
   }
 }
