@@ -211,6 +211,15 @@ npm run test:full
 - `test:stripe:demo`: Checkout / Billing Portal / Webhook / 利用権反映のスモークテスト
 - `test:full`: 単体テスト + 拡張E2E + Stripeデモをまとめて実行
 
+### 6-2. GitHub Actionsで `test:full` を自動実行
+
+このリポジトリには `Test Full` ワークフロー（`.github/workflows/test-full.yml`）を追加済みです。
+
+動作:
+1. `main` への push 時に自動実行
+2. Actions 画面から手動実行（`workflow_dispatch`）も可能
+3. Linux上で `xvfb` を使って拡張E2Eを含む `npm run test:full` を実行
+
 ## 6-1. すぐ試す（サーバー + Desktop同時起動）
 
 ```bash
