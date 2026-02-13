@@ -13,6 +13,8 @@ let mainWindow = null;
 let vaultService = null;
 
 function createMainWindow() {
+  const preloadPath = path.join(__dirname, "preload.cjs");
+
   const window = new BrowserWindow({
     width: 1320,
     height: 920,
@@ -20,7 +22,7 @@ function createMainWindow() {
     minHeight: 720,
     backgroundColor: "#f4eee4",
     webPreferences: {
-      preload: path.join(__dirname, "preload.js"),
+      preload: preloadPath,
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: false
