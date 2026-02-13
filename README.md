@@ -85,6 +85,24 @@ npm run desktop:dev
 - Webポータル: `http://localhost:8787`
 - Desktop起動後、画面内の「拡張機能フォルダを開く」から拡張機能読み込みが可能
 
+### 3-3-1. 1コマンド起動スクリプト（おすすめ）
+
+通常起動（server + desktop）:
+
+```bash
+npm run dev:up
+```
+
+MCPも同時起動（server + desktop + mcp）:
+
+```bash
+npm run dev:up:mcp
+```
+
+補足:
+1. `server/.env` の `JWT_SECRET` が未設定だと安全のため起動しません
+2. 必要な依存が未インストールなら、スクリプトが自動で `npm install` を実行します
+
 ### 3-4. Chrome拡張の読み込み
 
 1. `chrome://extensions` を開く

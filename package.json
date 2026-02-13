@@ -12,6 +12,8 @@
     "server:install": "npm --prefix server install",
     "server:dev": "npm --prefix server run dev",
     "server:start": "npm --prefix server run start",
+    "dev:up": "./scripts/start-local-stack.sh",
+    "dev:up:mcp": "./scripts/start-local-stack.sh --with-mcp",
     "desktop:install": "npm --prefix apps/desktop install",
     "desktop:dev": "npm --prefix apps/desktop run dev",
     "desktop:start": "npm --prefix apps/desktop run start",
