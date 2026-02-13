@@ -102,6 +102,7 @@ npm run dev:up:mcp
 補足:
 1. `server/.env` の `JWT_SECRET` が未設定だと安全のため起動しません
 2. 必要な依存が未インストールなら、スクリプトが自動で `npm install` を実行します
+3. 画面にボタンが出ない場合は、ブラウザではなく Desktop アプリとして起動しているか確認してください（`npm run dev:up`）。
 
 ### 3-4. Chrome拡張の読み込み
 

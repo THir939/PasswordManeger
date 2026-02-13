@@ -1,8 +1,4 @@
-const bridge = window.pmDesktop;
-
-if (!bridge) {
-  throw new Error("Desktop bridge is not available.");
-}
+const bridge = window.pmDesktop || null;
 
 const elements = {
   status: document.querySelector("#status"),
@@ -111,6 +107,9 @@ function setView(viewName) {
 }
 
 async function callService(action, payload = {}) {
+  if (!bridge || typeof bridge.call !== "function") {
+    throw new Error("Desktop連携の初期化に失敗しました。Desktopアプリとして起動し直してください。");
+  }
   const response = await bridge.call(action, payload);
   if (!response?.ok) {
     throw new Error(response?.error || "処理に失敗しました。");
@@ -119,6 +118,9 @@ async function callService(action, payload = {}) {
 }
 
 async function openExternal(url) {
+  if (!bridge || typeof bridge.openExternal !== "function") {
+    throw new Error("Desktop連携が利用できません。");
+  }
   const response = await bridge.openExternal(url);
   if (!response?.ok) {
     throw new Error(response?.error || "URLを開けませんでした。");
@@ -126,6 +128,9 @@ async function openExternal(url) {
 }
 
 async function openPath(targetPath) {
+  if (!bridge || typeof bridge.openPath !== "function") {
+    throw new Error("Desktop連携が利用できません。");
+  }
   const response = await bridge.openPath(targetPath);
   if (!response?.ok) {
     throw new Error(response?.error || "フォルダを開けませんでした。");
@@ -133,6 +138,9 @@ async function openPath(targetPath) {
 }
 
 async function copyText(text) {
+  if (!bridge || typeof bridge.copyText !== "function") {
+    throw new Error("Desktop連携が利用できません。");
+  }
   const response = await bridge.copyText(text);
   if (!response?.ok) {
     throw new Error(response?.error || "コピーに失敗しました。");
@@ -371,6 +379,9 @@ async function loadCloudStatus() {
 }
 
 async function loadPlatformInfo() {
+  if (!bridge || typeof bridge.getPlatformInfo !== "function") {
+    throw new Error("Desktop連携情報を取得できません。Desktopアプリとして起動してください。");
+  }
   const info = await bridge.getPlatformInfo();
   if (!info?.ok) {
     throw new Error(info?.error || "環境情報を取得できません。");
@@ -868,6 +879,12 @@ async function bootstrap() {
   bindEvents();
   clearItemForm();
 
+  if (!bridge) {
+    setView("setup");
+    setStatus("Desktop連携が見つかりません。ブラウザではなく Desktop アプリとして起動してください。", true);
+    return;
+  }
+
   try {
     const response = await callService("getState");
 
@@ -887,6 +904,7 @@ async function bootstrap() {
     await refreshMainScreen();
     setStatus("Vaultを読み込みました。", false);
   } catch (error) {
+    setView("setup");
     setStatus(error.message, true);
   }
 }
