@@ -6,6 +6,7 @@ on:
     branches: ["main"]
     paths:
       - "apps/desktop/**"
+      - "scripts/**"
       - "package.json"
       - "package-lock.json"
       - ".github/workflows/desktop-build.yml"
@@ -36,6 +37,9 @@ jobs:
           cache: "npm"
           cache-dependency-path: "apps/desktop/package-lock.json"
 
+      - name: Check OSS license policy
+        run: node scripts/check-licenses.mjs --lock apps/desktop/package-lock.json
+
       - name: Install (apps/desktop)
         run: npm ci --prefix apps/desktop
 
@@ -48,4 +52,3 @@ jobs:
           name: passwordmaneger-desktop-${{ matrix.artifact }}
           path: apps/desktop/dist/**
           if-no-files-found: error
-

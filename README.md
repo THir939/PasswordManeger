@@ -233,6 +233,19 @@ artifactの中身の目安:
 - 署名（Code Signing）をしていないビルドは、Windows の SmartScreen や macOS の Gatekeeper で警告が出やすいです
 - まずは「試す」目的で使い、一般配布（商用リリース）では必ず署名 + Notarization（mac）/コード署名（Windows）を行ってください
 
+## 4-3. 商用リリース向け: OSS/ライセンスチェック
+
+商用ソフトでは、依存ライブラリのライセンスが「商用不可」「強いソース公開義務」「条件不明」だと、後から差し戻しになることがあります。  
+このプロジェクトでは、依存追加のたびに自動チェックして事故を防ぎます。
+
+方針（初心者向け説明）:
+- `docs/compliance/OSS_POLICY.md`
+
+チェック実行:
+```bash
+npm run license:check
+```
+
 ## 5. Webhook自動セットアップ（テスト）
 
 公開URLがある場合（例: ngrok）:

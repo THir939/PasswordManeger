@@ -9,6 +9,8 @@ on:
       - "src/**"
       - "server/**"
       - "test/**"
+      - "scripts/**"
+      - "docs/compliance/**"
       - "package.json"
       - "package-lock.json"
       - ".github/workflows/test-full.yml"
@@ -35,6 +37,9 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
+
+      - name: Check OSS license policy
+        run: npm run license:check
 
       - name: Install server dependencies
         run: npm run server:install

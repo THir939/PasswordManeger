@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "license:check": "node scripts/check-licenses.mjs",
     "test": "node test/run-tests.mjs",
     "test:mcp": "node test/mcp-smoke.mjs",
     "test:e2e:extension": "node test/e2e-extension-learn.mjs",
