@@ -372,6 +372,41 @@ Webhookで扱うイベント:
 - メリット: 長期的に壊れにくい。購買経路が増えても影響を局所化できる
 - デメリット: 最初からサーバー設計が必要
 
+### 9-7. 実装上「どこで1本化されているか」（具体）
+
+この設計が“机上の空論ではなく”実装として成立しているポイントを、初心者向けに噛み砕いて説明します。
+
+1. サーバーのDB（`server/data/db.json`）に **`users[].entitlements[]`** が保存される
+- ここが「購入経路をまたいだ、最終的な利用権」の置き場所です
+- Stripe・将来のApp Store・将来のGoogle Playも、最後はここに同じ形式で入ります
+
+2. Stripe Webhookは、Stripeのイベントを **`entitlements[]` へ正規化** して保存する
+- 実装: `server/src/server.js` の `/api/billing/webhook`
+- `customer.subscription.*` を受け取り、`mapStripeStatusToEntitlementStatus()` で共通ステータスへ変換します
+- 変換後は `store.upsertEntitlement()` で `users[].entitlements[]` に保存します
+
+3. サーバーが「有料かどうか」を判定するときは **Stripeの生ステータスを直接見ない**
+- 実装: `server/src/auth.js` の `isPaidUser()`
+- 中身は `canUseFeature(user, "cloud_sync")` で、`entitlements[]` を見て判定します
+
+4. 同期APIは **利用権でガード** される
+- 実装: `server/src/server.js` の `paidRequired()`
+- `GET/PUT /api/vault/snapshot` は無料ユーザーだと `402 Payment Required` を返します
+
+5. クライアント（Desktop/拡張/将来モバイル）は「購入経路」ではなく **`/api/entitlements/status` を見て動く**
+- これにより、購入経路が増えてもクライアントの分岐が増えにくくなります
+
+### 9-8. 将来「購入経路を増やす」時の最小手順
+
+例: App Store（iOS）を追加したい場合。
+
+1. iOSアプリで購入が成立したら、購入情報（レシート）をサーバーへ送る
+2. サーバーでレシート検証を行い、成功したら `users[].entitlements[]` を更新する
+3. 以降は Desktop/拡張/モバイル全てが **同じ `entitlements[]` を見て同じように機能解放** されます
+
+このリポジトリでは、将来のストア連携の“取り込み口”として `POST /api/entitlements/ingest` を用意しています。
+注意: これは「サーバー間連携」用途です。クライアントから直接叩くと悪用されるので、基本は使いません。
+
 
 ## 10. 移行設計（乗り換え重視）
 
@@ -431,3 +466,548 @@ Webhookで扱うイベント:
 1. 生体認証統合（Touch ID / Windows Hello）
 2. Passkeyフル管理
 3. 企業向け管理機能（SSO/SCIM/監査ログ）
+
+---
+
+## 14. ユーザーフロー（全体像）
+
+ここでは「ユーザーが何をするか」を先に整理します。全体像が分かると、細部（暗号やAPI）が追いやすくなります。
+
+### 14-1. 初回（ローカルのみで使う）
+
+1. Desktop または 拡張機能を起動
+2. 「マスターパスワード」を設定して Vault を作成
+3. ログイン項目（URL/ユーザー名/パスワード）を登録
+4. 日常利用: 検索・コピー・生成・TOTP表示
+
+ポイント:
+1. サーバー無しでも使えます（ローカル暗号化Vault）
+2. ただし、複数端末で同じVaultを共有するにはクラウド同期が必要です
+
+### 14-2. 初回（クラウド同期まで使う、有料）
+
+1. Webポータルでアカウント登録
+2. Web課金（Stripe Checkout）
+3. Desktop/拡張でクラウドログイン
+4. `push` でクラウドへ暗号化スナップショットを保存
+5. 別端末で `pull` して同じVaultを復元
+
+注意:
+1. 同期は「差分」ではなく「スナップショット」です（後述）
+2. 同じタイミングで別端末から編集すると衝突しやすいので、基本は「編集した端末でpush、他端末はpull」運用が安全です
+
+### 14-3. 日常（ブラウザで自動入力）
+
+1. 拡張ポップアップで「このサイト向け候補」を表示
+2. 候補を選択して自動入力
+3. 高リスク判定のときは「確認」が必要
+
+### 14-4. 学習（手動修正を反映して精度を上げる）
+
+1. 初回自動入力で、意図しない欄に入った場合は手動で直す
+2. そのままログインフォームを送信（submit）
+3. 送信時の“実際に入力されていた欄”を覚える
+4. 次回から当たりやすくなる
+
+注意:
+1. 学習は万能ではないので「リセット」を必ず用意します
+2. 学習データには秘密値（パスワードそのもの）は保存しません（欄の特徴だけ）
+
+### 14-5. 移行（他ソフトからの乗り換え）
+
+1. 既存ソフトでエクスポート（CSV/JSON）
+2. Desktop/拡張でファイルを選ぶ
+3. 差分プレビュー（追加/重複/不正）を確認
+4. 実行
+
+### 14-6. 緊急アクセス/緊急復旧（補助Web）
+
+1. Webでログイン
+2. 緊急アクセス: 暗号化スナップショットをダウンロード
+3. 必要なら「復旧キー」を鍵分割（オプション）して保管
+
+補足:
+1. 緊急アクセスは「暗号化データの回収」です。復号（マスターパスワードで開く）はクライアント側で行います
+
+---
+
+## 15. UI仕様（画面とボタンの仕様）
+
+「どこに何があるか」を仕様として固定しておくと、将来のUI変更でも機能が消えたことに気付きやすくなります。
+
+### 15-1. Desktop（Electron）
+
+画面は大きく3状態です。
+
+1. セットアップ画面（初回のみ）
+- 入力: `setup-password`（マスターパスワード）、`setup-confirm`（確認）
+- 表示: パスワード強度（リアルタイム）
+- 操作: 「表示/隠す」トグル
+- 実行: 「Vaultを作成して開始」
+
+2. 解錠画面（ロック時/起動時）
+- 入力: `unlock-password`
+- 操作: 表示/隠す
+- 実行: 「解錠する」
+
+3. メイン画面（解錠後）
+- 左カラム: 基本操作/拡張導線/クラウド同期/移行
+- 右カラム: アイテム編集・一覧・診断・設定
+
+主要ボタン（期待する効果）:
+1. 「ロック」: 復号鍵をメモリから破棄してロック状態へ戻す
+2. 「暗号化バックアップ」: 暗号化Envelopeをファイルへ出力
+3. 「復元」: 暗号化Envelopeを読み込んでローカルVaultを置換
+4. 「拡張機能フォルダを開く」: 拡張機能の読み込み作業をしやすくする（開発/検証用）
+5. 「Web課金ページを開く」: ブラウザで課金導線へ
+6. 「緊急アクセス画面を開く」: ブラウザで緊急アクセス導線へ
+7. 「登録/ログイン/ログアウト」: クラウド同期用の認証
+8. 「クラウドから取得 / 送信」: pull/push
+9. 「差分プレビュー」: 移行内容を事前確認
+10. 「診断を更新」: セキュリティ診断の再計算
+11. 「設定を保存」: auto-lock/clipboard clear
+12. 「マスターパスワード変更」: 現在PWで解錠→新PWで再暗号化
+
+よくある誤解（重要）:
+1. `apps/desktop/src/renderer/index.html` をブラウザで直接開くと、`Desktop連携が見つかりません` と表示されます
+- これは正常です。Desktopアプリは Electron の `preload` で `window.pmDesktop` を注入しているため、ブラウザには存在しません
+- 正しい起動: `npm run desktop:dev` または `npm run dev:up`
+
+### 15-2. ブラウザ拡張（Chrome Extension / MV3）
+
+拡張ポップアップは次のタブ構造です。
+
+1. 自動入力
+- 「このサイト向け候補」: 現在タブのドメインに合うログイン項目を表示
+- 「サイト別フォーム学習」: 学習状態の表示/リセット
+- 「保存候補」: フォーム送信から検出した候補を表示（保存ボタンでVaultへ追加）
+
+2. アイテム
+- Desktopと同等のアイテム作成/編集/検索
+
+3. 移行/同期
+- 移行（差分プレビュー→適用）
+- クラウド同期（登録/ログイン/push/pull）
+
+4. 診断
+- セキュリティ診断レポート + 改善優先度つきコーチ
+
+5. 設定
+- auto-lock/clipboard clear/生成設定
+
+### 15-3. Web（課金・アカウント管理・緊急アクセス）
+
+Webは「Vault編集」ではなく、次に絞ります。
+
+1. 登録/ログイン
+2. 課金（Checkout/Portal）
+3. 利用権（entitlements）の表示
+4. 緊急アクセス（暗号化スナップショット取得）
+5. 緊急復旧オプション（鍵分割）
+
+なぜ Web に Vault編集を置かないか:
+1. 自動入力の中心は拡張機能
+2. Vault編集はネイティブの方が扱いやすい
+3. Webは攻撃面が広がりやすいので責務を絞る
+
+---
+
+## 16. データ仕様（Vault / Item / 学習データ）
+
+### 16-1. Vault（復号後の形）
+
+復号後のVaultは大きく次の形です（Desktop/拡張で共通）。
+
+```json
+{
+  "version": 1,
+  "meta": {
+    "createdAt": "2026-02-14T00:00:00.000Z",
+    "updatedAt": "2026-02-14T00:00:00.000Z"
+  },
+  "settings": {
+    "autoLockMinutes": 10,
+    "clipboardClearSeconds": 20,
+    "generator": {
+      "length": 20,
+      "uppercase": true,
+      "lowercase": true,
+      "numbers": true,
+      "symbols": true
+    }
+  },
+  "items": []
+}
+```
+
+### 16-2. Item（ログイン/カード/個人情報/ノート）
+
+共通フィールド:
+1. `id`（UUID）
+2. `type`（`login|card|identity|note`）
+3. `title`（必須）
+4. `tags[]`（最大20）
+5. `favorite`（お気に入り）
+6. `createdAt` / `updatedAt` / `lastUsedAt`
+
+ログイン（`type=login`）追加フィールド:
+1. `username`
+2. `password`（必須）
+3. `url`
+4. `otpSecret`（TOTPの種）
+5. `passwordUpdatedAt`
+
+カード（`type=card`）追加フィールド:
+1. `cardHolder`
+2. `cardNumber`
+3. `cardExpiry`
+4. `cardCvc`
+
+個人情報（`type=identity`）追加フィールド:
+1. `fullName`
+2. `email`
+3. `phone`
+4. `address`
+
+ノート（`type=note`）追加フィールド:
+1. `notes`
+2. `url`（任意）
+
+注意:
+1. 各フィールドは上限文字数で切り詰めます（巨大データの混入を防ぐため）
+2. `url` は `https://` が無い場合に自動補完します
+
+### 16-3. Vault Envelope（暗号化して保存する形）
+
+「Envelope（封筒）」は、Vaultの平文を暗号化して保存するためのJSONです。
+
+```json
+{
+  "version": 1,
+  "kdf": {
+    "algorithm": "PBKDF2",
+    "hash": "SHA-256",
+    "iterations": 310000,
+    "salt": "base64..."
+  },
+  "cipher": {
+    "algorithm": "AES-GCM",
+    "iv": "base64...",
+    "ciphertext": "base64..."
+  },
+  "updatedAt": "2026-02-14T00:00:00.000Z"
+}
+```
+
+ポイント:
+1. サーバーに置くのも、このEnvelopeだけです（平文Vaultは送らない）
+2. `kdf` が入っているので、将来KDFを移行しても復号に必要な情報が残ります
+
+### 16-4. フォーム学習データ（拡張のローカル保存）
+
+目的:
+1. “どの欄がユーザー名/パスワード欄か” をサイトごとに覚える
+
+保存場所:
+1. `chrome.storage.local`（ローカル端末内）
+
+保存キー:
+1. `domain::mode`（例: `accounts.example.com::login`）
+
+保存内容（イメージ）:
+```json
+{
+  "domain": "accounts.example.com",
+  "mode": "login",
+  "mapping": {
+    "username": { "id": "email", "name": "email", "type": "email", "placeholder": "", "autocomplete": "username", "ariaLabel": "" },
+    "password": { "id": "pass", "name": "pass", "type": "password", "placeholder": "", "autocomplete": "current-password", "ariaLabel": "" }
+  },
+  "fillCount": 3,
+  "createdAt": "...",
+  "updatedAt": "..."
+}
+```
+
+重要:
+1. パスワード文字列そのものは保存しません
+2. DOMが変わると学習が効かないことがあるので、リセット導線が必須です
+
+---
+
+## 17. API仕様（HTTPの入出力を具体化）
+
+「API」は、Desktop/拡張/将来モバイルがサーバーと通信するための約束（入力/出力）です。
+
+### 17-1. 認証
+
+1. `POST /api/auth/register`
+- 入力: `{ email, password }`
+- 成功: `201 { ok, token, user }`
+- 失敗: `409`（既存）/ `422`（形式不正）
+
+2. `POST /api/auth/login`
+- 入力: `{ email, password }`
+- 成功: `200 { ok, token, user }`
+- 失敗: `401`（不一致）
+
+3. `GET /api/auth/me`
+- Header: `Authorization: Bearer <token>`
+- 成功: `200 { ok, user }`
+
+補足:
+1. トークンはJWT（JSON Web Token）です
+2. JWTは「署名されたメモ」みたいなもので、サーバーは改ざんチェックして本人確認します
+
+### 17-2. 課金（Stripe）
+
+1. `POST /api/billing/checkout-session`
+- 成功: `{ ok, url }`（Stripe CheckoutのURL）
+- Stripe未設定: `503 { ok:false, error }`
+
+2. `POST /api/billing/portal-session`
+- 成功: `{ ok, url }`（Billing PortalのURL）
+
+3. `GET /api/billing/status`
+- 成功: `{ ok, feature, planStatus, isPaid, currentPeriodEnd, activeSources, entitlements }`
+
+### 17-3. 利用権（Entitlements）
+
+1. `GET /api/entitlements/status`
+- 成功: `{ ok, features: { cloud_sync: { isPaid, planStatus, ... } } }`
+
+2. `POST /api/entitlements/ingest`（サーバー間連携）
+- Header: `x-entitlement-token: <ENTITLEMENT_INGEST_TOKEN>`
+- Body: `{ userId|email, source, sourceRef, status, feature, startedAt, expiresAt, metadata }`
+
+### 17-4. Vault同期（有料）
+
+1. `GET /api/vault/snapshot`
+- 条件: 有料（`cloud_sync` がactive/trialing/grace）
+- 成功: `{ ok, snapshot: { userId, revision, envelope, updatedAt } }`
+
+2. `PUT /api/vault/snapshot`
+- 条件: 有料
+- 入力: `{ expectedRevision, nextRevision, envelope }`
+- 成功: `{ ok, snapshot }`
+- 衝突: `409 { ok:false, error, currentRevision }`
+
+### 17-5. 緊急アクセス
+
+1. `GET /api/vault/emergency-export`
+- 成功: `{ ok, snapshot }`（暗号化Envelope）
+
+---
+
+## 18. アルゴリズム仕様（暗号/強度/自動入力/学習）
+
+### 18-1. 暗号（E2EE）
+
+1. KDF（鍵を作る）: PBKDF2-SHA256
+2. 暗号: AES-GCM（認証付き暗号）
+3. 鍵長: 256bit
+4. Salt: 16byteランダム
+5. IV: 12byteランダム
+
+なぜ PBKDF2 を採用したか:
+1. Web Crypto APIで標準対応している
+2. Desktop（Node）でも同じロジックを共有できる
+
+デメリット:
+1. GPU耐性はArgon2idより弱い
+
+対策（将来）:
+1. Envelopeに `kdf` 情報を入れているので、バージョンアップでArgon2idへ移行可能
+
+### 18-2. パスワード強度（リアルタイム表示）
+
+目的:
+1. ユーザーが「弱いまま保存」しないように、その場で気付けるようにする
+
+判定要素（ざっくり）:
+1. 長さ
+2. 文字種（大文字/小文字/数字/記号）
+3. 推測されやすいパターン（連番、キーボード配列、"password" 等）
+4. 繰り返し（同じ文字の連打、同じ塊の繰り返し）
+
+表示:
+1. スコア（0〜100）
+2. ラベル（Very Weak〜Very Strong）
+3. 具体的な改善メッセージ（1文）
+
+注意:
+1. このスコアは「推測されにくさ」を大まかに見るものです
+2. 過信せず、重要サービスは必ず2段階認証も使うべきです
+
+### 18-3. リスクベース自動入力
+
+目的:
+1. フィッシング（偽サイト）に誤入力しない
+
+主なリスク要因:
+1. 保存URLのドメインと、現在ページのドメインが一致しない
+2. HTTPSではない
+3. Punycode（`xn--`）が含まれる
+4. 似たドメイン（編集距離が小さい）
+5. 初回のサイト（信頼回数が0）
+
+動作:
+1. `risk.level = high` はデフォルトブロック（ユーザー確認が必要）
+2. 何度か成功すると「信頼」が蓄積され、同じサイトではリスクを下げる
+
+注意:
+1. これは“完全な検知”ではなくヒューリスティック（経験則）です
+2. 公的なPublic Suffix List（PSL）を入れると精度は上がりますが、更新コストが増えるため最初は軽量実装にしています
+
+### 18-4. サイト別フォーム学習
+
+やること:
+1. 自動入力したとき「どの欄に入れたか」を記録
+2. 送信（submit）時に「最終的にユーザーが正した欄」を記録
+3. 次回は、その欄を優先して当てる
+
+学習の安全策:
+1. 秘密値は保存しない
+2. ドメイン+モードで分離
+3. リセットを用意
+
+---
+
+## 19. セキュリティ（守れること/守れないこと）
+
+パスワードマネージャーは「万能な金庫」ではありません。何を守れるかを先に明確にします。
+
+### 19-1. 守れること（この設計で強い）
+
+1. サーバー流出: サーバーには暗号化Envelopeしかないため、平文Vaultを直接は抜けません（E2EE）
+2. 通信盗聴: HTTPS前提 + トークン認証
+3. 課金状態の混乱: 利用権を正規化して一本化しているため、購入経路の分岐が増えにくい
+
+### 19-2. 守れないこと（限界）
+
+1. 端末がマルウェアに感染している場合
+- キーロガー、画面キャプチャ、メモリ読み取りは防げません
+
+2. マスターパスワードを忘れた場合
+- E2EEなので、サーバー側で復号して助けることはできません
+
+3. フィッシングサイトでユーザーが手動で入力した場合
+- リスクベース自動入力は“自動入力の安全性”を上げますが、手動入力の誤りまでは止められません
+
+### 19-3. 秘密情報の取り扱い（運用ルール）
+
+1. StripeキーやJWT_SECRETはGitにコミットしない
+2. `.env` は `.gitignore` し、必要なら秘密管理（例: 1Password/Secrets Manager）を使う
+3. テストキー（`sk_test_...`）でも公開は避ける
+- 理由: アカウント内のテストデータを荒らされたり、Webhook/ログがノイズだらけになる可能性があります
+
+---
+
+## 20. テスト/CI（"確実に壊れてない" を強くする）
+
+### 20-1. ローカルで回す「品質ゲート」
+
+`npm run test:full` が、最低限の“壊れてない”をまとめて確認します。
+
+内訳:
+1. `npm test`（ユニットテスト）
+2. `npm run test:mcp`（MCPのスモークテスト）
+3. `npm run test:e2e:extension`（拡張込みE2E: 自動入力→送信→学習）
+4. `npm run test:stripe:demo`（Stripe導線のスモーク）
+
+### 20-2. GitHub Actions で自動実行する意味
+
+「GitHub Actions」は、GitHub上で自動テストを走らせる仕組みです。
+
+push時に `test:full` を回すと何が嬉しいか:
+1. 自分のPC環境の差を受けにくい（クリーン環境で毎回確認できる）
+2. pushした時点で「少なくともテストは通る」状態を保ちやすい
+3. 将来チーム開発になっても壊れた変更が混ざりにくい
+
+このリポジトリでは既に `.github/workflows/test-full.yml` で実行するよう設定済みです。
+
+---
+
+## 21. 配布/署名（商用リリースに向けた現実的な道筋）
+
+### 21-1. Desktop（mac / Windows）
+
+1. ビルド: Electron Builder（`apps/desktop`）
+2. 署名:
+- mac: Developer ID 署名 + Notarization（Appleの公証）
+- Windows: コード署名証明書で署名
+
+このリポジトリの現状:
+1. ローカル試用向けに ad-hoc 署名スクリプトを用意（macのみ）
+2. 商用署名は「証明書」が必要なので、手元の証明書が揃った段階で設定します
+
+注意:
+1. 署名は“見た目の安心”ではなく、配布で弾かれないための必須作業です
+2. 署名無し配布は警告が出る/起動しないことがあります
+
+### 21-2. 拡張機能
+
+1. Chrome Web Store 等で配布する場合、審査があります
+2. MV3は権限が厳しめなので、必要最小限の権限に絞るのが基本です
+
+---
+
+## 22. 既知の制限と今後の拡張（マルチプラットフォームの完成形へ）
+
+### 22-1. 現状の制限
+
+1. 同期がスナップショット（差分マージ無し）なので、同時編集の競合解決UIがない
+2. 生体認証（Touch ID / Windows Hello）統合が未実装
+3. Passkeyのフル管理が未実装
+4. モバイルアプリ（iOS/Android）は未実装
+
+### 22-2. モバイルをどう実装するか（方針案）
+
+現時点では未実装ですが、選択肢は主に次です。
+
+1. ネイティブ（Swift/Kotlin）
+- メリット: OSの自動入力や鍵管理に最適。セキュリティ面の自由度が高い
+- デメリット: 2つのコードベース（iOS/Android）で学習コストが高い
+
+2. React Native
+- メリット: JavaScript資産を活かしやすい。UIも比較的速く作れる
+- デメリット: OSの自動入力連携は結局ネイティブ実装が必要になりがち
+
+3. Flutter
+- メリット: UIが揃いやすい。1コードでiOS/Android
+- デメリット: 既存JS資産の再利用は弱い。暗号やOS連携の橋渡しが必要
+
+結論（現段階の方針）:
+1. まずは Desktop + 拡張 + Web（課金/復旧）で商用リリースに必要な中核を固める
+2. モバイルは、OS自動入力（iOS Autofill / Android Autofill）を最優先に設計し、選択肢を確定する
+
+---
+
+## 23. レビュー用チェックリスト（抜け漏れ防止）
+
+ユーザーが文章レビューしやすいように、確認ポイントをチェックリスト化します。
+
+### 23-1. プロダクト仕様
+
+1. Desktop/拡張/Webの責務が混ざっていないか
+2. 「無料でできること」と「有料でできること」が明確か
+3. 乗り換え（移行）導線が現実的か
+
+### 23-2. セキュリティ
+
+1. サーバーに平文Vaultが保存されない（E2EE）設計になっているか
+2. トークン/Stripeキーなど秘密情報がコミットされない運用になっているか
+3. Webhook署名が必須で、ローカル例外が明示されているか
+4. 自動入力の高リスクがデフォルトブロックになっているか
+
+### 23-3. 課金・利用権
+
+1. 利用権（entitlements）が購入経路に依存せず1本化されているか
+2. 同期APIが利用権でガードされているか
+3. Webhook遅延/二重配信に耐える設計（冪等）になっているか
+
+### 23-4. 品質
+
+1. `npm run test:full` が通るか
+2. GitHub Actions で `test:full` が回る設定か
+3. 拡張込みE2Eで「学習が効く」ことを確認できるか
