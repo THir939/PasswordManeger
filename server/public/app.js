@@ -1,3 +1,5 @@
+import { passwordStrength } from "./password-strength.js";
+
 const statusEl = document.querySelector("#status");
 const accountBox = document.querySelector("#account-box");
 const entitlementListEl = document.querySelector("#entitlement-list");
@@ -9,8 +11,12 @@ const summaryPeriodEl = document.querySelector("#summary-period");
 const inputs = {
   registerEmail: document.querySelector("#register-email"),
   registerPassword: document.querySelector("#register-password"),
+  registerPasswordToggle: document.querySelector("#register-password-toggle"),
+  registerPasswordStrength: document.querySelector("#register-password-strength"),
   loginEmail: document.querySelector("#login-email"),
   loginPassword: document.querySelector("#login-password"),
+  loginPasswordToggle: document.querySelector("#login-password-toggle"),
+  loginPasswordStrength: document.querySelector("#login-password-strength"),
   recoverySecret: document.querySelector("#recovery-secret-input"),
   shareTotal: document.querySelector("#share-total-input"),
   shareThreshold: document.querySelector("#share-threshold-input"),
@@ -45,6 +51,81 @@ function setStatus(message, isError = false) {
   statusEl.textContent = hasMessage ? String(message) : "";
   statusEl.classList.toggle("ok", hasMessage && !isError);
   statusEl.classList.toggle("error", hasMessage && isError);
+}
+
+function strengthLabel(complexity) {
+  if (complexity === "very-strong") return "非常に強い";
+  if (complexity === "strong") return "強い";
+  if (complexity === "fair") return "標準";
+  if (complexity === "weak") return "弱い";
+  return "非常に弱い";
+}
+
+function paintStrength(meterElement, password, minLength = 0) {
+  if (!meterElement) {
+    return;
+  }
+
+  const fill = meterElement.querySelector(".strength-fill");
+  const text = meterElement.querySelector(".strength-text");
+  const value = String(password || "");
+  const result = passwordStrength(value);
+  const level = value ? result.complexity : "very-weak";
+  const firstFeedback = result.feedback?.[0] || "";
+  const minLengthNote = minLength > 0 && value.length > 0 && value.length < minLength ? `最低 ${minLength} 文字以上が必要です。` : "";
+  const message =
+    value.length === 0
+      ? "強度: 未入力"
+      : `強度: ${strengthLabel(level)} (${result.score}/100)${minLengthNote ? ` / ${minLengthNote}` : firstFeedback ? ` / ${firstFeedback}` : ""}`;
+
+  meterElement.classList.remove("is-very-weak", "is-weak", "is-fair", "is-strong", "is-very-strong");
+  meterElement.classList.add(`is-${level}`);
+
+  if (fill) {
+    fill.style.width = `${value.length === 0 ? 0 : result.score}%`;
+  }
+  if (text) {
+    text.textContent = message;
+  }
+}
+
+function bindVisibilityToggle(inputElement, toggleButton) {
+  if (!inputElement || !toggleButton) {
+    return;
+  }
+
+  const render = () => {
+    const hidden = inputElement.type === "password";
+    toggleButton.textContent = hidden ? "表示" : "隠す";
+    toggleButton.setAttribute("aria-pressed", hidden ? "false" : "true");
+    toggleButton.setAttribute("aria-label", hidden ? "パスワードを表示" : "パスワードを隠す");
+  };
+
+  toggleButton.addEventListener("click", () => {
+    inputElement.type = inputElement.type === "password" ? "text" : "password";
+    render();
+  });
+
+  render();
+}
+
+function bindPasswordAssistUi() {
+  bindVisibilityToggle(inputs.registerPassword, inputs.registerPasswordToggle);
+  bindVisibilityToggle(inputs.loginPassword, inputs.loginPasswordToggle);
+
+  if (inputs.registerPassword) {
+    paintStrength(inputs.registerPasswordStrength, inputs.registerPassword.value, 10);
+    inputs.registerPassword.addEventListener("input", () => {
+      paintStrength(inputs.registerPasswordStrength, inputs.registerPassword.value, 10);
+    });
+  }
+
+  if (inputs.loginPassword) {
+    paintStrength(inputs.loginPasswordStrength, inputs.loginPassword.value, 10);
+    inputs.loginPassword.addEventListener("input", () => {
+      paintStrength(inputs.loginPasswordStrength, inputs.loginPassword.value, 10);
+    });
+  }
 }
 
 function saveToken(token) {
@@ -212,6 +293,7 @@ async function register() {
 
   saveToken(data.token);
   inputs.registerPassword.value = "";
+  paintStrength(inputs.registerPasswordStrength, "", 10);
   setStatus("アカウントを作成しました。", false);
   await refreshAccount();
 }
@@ -227,6 +309,7 @@ async function login() {
 
   saveToken(data.token);
   inputs.loginPassword.value = "";
+  paintStrength(inputs.loginPasswordStrength, "", 10);
   setStatus("ログインしました。", false);
   await refreshAccount();
 }
@@ -491,6 +574,8 @@ function recoverFromShares() {
   recoveredSecretBox.textContent = recovered;
   setStatus("シェアから復旧キーを再構築しました。", false);
 }
+
+bindPasswordAssistUi();
 
 buttons.register.addEventListener("click", () => {
   register().catch((error) => setStatus(error.message, true));

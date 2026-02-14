@@ -1,3 +1,5 @@
+import { passwordStrength } from "../shared/password.js";
+
 const bridge = window.pmDesktop || null;
 
 const elements = {
@@ -9,9 +11,13 @@ const elements = {
   setupForm: document.querySelector("#setup-form"),
   setupPassword: document.querySelector("#setup-password"),
   setupConfirm: document.querySelector("#setup-confirm"),
+  setupPasswordToggle: document.querySelector("#setup-password-toggle"),
+  setupConfirmToggle: document.querySelector("#setup-confirm-toggle"),
+  setupPasswordStrength: document.querySelector("#setup-password-strength"),
 
   unlockForm: document.querySelector("#unlock-form"),
   unlockPassword: document.querySelector("#unlock-password"),
+  unlockPasswordToggle: document.querySelector("#unlock-password-toggle"),
 
   lockButton: document.querySelector("#lock-btn"),
   exportButton: document.querySelector("#export-btn"),
@@ -34,6 +40,8 @@ const elements = {
   cloudBaseUrl: document.querySelector("#cloud-base-url"),
   cloudEmail: document.querySelector("#cloud-email"),
   cloudPassword: document.querySelector("#cloud-password"),
+  cloudPasswordToggle: document.querySelector("#cloud-password-toggle"),
+  cloudPasswordStrength: document.querySelector("#cloud-password-strength"),
   cloudRegisterButton: document.querySelector("#cloud-register-btn"),
   cloudLoginButton: document.querySelector("#cloud-login-btn"),
   cloudLogoutButton: document.querySelector("#cloud-logout-btn"),
@@ -48,6 +56,8 @@ const elements = {
   itemTitle: document.querySelector("#item-title"),
   itemUsername: document.querySelector("#item-username"),
   itemPassword: document.querySelector("#item-password"),
+  itemPasswordToggle: document.querySelector("#item-password-toggle"),
+  itemPasswordStrength: document.querySelector("#item-password-strength"),
   itemUrl: document.querySelector("#item-url"),
   itemOtp: document.querySelector("#item-otp"),
   itemFullName: document.querySelector("#item-fullname"),
@@ -78,7 +88,10 @@ const elements = {
 
   masterForm: document.querySelector("#master-form"),
   oldMaster: document.querySelector("#old-master"),
-  newMaster: document.querySelector("#new-master")
+  newMaster: document.querySelector("#new-master"),
+  oldMasterToggle: document.querySelector("#old-master-toggle"),
+  newMasterToggle: document.querySelector("#new-master-toggle"),
+  newMasterStrength: document.querySelector("#new-master-strength")
 };
 
 const state = {
@@ -104,6 +117,120 @@ function setView(viewName) {
   if (viewName === "setup") elements.setupView.classList.remove("hidden");
   if (viewName === "unlock") elements.unlockView.classList.remove("hidden");
   if (viewName === "main") elements.mainView.classList.remove("hidden");
+}
+
+function strengthLabel(complexity) {
+  if (complexity === "very-strong") return "非常に強い";
+  if (complexity === "strong") return "強い";
+  if (complexity === "fair") return "標準";
+  if (complexity === "weak") return "弱い";
+  return "非常に弱い";
+}
+
+function paintStrength(meterElement, password, minLength = 0) {
+  if (!meterElement) {
+    return;
+  }
+
+  const fill = meterElement.querySelector(".strength-fill");
+  const text = meterElement.querySelector(".strength-text");
+  const value = String(password || "");
+  const result = passwordStrength(value);
+  const level = value ? result.complexity : "very-weak";
+  const firstFeedback = result.feedback?.[0] || "";
+  const minLengthNote = minLength > 0 && value.length > 0 && value.length < minLength ? `最低 ${minLength} 文字以上が必要です。` : "";
+  const message =
+    value.length === 0
+      ? "強度: 未入力"
+      : `強度: ${strengthLabel(level)} (${result.score}/100)${minLengthNote ? ` / ${minLengthNote}` : firstFeedback ? ` / ${firstFeedback}` : ""}`;
+
+  meterElement.classList.remove("is-very-weak", "is-weak", "is-fair", "is-strong", "is-very-strong");
+  meterElement.classList.add(`is-${level}`);
+
+  if (fill) {
+    fill.style.width = `${value.length === 0 ? 0 : result.score}%`;
+  }
+  if (text) {
+    text.textContent = message;
+  }
+}
+
+function bindVisibilityToggle(inputElement, toggleButton) {
+  if (!inputElement || !toggleButton) {
+    return;
+  }
+
+  const render = () => {
+    const hidden = inputElement.type === "password";
+    toggleButton.textContent = hidden ? "表示" : "隠す";
+    toggleButton.setAttribute("aria-pressed", hidden ? "false" : "true");
+    toggleButton.setAttribute("aria-label", hidden ? "パスワードを表示" : "パスワードを隠す");
+  };
+
+  toggleButton.addEventListener("click", () => {
+    inputElement.type = inputElement.type === "password" ? "text" : "password";
+    render();
+  });
+
+  render();
+}
+
+function bindPasswordAssistUi() {
+  const fields = [
+    {
+      input: elements.setupPassword,
+      toggle: elements.setupPasswordToggle,
+      meter: elements.setupPasswordStrength,
+      minLength: 10
+    },
+    {
+      input: elements.setupConfirm,
+      toggle: elements.setupConfirmToggle
+    },
+    {
+      input: elements.unlockPassword,
+      toggle: elements.unlockPasswordToggle
+    },
+    {
+      input: elements.cloudPassword,
+      toggle: elements.cloudPasswordToggle,
+      meter: elements.cloudPasswordStrength,
+      minLength: 10
+    },
+    {
+      input: elements.itemPassword,
+      toggle: elements.itemPasswordToggle,
+      meter: elements.itemPasswordStrength,
+      minLength: 10
+    },
+    {
+      input: elements.oldMaster,
+      toggle: elements.oldMasterToggle
+    },
+    {
+      input: elements.newMaster,
+      toggle: elements.newMasterToggle,
+      meter: elements.newMasterStrength,
+      minLength: 10
+    }
+  ];
+
+  fields.forEach(({ input, toggle, meter, minLength }) => {
+    bindVisibilityToggle(input, toggle);
+    if (meter && input) {
+      paintStrength(meter, input.value, minLength);
+      input.addEventListener("input", () => {
+        paintStrength(meter, input.value, minLength);
+      });
+    }
+  });
+}
+
+function refreshPasswordStrengthUi() {
+  paintStrength(elements.setupPasswordStrength, elements.setupPassword?.value, 10);
+  paintStrength(elements.cloudPasswordStrength, elements.cloudPassword?.value, 10);
+  paintStrength(elements.itemPasswordStrength, elements.itemPassword?.value, 10);
+  paintStrength(elements.newMasterStrength, elements.newMaster?.value, 10);
 }
 
 async function callService(action, payload = {}) {
@@ -246,6 +373,7 @@ function clearItemForm() {
   elements.itemFavorite.checked = false;
   elements.cancelEdit.classList.add("hidden");
   updateTypeVisibility();
+  refreshPasswordStrengthUi();
 }
 
 function itemToMeta(item) {
@@ -423,6 +551,7 @@ function editItem(item) {
 
   updateTypeVisibility();
   elements.cancelEdit.classList.remove("hidden");
+  refreshPasswordStrengthUi();
   setStatus(`編集モード: ${item.title}`, false);
 }
 
@@ -553,6 +682,7 @@ function bindEvents() {
       await callService("setupVault", { masterPassword: password });
       setView("main");
       elements.setupForm.reset();
+      refreshPasswordStrengthUi();
       await refreshMainScreen();
       clearItemForm();
       setStatus("Vaultを作成しました。", false);
@@ -569,6 +699,7 @@ function bindEvents() {
       await callService("unlockVault", { masterPassword: elements.unlockPassword.value });
       setView("main");
       elements.unlockForm.reset();
+      refreshPasswordStrengthUi();
       await refreshMainScreen();
       clearItemForm();
       setStatus("Vaultを解錠しました。", false);
@@ -745,6 +876,7 @@ function bindEvents() {
     try {
       const response = await callService("generatePassword");
       elements.itemPassword.value = response.password;
+      refreshPasswordStrengthUi();
       setStatus("強力なパスワードを生成しました。", false);
     } catch (error) {
       setStatus(error.message, true);
@@ -868,6 +1000,7 @@ function bindEvents() {
       });
 
       elements.masterForm.reset();
+      refreshPasswordStrengthUi();
       setStatus("マスターパスワードを変更しました。", false);
     } catch (error) {
       setStatus(error.message, true);
@@ -876,8 +1009,10 @@ function bindEvents() {
 }
 
 async function bootstrap() {
+  bindPasswordAssistUi();
   bindEvents();
   clearItemForm();
+  refreshPasswordStrengthUi();
 
   if (!bridge) {
     setView("setup");

@@ -271,6 +271,70 @@ button.ghost:hover,
   gap: 0.45rem;
 }
 
+.inline-with-toggle {
+  grid-template-columns: minmax(0, 1fr) auto auto;
+}
+
+.secret-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.45rem;
+}
+
+.small-toggle {
+  min-width: 3.4rem;
+  padding: 0.44rem 0.52rem;
+  font-size: 0.78rem;
+}
+
+.strength-box {
+  display: grid;
+  gap: 0.25rem;
+}
+
+.strength-bar {
+  width: 100%;
+  height: 0.4rem;
+  border-radius: 999px;
+  background: #e8decb;
+  overflow: hidden;
+}
+
+.strength-fill {
+  display: block;
+  height: 100%;
+  width: 0%;
+  border-radius: 999px;
+  background: #93815d;
+  transition: width 160ms ease, background-color 160ms ease;
+}
+
+.strength-text {
+  margin: 0;
+  font-size: 0.77rem;
+  color: var(--ink-soft);
+}
+
+.strength-box.is-very-weak .strength-fill {
+  background: #b42336;
+}
+
+.strength-box.is-weak .strength-fill {
+  background: #ca8a04;
+}
+
+.strength-box.is-fair .strength-fill {
+  background: #3f8f6f;
+}
+
+.strength-box.is-strong .strength-fill {
+  background: #1f7a82;
+}
+
+.strength-box.is-very-strong .strength-fill {
+  background: #155e75;
+}
+
 .filters {
   display: grid;
   grid-template-columns: 2fr 1fr auto;

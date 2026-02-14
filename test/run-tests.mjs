@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { createVaultEnvelope, unlockVaultEnvelope } from "../src/lib/crypto.js";
-import { generatePassword } from "../src/lib/password.js";
+import { generatePassword, passwordStrength } from "../src/lib/password.js";
 import { generateTotp } from "../src/lib/totp.js";
 import { buildSecurityReport } from "../src/lib/security-audit.js";
 import { parseExternalItems } from "../src/lib/migration.js";
@@ -38,6 +38,18 @@ await run("crypto wrong password fails", async () => {
 await run("password generator length", () => {
   const password = generatePassword({ length: 32, symbols: true });
   assert.equal(password.length, 32);
+});
+
+await run("password strength flags weak pattern", () => {
+  const result = passwordStrength("password123");
+  assert.equal(result.score <= 55, true);
+  assert.equal(["weak", "very-weak"].includes(result.complexity), true);
+});
+
+await run("password strength rates complex password high", () => {
+  const result = passwordStrength("N7!qL2@vR9#xT4$kP8&m");
+  assert.equal(result.score >= 75, true);
+  assert.equal(["strong", "very-strong"].includes(result.complexity), true);
 });
 
 await run("totp known vector", async () => {

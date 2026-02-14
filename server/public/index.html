@@ -207,6 +207,66 @@
         gap: 0.5rem;
       }
 
+      .secret-row {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        gap: 0.45rem;
+      }
+
+      .secret-toggle {
+        min-width: 3.6rem;
+        padding: 0.54rem 0.62rem;
+        font-size: 0.78rem;
+      }
+
+      .strength-box {
+        display: grid;
+        gap: 0.26rem;
+      }
+
+      .strength-bar {
+        width: 100%;
+        height: 0.42rem;
+        border-radius: 999px;
+        background: #e7ddcc;
+        overflow: hidden;
+      }
+
+      .strength-fill {
+        display: block;
+        height: 100%;
+        width: 0%;
+        border-radius: 999px;
+        background: #968360;
+        transition: width 160ms ease, background-color 160ms ease;
+      }
+
+      .strength-text {
+        margin: 0;
+        font-size: 0.78rem;
+        color: var(--muted);
+      }
+
+      .strength-box.is-very-weak .strength-fill {
+        background: #b42336;
+      }
+
+      .strength-box.is-weak .strength-fill {
+        background: #ca8a04;
+      }
+
+      .strength-box.is-fair .strength-fill {
+        background: #3f8f6f;
+      }
+
+      .strength-box.is-strong .strength-fill {
+        background: #1f7a82;
+      }
+
+      .strength-box.is-very-strong .strength-fill {
+        background: #155e75;
+      }
+
       .status {
         margin: 0.1rem 0 0;
         min-height: 1.35rem;
@@ -445,7 +505,14 @@
           </label>
           <label>
             パスワード（10文字以上）
-            <input id="register-password" type="password" autocomplete="new-password" />
+            <div class="secret-row">
+              <input id="register-password" type="password" autocomplete="new-password" />
+              <button id="register-password-toggle" type="button" class="ghost secret-toggle" data-target="register-password">表示</button>
+            </div>
+            <div id="register-password-strength" class="strength-box" aria-live="polite">
+              <div class="strength-bar"><span class="strength-fill"></span></div>
+              <p class="strength-text">強度: 未入力</p>
+            </div>
           </label>
           <button id="register-btn" type="button">アカウント作成</button>
         </article>
@@ -458,7 +525,14 @@
           </label>
           <label>
             パスワード
-            <input id="login-password" type="password" autocomplete="current-password" />
+            <div class="secret-row">
+              <input id="login-password" type="password" autocomplete="current-password" />
+              <button id="login-password-toggle" type="button" class="ghost secret-toggle" data-target="login-password">表示</button>
+            </div>
+            <div id="login-password-strength" class="strength-box" aria-live="polite">
+              <div class="strength-bar"><span class="strength-fill"></span></div>
+              <p class="strength-text">強度: 未入力</p>
+            </div>
           </label>
           <div class="row">
             <button id="login-btn" type="button">ログイン</button>
