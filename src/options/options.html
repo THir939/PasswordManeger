@@ -1,81 +1,144 @@
 <!doctype html>
 <html lang="ja">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>PasswordManeger Options</title>
-    <link rel="stylesheet" href="./options.css" />
-  </head>
-  <body>
-    <main class="wrap">
-      <header class="hero">
-        <p class="kicker">Chrome / Edge Extension</p>
-        <h1>PasswordManeger 設定ガイド</h1>
-        <p class="sub">
-          拡張機能だけでも「ローカル保管 + 自動入力 + 診断」まで使えます。必要なら、有料プランでクラウド同期も追加できます。
-        </p>
-        <div class="hero-meta" aria-label="特徴">
-          <span class="pill">ローカル暗号化</span>
-          <span class="pill">リスクベース自動入力</span>
-          <span class="pill">フォーム学習</span>
-          <span class="pill">移行プレビュー</span>
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PasswordManeger Options</title>
+  <link rel="stylesheet" href="./options.css" />
+  <script src="./options.js" defer></script>
+</head>
+
+<body>
+  <div class="app-container">
+    <header class="top-header">
+      <div class="logo-box">
+        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none"
+          stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+          <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+        </svg>
+      </div>
+      <div class="header-text">
+        <p class="kicker">PasswordManeger Extension</p>
+        <h1>設定ガイド & ドキュメント</h1>
+      </div>
+    </header>
+
+    <nav class="ribbon-nav">
+      <button class="ribbon-tab active" data-target="tab-overview">概要 / 構成</button>
+      <button class="ribbon-tab" data-target="tab-features">できること</button>
+      <button class="ribbon-tab" data-target="tab-usage">使い方 (最短)</button>
+      <button class="ribbon-tab" data-target="tab-warnings">注意点 (大事)</button>
+      <button class="ribbon-tab" data-target="tab-trouble">困ったとき</button>
+    </nav>
+
+    <main class="content-area">
+      <!-- 概要 -->
+      <section id="tab-overview" class="tab-panel active">
+        <div class="glass-card">
+          <h2>拡張機能単体でもパワフルに動作</h2>
+          <p class="sub">
+            拡張機能だけでも「ローカル保管 + 自動入力 + 診断」までフル活用できます。<br>
+            必要に応じて、有料プランでクラウド同期（複数端末連携）も追加可能です。
+          </p>
+          <div class="hero-meta">
+            <span class="pill">ローカル暗号化 (AES-256-GCM)</span>
+            <span class="pill">リスクベース自動入力</span>
+            <span class="pill">フォーム学習</span>
+            <span class="pill">移行プレビュー</span>
+          </div>
+
+          <div class="divider"></div>
+
+          <h3>拡張機能だけでも使える？</h3>
+          <p class="hint">
+            使えます。拡張機能は単体で完結します（ローカルVault運用）。ただし「複数端末の同期」だけは、サーバー（有料）を前提にしています。
+          </p>
+          <ul class="feature-list">
+            <li><strong>拡張機能だけでできる:</strong> 保存 / 自動入力 / バックアップ / 移行 / セキュリティ診断</li>
+            <li><strong>サーバーが必要:</strong> 課金 / クラウド同期 / 緊急アクセス（暗号化データ回収）</li>
+          </ul>
         </div>
-      </header>
-
-      <section>
-        <h2>この拡張機能でできること</h2>
-        <ul>
-          <li>ローカル暗号化されたVaultに、ログイン/カード/個人情報/ノートを保存</li>
-          <li>アクティブサイト向け候補を表示して自動入力</li>
-          <li>リスクベース自動入力（高リスク時はブロック or 確認）</li>
-          <li>サイト別フォーム学習（手動修正を覚えて成功率を上げる。誤学習はリセット可能）</li>
-          <li>フォーム送信内容から新規ログイン候補を検出（保存候補）</li>
-          <li>ローカルセキュリティ診断 + 改善優先度つきコーチ</li>
-          <li>他サービス移行（1Password / Bitwarden / LastPass / 汎用CSV/JSON）+ 差分プレビュー</li>
-          <li>暗号化JSONバックアップのエクスポート/インポート</li>
-          <li>クラウド同期（有料）: サーバーに暗号化スナップショットを保存して複数端末で同期</li>
-        </ul>
       </section>
 
-      <section>
-        <h2>拡張機能だけでも使える？</h2>
-        <p class="hint">
-          使えます。拡張機能は単体で完結します（ローカルVault運用）。ただし「複数端末の同期」だけは、サーバー（有料）を前提にしています。
-        </p>
-        <ul>
-          <li>拡張機能だけでできる: 保存/自動入力/バックアップ/移行/診断</li>
-          <li>サーバーが必要: 課金、クラウド同期、緊急アクセス（暗号化データ回収）</li>
-        </ul>
+      <!-- できること -->
+      <section id="tab-features" class="tab-panel">
+        <div class="glass-card">
+          <h2>この拡張機能でできること</h2>
+          <ul class="feature-list rich">
+            <li>ローカル暗号化されたVaultに、ログイン / カード / 個人情報 / ノートを安全に保存</li>
+            <li>現在開いているアクティブサイト向けの候補を自動表示してワンクリック自動入力</li>
+            <li>リスクベース自動入力（怪しいドメインやHTTPSではない場合は警告またはブロック）</li>
+            <li>サイト別フォーム学習（自動入力の失敗を手動修正すると学習し、次回から成功率が上がります。誤学習のリセットも可能）</li>
+            <li>フォーム送信内容から新規ログインを検出し、保存候補としてポップアップで提案</li>
+            <li>ローカルセキュリティ診断 + 改善優先度（使い回し、弱いパスワードなど）つきコーチ付き</li>
+            <li>他サービスからの移行（1Password / Bitwarden / LastPass / 汎用CSV/JSON対応）と差分プレビュー機能</li>
+            <li>暗号化JSONバックアップによる手動エクスポート / インポート</li>
+            <li>クラウド同期（有料）: サーバーに最新の暗号化状態をスナップショットとして保存し、シームレスに複数端末と同期</li>
+          </ul>
+        </div>
       </section>
 
-      <section>
-        <h2>注意点（大事）</h2>
-        <ul>
-          <li>マスターパスワードを忘れると復元できません。</li>
-          <li>クラウド同期は「有料ユーザーのみ」使えます（サーバー側で利用権を確認します）。</li>
-          <li>サイトごとのDOM差分で自動入力精度が変わることがあります。</li>
-          <li>フォーム学習が誤る場合があります。違和感があれば「リセット」を使ってください。</li>
-        </ul>
+      <!-- 使い方 -->
+      <section id="tab-usage" class="tab-panel">
+        <div class="glass-card">
+          <h2>使い方（最短スタートガイド）</h2>
+          <ol class="step-list">
+            <li>
+              <div class="step-num">1</div>
+              <div class="step-text"><strong>Vaultを作成</strong><br>ツールバーの拡張機能アイコンをクリックし、マスターパスワードを設定してVault（金庫）を作成します。
+              </div>
+            </li>
+            <li>
+              <div class="step-num">2</div>
+              <div class="step-text"><strong>ログイン項目を保存</strong><br>「+ アイテム追加」からログイン情報（URL、ユーザー、パスワード）を登録します。</div>
+            </li>
+            <li>
+              <div class="step-num">3</div>
+              <div class="step-text"><strong>ページで自動入力</strong><br>保存したURLのログインページを開き、拡張機能の「このサイト向け候補」から自動入力を実行します。</div>
+            </li>
+          </ol>
+        </div>
       </section>
 
-      <section>
-        <h2>使い方（最短）</h2>
-        <ol>
-          <li>拡張機能アイコンを開き、Vaultを作成</li>
-          <li>ログイン項目を登録して保存</li>
-          <li>ログインページで「このサイト向け候補」から自動入力</li>
-        </ol>
+      <!-- 注意点 -->
+      <section id="tab-warnings" class="tab-panel">
+        <div class="glass-card danger-card">
+          <h2>⚠️ 注意点（必ずお読みください）</h2>
+          <ul class="feature-list">
+            <li><strong>マスターパスワードの紛失:</strong> 忘れるとデータを復元・復号することは一切できません。必ず安全な場所に記憶・記録してください。</li>
+            <li><strong>クラウド同期の制限:</strong> 「有料ユーザーのみ」利用可能です。サーバー側でStripeの利用権ステータスを毎回検証します。</li>
+            <li><strong>自動入力の精度:</strong> サイトごとのDOM（HTML構造）差分により、自動入力がうまく機能しないことがあります。</li>
+            <li><strong>フォーム学習の限界:</strong> 自動学習が誤る場合があります。違和感があれば設定から「リセット」を行ってください。</li>
+          </ul>
+        </div>
       </section>
 
-      <section>
-        <h2>困ったとき</h2>
-        <ul>
-          <li>候補が出ない: 項目のURLを入れているか確認（例: <code>https://example.com/login</code>）</li>
-          <li>自動入力がずれる: いったん手動で直してから、フォーム学習を更新</li>
-          <li>学習が壊れた: 「このサイトをリセット」または「全学習をリセット」</li>
-          <li>同期ができない: 有料プランが有効か、ベースURLが正しいか、ログイン済みか確認</li>
-        </ul>
+      <!-- 困ったとき -->
+      <section id="tab-trouble" class="tab-panel">
+        <div class="glass-card">
+          <h2>よくあるトラブルシューティング</h2>
+          <div class="trouble-item">
+            <h4>Q. 候補が出ない（自動入力タブが空になる）</h4>
+            <p>保存したログイン項目に「URL」が正しく入力されているか確認してください。<br>（例: <code>https://example.com/login</code>）</p>
+          </div>
+          <div class="trouble-item">
+            <h4>Q. 自動入力先のフィールドがずれる</h4>
+            <p>一度「手動」で正しいフィールドに情報をコピー＆ペースト入力してログインしてください。パスワードマネージャーがそれを学習し、次回から修正されます。</p>
+          </div>
+          <div class="trouble-item">
+            <h4>Q. 学習が壊れて何度やっても失敗する</h4>
+            <p>拡張機能設定から「このサイトの学習をリセット」または「全サイトの学習をリセット」を実行してください。</p>
+          </div>
+          <div class="trouble-item">
+            <h4>Q. クラウド同期ができない / エラーになる</h4>
+            <p>有料プランが有効か、同期ベースURLが正しいか、クラウドタブで「ログイン完了」状態になっているかを確認してください。</p>
+          </div>
+        </div>
       </section>
     </main>
-  </body>
+  </div>
+</body>
+
 </html>

@@ -23,6 +23,7 @@ function resolveDataDir() {
 const dataDir = resolveDataDir();
 const webBaseUrl = String(process.env.PM_MCP_WEB_BASE_URL || "http://localhost:8787").trim();
 const allowSecretExport = String(process.env.PM_MCP_ALLOW_SECRET_EXPORT || "") === "1";
+const defaultReadOnly = String(process.env.PM_MCP_READ_ONLY || "") === "1";
 const extensionPath = process.env.PM_MCP_EXTENSION_PATH
   ? path.resolve(process.cwd(), String(process.env.PM_MCP_EXTENSION_PATH))
   : projectRoot;
@@ -80,6 +81,7 @@ function makeErrorResult(error) {
 async function callAction(action, payload = {}) {
   return service.handleAction({
     action,
+    actor: "mcp",
     ...(payload || {})
   });
 }
@@ -127,7 +129,7 @@ function registerTool(name, definition, handler) {
 registerTool(
   "pm_get_state",
   {
-    description: "ローカルVault状態とクラウド接続状態を取得します。",
+    description: "ローカルVault状態とクラウド接続状態を取得します。スコープ・アクセスモード・セッション有効期限も返します。",
     inputSchema: {}
   },
   async () => {
@@ -148,7 +150,8 @@ registerTool(
         dataDir,
         webBaseUrl,
         extensionPath,
-        allowSecretExport
+        allowSecretExport,
+        defaultReadOnly
       },
       local,
       cloud
@@ -172,13 +175,94 @@ registerTool(
 registerTool(
   "pm_unlock_vault",
   {
-    description: "既存Vaultを解錠します。",
+    description: "既存Vaultを解錠します。短寿命セッション（TTL）やアクセスモード指定も可能です。",
     inputSchema: {
-      masterPassword: z.string().min(1).describe("マスターパスワード")
+      masterPassword: z.string().min(1).describe("マスターパスワード"),
+      sessionTtlSeconds: z.number().int().min(10).max(86400).optional().describe("セッション有効秒数（未指定: Vault設定のautoLockMinutesを使用）"),
+      accessMode: z.enum(["full", "readonly"]).optional().describe("アクセスモード（デフォルト: full）")
     }
   },
-  async ({ masterPassword }) => {
-    return callAction("unlockVault", { masterPassword });
+  async ({ masterPassword, sessionTtlSeconds, accessMode }) => {
+    return callAction("unlockVault", {
+      masterPassword,
+      sessionTtlSeconds,
+      accessMode: accessMode || (defaultReadOnly ? "readonly" : "full")
+    });
+  }
+);
+
+registerTool(
+  "pm_unlock_vault_scoped",
+  {
+    description: "スコープ付きでVaultを解錠します。指定したタグ/フォルダのアイテムのみ操作可能になります。",
+    inputSchema: {
+      masterPassword: z.string().min(1).describe("マスターパスワード"),
+      scopeTags: z.array(z.string()).optional().describe("許可するタグの配列"),
+      scopeFolders: z.array(z.string()).optional().describe("許可するフォルダの配列（folder:xxx タグで照合）"),
+      sessionTtlSeconds: z.number().int().min(10).max(86400).optional().describe("セッション有効秒数"),
+      accessMode: z.enum(["full", "readonly"]).optional().describe("アクセスモード（デフォルト: full）")
+    }
+  },
+  async ({ masterPassword, scopeTags, scopeFolders, sessionTtlSeconds, accessMode }) => {
+    return callAction("unlockVaultScoped", {
+      masterPassword,
+      scope: {
+        tags: scopeTags || [],
+        folders: scopeFolders || []
+      },
+      sessionTtlSeconds,
+      accessMode: accessMode || (defaultReadOnly ? "readonly" : "full")
+    });
+  }
+);
+
+registerTool(
+  "pm_set_access_mode",
+  {
+    description: "現在のセッションのアクセスモードを変更します（full / readonly）。",
+    inputSchema: {
+      mode: z.enum(["full", "readonly"]).describe("アクセスモード")
+    }
+  },
+  async ({ mode }) => {
+    return callAction("setAccessMode", { mode });
+  }
+);
+
+registerTool(
+  "pm_audit_log",
+  {
+    description: "監査ログを取得します。操作履歴をフィルタ付きで閲覧できます。",
+    inputSchema: {
+      filterAction: z.string().optional().describe("アクション名でフィルタ（例: saveItem, deleteItem）"),
+      filterActor: z.string().optional().describe("アクター名でフィルタ（例: mcp）"),
+      since: z.string().optional().describe("ISO日時文字列。これ以降のログのみ返します"),
+      limit: z.number().int().min(1).max(500).optional().describe("最大件数（デフォルト: 100）")
+    }
+  },
+  async ({ filterAction, filterActor, since, limit }) => {
+    return callAction("getAuditLog", { filterAction, filterActor, since, limit });
+  }
+);
+
+registerTool(
+  "pm_agent_save_credential",
+  {
+    description: "エージェントが取得した資格情報（ID/パスワード）をVaultに保存します。agent:名前 タグが自動付与されます。",
+    inputSchema: {
+      url: z.string().optional().describe("サービスのURL"),
+      username: z.string().optional().describe("ユーザー名/メールアドレス"),
+      password: z.string().min(1).describe("パスワード"),
+      agentName: z.string().min(1).describe("保存元エージェント名（例: openclaw, gemini）"),
+      title: z.string().optional().describe("タイトル（未指定: URLまたはusernameを使用）"),
+      notes: z.string().optional().describe("メモ"),
+      tags: z.union([z.string(), z.array(z.string())]).optional().describe("追加タグ")
+    }
+  },
+  async ({ url, username, password, agentName, title, notes, tags }) => {
+    return callAction("agentSaveCredential", {
+      url, username, password, agentName, title, notes, tags
+    });
   }
 );
 

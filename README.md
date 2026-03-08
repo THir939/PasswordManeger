@@ -161,12 +161,17 @@ npm run mcp:start
 4. `pm_cloud_register` / `pm_cloud_login` / `pm_cloud_status`
 5. `pm_cloud_entitlements_status` / `pm_cloud_sync_push` / `pm_cloud_sync_pull`
 6. `pm_cloud_checkout_link` / `pm_cloud_portal_link`
+7. `pm_unlock_vault_scoped` — スコープ付きアンロック（タグ/フォルダで操作対象を制限）
+8. `pm_set_access_mode` — 読み取り専用 / フルアクセス切替
+9. `pm_audit_log` — 操作履歴の取得（フィルタ・件数制限付き）
+10. `pm_agent_save_credential` — エージェントがID/パスワードをVaultに保存
 
 環境変数（必要なら設定）:
 1. `PM_MCP_WEB_BASE_URL`（デフォルト: `http://localhost:8787`）
 2. `PM_MCP_DATA_DIR`（MCP実行時のローカルデータ保存先）
 3. `PM_MCP_EXTENSION_PATH`（拡張フォルダのパス上書き）
 4. `PM_MCP_ALLOW_SECRET_EXPORT`（`1` のときだけ `includeSecrets: true` を許可）
+5. `PM_MCP_READ_ONLY`（`1` で起動するとデフォルトが読み取り専用モード）
 
 注意:
 1. `pm_list_items` は初期状態で秘密値をマスクします（`includeSecrets: true` で明示的に開示）
@@ -339,3 +344,31 @@ npm run desktop:run:local
 4. 商用公開前に暗号・認証・決済の監査を推奨
 5. `JWT_SECRET` 未設定ではサーバー起動しない仕様です（固定デフォルト鍵を禁止）
 6. Webhook署名検証は既定で必須です（`ALLOW_INSECURE_WEBHOOK=1` はローカル検証専用）
+
+## 10. エージェント向けセキュリティ機能
+
+OpenClawなどのAIエージェントが安全にVaultを操作するための以下の機能を実装しています。
+
+### 10-1. 監査ログ
+- 全MCP操作を追記型JSONLファイル（`{dataDir}/audit-log.jsonl`）に記録
+- `pm_audit_log` でアクション名・アクター・日時でフィルタして閲覧可能
+- 記録されるイベント: `unlockVault`, `saveItem`, `deleteItem`, `agentSaveCredential`, `autoLock` 等
+
+### 10-2. スコープ付きアクセス制御
+- `pm_unlock_vault_scoped` でタグやフォルダ単位にアクセスを制限
+- スコープ外アイテムへの参照・編集・削除は拒否される
+- 新規作成時はスコープのタグが自動付与される
+
+### 10-3. 読み取り専用モード
+- `pm_set_access_mode` または `PM_MCP_READ_ONLY=1` で書き込みを禁止
+- 読み取り専用中は `saveItem` / `deleteItem` / `changeMasterPassword` / `saveSettings` / `applyExternalImport` が拒否される
+
+### 10-4. 短寿命セッション（TTL）
+- `pm_unlock_vault` に `sessionTtlSeconds` を指定すると、その秒数後に自動ロック
+- エージェントに必要最小限の時間だけVaultを開放できる
+- 各セッションにはユニークな `sessionId` が付与され、監査ログで追跡可能
+
+### 10-5. エージェント資格情報保存
+- `pm_agent_save_credential` でエージェントが発見したID/パスワードをVaultに保存
+- `agent:エージェント名` タグが自動付与される（例: `agent:openclaw`）
+- メモにもエージェント名が自動記録される

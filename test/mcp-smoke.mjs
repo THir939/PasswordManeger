@@ -162,10 +162,90 @@ async function run() {
     assert.equal(state.local.initialized, true, "vault should stay initialized");
     assert.equal(Boolean(state.cloud.connected), true, "cloud should stay connected");
 
-    console.log("PASS mcp smoke (register/vault/save/entitlement/sync)");
+    // === New feature tests ===
+
+    // Re-unlock vault (cloudSyncPull resets session)
+    await callTool(client, "pm_unlock_vault", { masterPassword });
+
+    // 1. Agent save credential (OpenClaw等がID/パスワードを保存)
+    const agentSaved = await callTool(client, "pm_agent_save_credential", {
+      url: "https://service.example.com",
+      username: "agent-user@test.com",
+      password: "AgentPass!567",
+      agentName: "openclaw",
+      notes: "Discovered during automated setup"
+    });
+    assert.ok(agentSaved.item?.id, "agent save credential should return id");
+    assert.equal(agentSaved.item.tags.includes("agent:openclaw"), true, "should have agent tag");
+
+    // 2. Audit log (操作ログ確認)
+    const auditAll = await callTool(client, "pm_audit_log", {});
+    assert.equal(auditAll.count > 0, true, "audit log should have entries");
+
+    const auditFiltered = await callTool(client, "pm_audit_log", {
+      filterAction: "agentSaveCredential"
+    });
+    assert.equal(auditFiltered.count >= 1, true, "audit log should have agentSaveCredential entry");
+
+    // 3. Read-only mode (読み取り専用モード)
+    const modeSet = await callTool(client, "pm_set_access_mode", { mode: "readonly" });
+    assert.equal(modeSet.accessMode, "readonly", "access mode should be readonly");
+
+    const readonlySave = await client.callTool({
+      name: "pm_save_item",
+      arguments: {
+        type: "login",
+        title: "Should Fail",
+        password: "NoSave!234"
+      }
+    });
+    assert.equal(Boolean(readonlySave?.isError), true, "save should fail in readonly mode");
+
+    // Restore full access
+    await callTool(client, "pm_set_access_mode", { mode: "full" });
+
+    // 4. Scoped unlock (スコープ付きアンロック)
+    // First, save an item with specific tag
+    const scopedItem = await callTool(client, "pm_save_item", {
+      type: "login",
+      title: "Scoped Test",
+      username: "scoped-user",
+      password: "ScopedPass!234",
+      tags: ["team-a"]
+    });
+
+    // Lock and re-unlock with scope
+    await callTool(client, "pm_lock_vault");
+    const scopedUnlock = await callTool(client, "pm_unlock_vault_scoped", {
+      masterPassword,
+      scopeTags: ["team-a"],
+      sessionTtlSeconds: 300
+    });
+    assert.ok(scopedUnlock.sessionId, "scoped unlock should return sessionId");
+    assert.ok(scopedUnlock.scope, "scoped unlock should return scope");
+    assert.ok(scopedUnlock.expiresAt, "scoped unlock should return expiresAt");
+
+    const scopedList = await callTool(client, "pm_list_items", {});
+    const scopedIds = (scopedList.items || []).map((i) => i.id);
+    assert.equal(scopedIds.includes(scopedItem.item.id), true, "scoped list should include team-a item");
+
+    // 5. Re-lock and unlock with TTL (短寿命セッション)
+    await callTool(client, "pm_lock_vault");
+    const ttlUnlock = await callTool(client, "pm_unlock_vault", {
+      masterPassword,
+      sessionTtlSeconds: 600
+    });
+    assert.ok(ttlUnlock.expiresAt, "TTL unlock should return expiresAt");
+    assert.ok(ttlUnlock.sessionId, "TTL unlock should return sessionId");
+
+    // Get state should include new session info
+    const stateAfter = await callTool(client, "pm_get_state");
+    assert.ok(stateAfter.local.sessionId, "state should include sessionId");
+
+    console.log("PASS mcp smoke (register/vault/save/entitlement/sync/agent-features)");
   } finally {
-    await client.close().catch(() => {});
-    await transport.close().catch(() => {});
+    await client.close().catch(() => { });
+    await transport.close().catch(() => { });
     await fs.rm(mcpDataDir, { recursive: true, force: true });
     await cloudServer.stop();
   }
