@@ -5,6 +5,7 @@ import { generateTotp } from "../src/lib/totp.js";
 import { buildSecurityReport } from "../src/lib/security-audit.js";
 import { parseExternalItems } from "../src/lib/migration.js";
 import { buildAutofillRisk } from "../src/lib/autofill-risk.js";
+import { validateCloudBaseUrl } from "../src/lib/cloud-url.js";
 import {
   FEATURE_CLOUD_SYNC,
   mapStripeStatusToEntitlementStatus,
@@ -199,6 +200,75 @@ await run("autofill risk high on different domain", () => {
 
   assert.equal(risk.level, "high");
   assert.equal(risk.blockedByPolicy, true);
+});
+
+await run("cloud url allows localhost over http", () => {
+  const url = validateCloudBaseUrl("http://localhost:8787/api");
+  assert.equal(url, "http://localhost:8787/api");
+});
+
+await run("cloud url rejects remote http", () => {
+  assert.throws(() => validateCloudBaseUrl("http://example.com"), /HTTPS/);
+});
+
+await run("cloud url normalizes https", () => {
+  const url = validateCloudBaseUrl("https://example.com/");
+  assert.equal(url, "https://example.com");
+});
+
+await run("email alias domain-based generation", async () => {
+  const { generateDomainAlias, generateRandomAlias } = await import("../src/lib/email-alias.js");
+  const alias = generateDomainAlias("user@gmail.com", "amazon.co.jp");
+  assert.equal(alias.startsWith("user+amazon.co.jp_"), true);
+  assert.equal(alias.endsWith("@gmail.com"), true);
+  assert.equal(alias.length > "user+amazon.co.jp_@gmail.com".length, true);
+});
+
+await run("email alias random generation", async () => {
+  const { generateRandomAlias } = await import("../src/lib/email-alias.js");
+  const alias = generateRandomAlias("test@example.com");
+  assert.equal(alias.startsWith("test+"), true);
+  assert.equal(alias.endsWith("@example.com"), true);
+  // random part should be 8 chars
+  const tag = alias.split("+")[1].split("@")[0];
+  assert.equal(tag.length, 8);
+});
+
+await run("email alias throws on invalid email", async () => {
+  const { generateDomainAlias } = await import("../src/lib/email-alias.js");
+  assert.throws(() => generateDomainAlias("not-an-email", "example.com"));
+});
+
+await run("audit log write and query", async () => {
+  const fs = await import("node:fs/promises");
+  const os = await import("node:os");
+  const path = await import("node:path");
+  const { AuditLogger } = await import("../src/lib/audit-log.js");
+
+  const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "audit-test-"));
+  const logger = new AuditLogger(path.join(tmpDir, "test.jsonl"));
+
+  await logger.log("saveItem", "mcp", { itemId: "123" }, "session-1");
+  await logger.log("deleteItem", "desktop", { itemId: "456" }, "session-2");
+  await logger.log("saveItem", "mcp", { itemId: "789" }, "session-1");
+
+  const all = await logger.query();
+  assert.equal(all.length, 3);
+
+  const saveOnly = await logger.query({ action: "saveItem" });
+  assert.equal(saveOnly.length, 2);
+
+  const mcpOnly = await logger.query({ actor: "mcp" });
+  assert.equal(mcpOnly.length, 2);
+
+  const limited = await logger.query({ limit: 1 });
+  assert.equal(limited.length, 1);
+
+  await logger.clear();
+  const empty = await logger.query();
+  assert.equal(empty.length, 0);
+
+  await fs.rm(tmpDir, { recursive: true, force: true });
 });
 
 if (process.exitCode) {

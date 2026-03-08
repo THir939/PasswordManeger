@@ -5,9 +5,6 @@ const elements = {
   setupView: document.querySelector("#setup-view"),
   unlockView: document.querySelector("#unlock-view"),
   mainView: document.querySelector("#main-view"),
-  tabbar: document.querySelector("#tabbar"),
-  tabButtons: [...document.querySelectorAll("#tabbar [data-tab]")],
-  tabPanels: [...document.querySelectorAll("[data-tab-panel]")],
 
   setupForm: document.querySelector("#setup-form"),
   setupPassword: document.querySelector("#setup-password"),
@@ -22,7 +19,29 @@ const elements = {
 
   lockButton: document.querySelector("#lock-btn"),
   exportButton: document.querySelector("#export-btn"),
+  importButton: document.querySelector("#import-btn"),
   importInput: document.querySelector("#import-input"),
+  addItemButton: document.querySelector("#fab-add-btn"),
+
+  tabbar: document.querySelector("#tabbar"),
+  tabButtons: [...document.querySelectorAll("#tabbar .tab")],
+  tabPanels: [...document.querySelectorAll(".tab-panel")],
+
+  autofillList: document.querySelector("#autofill-list"),
+  pageHost: document.querySelector("#page-host"),
+
+  // Items panel shared elements
+  itemFormSection: document.querySelector("#item-form-section"),
+  itemFormTitle: document.querySelector("#item-form-title"),
+  closeItemFormButton: document.querySelector("#close-item-form"),
+  itemsPanelTitle: document.querySelector("#items-panel-title"),
+  itemsCount: document.querySelector("#items-count"),
+
+  // Sidebar user
+  sidebarAvatar: document.querySelector("#sidebar-avatar"),
+  sidebarUsername: document.querySelector("#sidebar-username"),
+
+  // Migrate
   migrationForm: document.querySelector("#migration-form"),
   migrationProvider: document.querySelector("#migration-provider"),
   migrationFile: document.querySelector("#migration-file"),
@@ -43,14 +62,6 @@ const elements = {
   cloudPushButton: document.querySelector("#cloud-push-btn"),
   cloudRefreshButton: document.querySelector("#cloud-refresh-btn"),
   cloudStatusBox: document.querySelector("#cloud-status-box"),
-
-  domainLabel: document.querySelector("#domain-label"),
-  suggestionList: document.querySelector("#suggestion-list"),
-  captureList: document.querySelector("#capture-list"),
-  formLearningRefreshButton: document.querySelector("#form-learning-refresh"),
-  formLearningResetSiteButton: document.querySelector("#form-learning-reset-site"),
-  formLearningResetAllButton: document.querySelector("#form-learning-reset-all"),
-  formLearningBox: document.querySelector("#form-learning-box"),
 
   itemForm: document.querySelector("#item-form"),
   itemId: document.querySelector("#item-id"),
@@ -74,7 +85,23 @@ const elements = {
   itemNotes: document.querySelector("#item-notes"),
   itemFavorite: document.querySelector("#item-favorite"),
   generateButton: document.querySelector("#generate-btn"),
+  aliasButton: document.querySelector("#alias-btn"),
   cancelEdit: document.querySelector("#cancel-edit"),
+
+  // Subscription fields
+  itemIsSubscription: document.querySelector("#item-is-subscription"),
+  subscriptionDetails: document.querySelector("#subscription-details"),
+  itemSubAmount: document.querySelector("#item-sub-amount"),
+  itemSubCurrency: document.querySelector("#item-sub-currency"),
+  itemSubCycle: document.querySelector("#item-sub-cycle"),
+  itemSubNextBilling: document.querySelector("#item-sub-next-billing"),
+
+  // Subscriptions tab
+  refreshSubsButton: document.querySelector("#refresh-subs"),
+  subMonthlyTotal: document.querySelector("#sub-monthly-total"),
+  subYearlyTotal: document.querySelector("#sub-yearly-total"),
+  subCount: document.querySelector("#sub-count"),
+  subList: document.querySelector("#sub-list"),
 
   searchInput: document.querySelector("#search-input"),
   filterType: document.querySelector("#filter-type"),
@@ -87,13 +114,45 @@ const elements = {
   settingsForm: document.querySelector("#settings-form"),
   settingAutoLock: document.querySelector("#setting-autolock"),
   settingClipboard: document.querySelector("#setting-clipboard"),
+  settingAliasEmail: document.querySelector("#setting-alias-email"),
+  aliasSettingsForm: document.querySelector("#alias-settings-form"),
 
   masterForm: document.querySelector("#master-form"),
   oldMaster: document.querySelector("#old-master"),
   newMaster: document.querySelector("#new-master"),
   oldMasterToggle: document.querySelector("#old-master-toggle"),
   newMasterToggle: document.querySelector("#new-master-toggle"),
-  newMasterStrength: document.querySelector("#new-master-strength")
+  newMasterStrength: document.querySelector("#new-master-strength"),
+
+  // Deadman's Switch
+  deadmanForm: document.querySelector("#deadman-form"),
+  deadmanEnabled: document.querySelector("#deadman-enabled"),
+  deadmanDays: document.querySelector("#deadman-days"),
+  deadmanContactList: document.querySelector("#deadman-contact-list"),
+  deadmanAddContact: document.querySelector("#deadman-add-contact"),
+  deadmanStatus: document.querySelector("#deadman-status"),
+
+  // Generator
+  genResult: document.querySelector("#gen-result"),
+  genCopyButton: document.querySelector("#gen-copy-btn"),
+  genNewButton: document.querySelector("#gen-new-btn"),
+  genStrength: document.querySelector("#gen-strength")
+};
+
+// Category tab → panel mapping & filter config
+const CATEGORY_TABS = {
+  "pinned": { panel: "items", filterType: "all", onlyFavorites: true, title: "ピン留め" },
+  "all-items": { panel: "items", filterType: "all", onlyFavorites: false, title: "すべてのアイテム" },
+  "logins": { panel: "items", filterType: "login", onlyFavorites: false, title: "ログイン" },
+  "cards": { panel: "items", filterType: "card", onlyFavorites: false, title: "カード" },
+  "identities": { panel: "items", filterType: "identity", onlyFavorites: false, title: "個人情報" },
+  "notes": { panel: "items", filterType: "note", onlyFavorites: false, title: "メモ" },
+  "autofill": { panel: "autofill", title: "自動入力" },
+  "generator": { panel: "generator", title: "パスワード生成器" },
+  "security": { panel: "security", title: "セキュリティ" },
+  "subscriptions": { panel: "subscriptions", title: "サブスク管理" },
+  "migrate": { panel: "migrate", title: "クラウド同期" },
+  "settings": { panel: "settings", title: "設定" }
 };
 
 const state = {
@@ -102,8 +161,22 @@ const state = {
   cloudStatus: null,
   currentDomain: "",
   migrationDraft: null,
-  currentTab: "autofill"
+  currentTab: "all-items",
+  currentSort: "az"
 };
+
+// --- Sort Tabs Logic ---
+const sortTabs = document.querySelectorAll("#sort-tabs .filter-tab");
+sortTabs.forEach(tab => {
+  tab.addEventListener("click", (e) => {
+    sortTabs.forEach(t => t.classList.remove("active"));
+    e.target.classList.add("active");
+    state.currentSort = e.target.dataset.sort;
+    if (state.currentItems) {
+      renderItems(state.currentItems);
+    }
+  });
+});
 
 function setStatus(message = "", isError = false) {
   elements.status.textContent = message;
@@ -120,7 +193,7 @@ function setView(viewName) {
   if (viewName === "unlock") elements.unlockView.classList.remove("hidden");
   if (viewName === "main") {
     elements.mainView.classList.remove("hidden");
-    setTab(state.currentTab || "autofill");
+    setTab(state.currentTab || "all-items");
   }
 }
 
@@ -192,6 +265,7 @@ function bindPasswordAssistUi() {
       input: elements.setupConfirm,
       toggle: elements.setupConfirmToggle
     },
+
     {
       input: elements.unlockPassword,
       toggle: elements.unlockPasswordToggle
@@ -239,13 +313,17 @@ function refreshPasswordStrengthUi() {
 }
 
 function setTab(tabName) {
-  if (!elements.tabButtons.length || !elements.tabPanels.length) {
+  if (!elements.tabButtons.length) {
     return;
   }
 
-  const next = String(tabName || "autofill");
+  const next = String(tabName || "all-items");
+  const config = CATEGORY_TABS[next];
+  if (!config) return;
+
   state.currentTab = next;
 
+  // Update sidebar buttons
   elements.tabButtons.forEach((button) => {
     const active = button.dataset.tab === next;
     button.setAttribute("aria-selected", active ? "true" : "false");
@@ -253,11 +331,28 @@ function setTab(tabName) {
     button.tabIndex = active ? 0 : -1;
   });
 
+  // Show/hide panels based on the category config
+  const targetPanel = config.panel;
   elements.tabPanels.forEach((panel) => {
-    const active = panel.dataset.tabPanel === next;
+    const panelName = panel.dataset.tabPanel;
+    const active = panelName === targetPanel;
     panel.classList.toggle("hidden", !active);
     panel.setAttribute("aria-hidden", active ? "false" : "true");
   });
+
+  // If this is an items category, apply filters
+  if (config.panel === "items") {
+    if (config.filterType) {
+      elements.filterType.value = config.filterType;
+    }
+    if (elements.onlyFavorite) {
+      elements.onlyFavorite.checked = Boolean(config.onlyFavorites);
+    }
+    if (elements.itemsPanelTitle) {
+      elements.itemsPanelTitle.textContent = config.title;
+    }
+    loadItems().catch((error) => setStatus(error.message, true));
+  }
 }
 
 function moveTabFocus(currentButton, direction) {
@@ -283,7 +378,7 @@ function moveTabFocus(currentButton, direction) {
     return;
   }
 
-  setTab(nextButton.dataset.tab || "autofill");
+  setTab(nextButton.dataset.tab || "all-items");
   nextButton.focus();
 }
 
@@ -389,31 +484,6 @@ function buildMigrationPreviewText(preview) {
   return lines.join("\n");
 }
 
-function buildFormLearningText(payload) {
-  const rows = Array.isArray(payload?.rows) ? payload.rows : [];
-  if (!payload || rows.length === 0) {
-    return "学習データはありません。自動入力を使うとサイト別プロファイルが作成されます。";
-  }
-
-  const lines = [];
-  lines.push(`学習プロファイル数: ${rows.length}`);
-
-  const focused = state.currentDomain
-    ? rows.filter((row) => row.domain === state.currentDomain)
-    : [];
-
-  if (state.currentDomain) {
-    lines.push(`現在サイト(${state.currentDomain})の学習: ${focused.length} 件`);
-  }
-
-  lines.push("\n[最新プロファイル]");
-  rows.slice(0, 6).forEach((row) => {
-    lines.push(`- ${row.domain} / ${row.mode} / 学習回数${row.fillCount}`);
-  });
-
-  return lines.join("\n");
-}
-
 function currentFilters() {
   return {
     search: elements.searchInput.value,
@@ -437,6 +507,16 @@ function updateTypeVisibility() {
   elements.itemPassword.required = type === "login";
 }
 
+function showItemForm(title = "新規追加") {
+  elements.itemFormSection.classList.remove("hidden");
+  elements.itemFormTitle.textContent = title;
+}
+
+function hideItemForm() {
+  elements.itemFormSection.classList.add("hidden");
+  clearItemForm();
+}
+
 function clearItemForm() {
   elements.itemId.value = "";
   elements.itemType.value = "login";
@@ -456,53 +536,85 @@ function clearItemForm() {
   elements.itemTags.value = "";
   elements.itemNotes.value = "";
   elements.itemFavorite.checked = false;
+  // Subscription
+  elements.itemIsSubscription.checked = false;
+  elements.itemSubAmount.value = "";
+  elements.itemSubCurrency.value = "JPY";
+  elements.itemSubCycle.value = "monthly";
+  elements.itemSubNextBilling.value = "";
+  elements.subscriptionDetails.classList.add("hidden");
   elements.cancelEdit.classList.add("hidden");
   updateTypeVisibility();
   refreshPasswordStrengthUi();
 }
 
 function itemToMeta(item) {
-  const lines = [`種類: ${item.type}`];
+  const lines = [];
 
-  if (item.username) lines.push(`ユーザー: ${item.username}`);
-  if (item.url) lines.push(`URL: ${item.url}`);
+  if (item.username) lines.push(item.username);
+  if (item.url) lines.push(item.url);
   if (item.tags?.length) lines.push(`タグ: ${item.tags.join(", ")}`);
-  if (item.favorite) lines.push("お気に入り: はい");
-  if (item.type === "card" && item.cardNumber) lines.push(`カード末尾: ${item.cardNumber.slice(-4)}`);
-  if (item.type === "identity" && item.email) lines.push(`メール: ${item.email}`);
-  if (item.updatedAt) lines.push(`更新: ${new Date(item.updatedAt).toLocaleString()}`);
+  if (item.type === "card" && item.cardNumber) lines.push(`末尾: ${item.cardNumber.slice(-4)}`);
+  if (item.type === "identity" && item.email) lines.push(item.email);
 
   return lines.join("\n");
 }
 
 function renderItems(items) {
-  state.currentItems = items;
+  // Update count
+  if (elements.itemsCount) {
+    elements.itemsCount.textContent = `${items.length}件`;
+  }
 
   if (!items.length) {
     showEmpty(elements.itemList, "一致する項目はありません。");
     return;
   }
 
-  elements.itemList.innerHTML = items
+  state.currentItems = items;
+
+  // Apply Sorting
+  let sortedItems = [...items];
+  if (state.currentSort === "az") {
+    // A-Z Order
+    sortedItems.sort((a, b) => (a.title || "").localeCompare(b.title || ""));
+  } else if (state.currentSort === "recent") {
+    // Recent Usage Order (Assuming lastUsed property exists, otherwise fallback to updatedAt)
+    sortedItems.sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
+  } else if (state.currentSort === "popular") {
+    // Popularity Order (Assuming usageCount or favorite)
+    sortedItems.sort((a, b) => {
+      if (a.favorite && !b.favorite) return -1;
+      if (!a.favorite && b.favorite) return 1;
+      return (b.usageCount || 0) - (a.usageCount || 0);
+    });
+  }
+
+  elements.itemList.innerHTML = sortedItems
     .map((item) => {
-      const otpButton = item.otpSecret
-        ? `<button type="button" data-action="totp" data-id="${escapeHtml(item.id)}" class="ghost">OTP表示</button>`
-        : "";
+      const favStar = item.favorite ? '<span class="fav-star" style="color:var(--accent-yellow); margin-left:4px;">★</span>' : "";
+      const initials = item.title ? item.title.charAt(0).toUpperCase() : "?";
+      const detailLines = itemToMeta(item).split("\n").filter(Boolean);
+      const primaryMeta = detailLines[0] || item.type;
+      const secondaryMeta = detailLines.slice(1, 3).join(" / ");
 
       return `
         <li class="card">
-          <div class="card-head">
-            <p class="card-title">${escapeHtml(item.title)}</p>
-            <span class="small">${escapeHtml(item.type)}</span>
+          <div class="card-head card-head-compact">
+            <div class="card-logo">${initials}</div>
+            <div class="card-info card-info-compact">
+              <p class="card-title card-title-compact">
+                ${escapeHtml(item.title)}${favStar}
+              </p>
+              <p class="meta meta-primary">${escapeHtml(primaryMeta)}</p>
+              ${secondaryMeta ? `<p class="meta meta-secondary">${escapeHtml(secondaryMeta)}</p>` : ""}
+            </div>
           </div>
-          <p class="meta">${escapeHtml(itemToMeta(item))}</p>
-          <div class="card-actions">
-            <button type="button" data-action="autofill" data-id="${escapeHtml(item.id)}" class="ghost">自動入力</button>
-            <button type="button" data-action="copy-user" data-id="${escapeHtml(item.id)}" class="ghost">IDコピー</button>
-            <button type="button" data-action="copy-pass" data-id="${escapeHtml(item.id)}" class="ghost">PWコピー</button>
-            ${otpButton}
-            <button type="button" data-action="edit" data-id="${escapeHtml(item.id)}" class="ghost">編集</button>
-            <button type="button" data-action="delete" data-id="${escapeHtml(item.id)}" class="ghost">削除</button>
+          <div class="card-actions card-actions-compact">
+            <button type="button" data-action="autofill" data-id="${escapeHtml(item.id)}" class="ghost card-action-primary">自動入力</button>
+            <button type="button" data-action="copy-user" data-id="${escapeHtml(item.id)}" class="ghost card-action-mini" title="IDをコピー">ID</button>
+            <button type="button" data-action="copy-pass" data-id="${escapeHtml(item.id)}" class="ghost card-action-mini" title="パスワードをコピー">PW</button>
+            <button type="button" data-action="edit" data-id="${escapeHtml(item.id)}" class="ghost card-action-mini" title="編集">✎</button>
           </div>
         </li>
       `;
@@ -517,14 +629,14 @@ async function loadItems() {
 
 function renderSuggestions(domain, items) {
   state.currentDomain = domain || "";
-  elements.domainLabel.textContent = domain ? `現在のドメイン: ${domain}` : "現在のタブ情報を取得できませんでした。";
+  elements.pageHost.textContent = domain ? `現在のドメイン: ${domain}` : "現在のタブ情報を取得できませんでした。";
 
   if (!items.length) {
-    showEmpty(elements.suggestionList, "このサイト向けログインはまだありません。");
+    showEmpty(elements.autofillList, "このサイト向けログインはまだありません。");
     return;
   }
 
-  elements.suggestionList.innerHTML = items
+  elements.autofillList.innerHTML = items
     .map((item) => {
       const username = item.username || "ユーザー名未設定";
       const risk = item.autofillRisk;
@@ -534,9 +646,12 @@ function renderSuggestions(domain, items) {
       return `
         <li class="card">
           <div class="card-head">
-            <p class="card-title">${escapeHtml(item.title)}</p>
-            <div class="chips">
-              <span class="chip ${riskChipClass(risk)}" title="${escapeHtml(riskLabel(risk))}">${escapeHtml(riskChipText(risk))}</span>
+            <div class="card-icon login">🔑</div>
+            <div class="card-info">
+              <p class="card-title">${escapeHtml(item.title)}</p>
+              <div class="chips">
+                <span class="chip ${riskChipClass(risk)}" title="${escapeHtml(riskLabel(risk))}">${escapeHtml(riskChipText(risk))}</span>
+              </div>
             </div>
           </div>
           <p class="meta">${escapeHtml(metaLines)}</p>
@@ -549,37 +664,9 @@ function renderSuggestions(domain, items) {
     .join("");
 }
 
-function renderCaptures(captures) {
-  if (!captures.length) {
-    showEmpty(elements.captureList, "保存候補はありません。");
-    return;
-  }
-
-  elements.captureList.innerHTML = captures
-    .map(
-      (capture) => `
-        <li class="card">
-          <p class="card-title">${escapeHtml(capture.title)}</p>
-          <p class="meta">${escapeHtml(`${capture.username || "(ユーザー名なし)"}\n${capture.url}`)}</p>
-          <div class="card-actions">
-            <button type="button" data-action="capture-save" data-id="${escapeHtml(capture.id)}" class="ghost">保存</button>
-            <button type="button" data-action="capture-discard" data-id="${escapeHtml(capture.id)}" class="ghost">破棄</button>
-          </div>
-        </li>
-      `
-    )
-    .join("");
-}
-
 async function loadSuggestions() {
   const response = await callBackground("getSuggestionsForActiveTab");
   renderSuggestions(response.domain, response.items || []);
-  await loadFormLearningSummary();
-}
-
-async function loadCaptures() {
-  const response = await callBackground("getPendingCaptures");
-  renderCaptures(response.captures || []);
 }
 
 function buildReportText(report) {
@@ -632,6 +719,9 @@ async function loadSettings() {
   state.settings = response.settings;
   elements.settingAutoLock.value = state.settings.autoLockMinutes;
   elements.settingClipboard.value = state.settings.clipboardClearSeconds;
+  if (elements.settingAliasEmail) {
+    elements.settingAliasEmail.value = state.settings.aliasBaseEmail || "";
+  }
 }
 
 function buildCloudStatusText(payload) {
@@ -657,11 +747,14 @@ async function loadCloudStatus() {
   if (payload.baseUrl && !elements.cloudBaseUrl.value) {
     elements.cloudBaseUrl.value = payload.baseUrl;
   }
-}
 
-async function loadFormLearningSummary() {
-  const payload = await callBackground("getFormLearningSummary");
-  elements.formLearningBox.textContent = buildFormLearningText(payload);
+  // Update sidebar user info from cloud status
+  if (payload?.connected && payload.user?.email) {
+    const email = payload.user.email;
+    const initial = email.charAt(0).toUpperCase();
+    elements.sidebarAvatar.textContent = initial;
+    elements.sidebarUsername.textContent = email.split("@")[0];
+  }
 }
 
 function editItem(item) {
@@ -684,10 +777,19 @@ function editItem(item) {
   elements.itemNotes.value = item.notes || "";
   elements.itemFavorite.checked = Boolean(item.favorite);
 
+  // Subscription
+  const sub = item.subscription || {};
+  elements.itemIsSubscription.checked = Boolean(sub.isSubscription);
+  elements.itemSubAmount.value = sub.amount || "";
+  elements.itemSubCurrency.value = sub.currency || "JPY";
+  elements.itemSubCycle.value = sub.cycle || "monthly";
+  elements.itemSubNextBilling.value = sub.nextBillingDate || "";
+  elements.subscriptionDetails.classList.toggle("hidden", !sub.isSubscription);
+
   updateTypeVisibility();
   elements.cancelEdit.classList.remove("hidden");
   refreshPasswordStrengthUi();
-  setStatus(`編集モード: ${item.title}`, false);
+  showItemForm(`編集: ${item.title}`);
 }
 
 function buildItemFromForm() {
@@ -709,7 +811,14 @@ function buildItemFromForm() {
     cardCvc: elements.itemCardCvc.value,
     tags: elements.itemTags.value,
     notes: elements.itemNotes.value,
-    favorite: elements.itemFavorite.checked
+    favorite: elements.itemFavorite.checked,
+    subscription: {
+      isSubscription: elements.itemIsSubscription.checked,
+      amount: Number(elements.itemSubAmount.value) || 0,
+      currency: elements.itemSubCurrency.value,
+      cycle: elements.itemSubCycle.value,
+      nextBillingDate: elements.itemSubNextBilling.value
+    }
   };
 }
 
@@ -801,23 +910,124 @@ async function refreshMainScreen() {
   await Promise.all([
     loadItems(),
     loadSuggestions(),
-    loadCaptures(),
     loadSecurityReport(),
-    loadCloudStatus()
+    loadCloudStatus(),
+    loadSubscriptionSummary(),
+    loadDeadmanConfig()
   ]);
+}
+
+/* -------------- Subscriptions -------------- */
+
+function formatCurrency(amount, currency) {
+  const symbols = { JPY: "¥", USD: "$", EUR: "€" };
+  const symbol = symbols[currency] || currency;
+  return `${symbol}${amount.toLocaleString()}`;
+}
+
+function cycleLabel(cycle) {
+  if (cycle === "yearly") return "年額";
+  if (cycle === "weekly") return "週額";
+  return "月額";
+}
+
+async function loadSubscriptionSummary() {
+  try {
+    const response = await callBackground("getSubscriptionSummary");
+    const summary = response.summary;
+    if (!summary) return;
+
+    elements.subMonthlyTotal.textContent = formatCurrency(summary.monthlyTotal, summary.currency);
+    elements.subYearlyTotal.textContent = formatCurrency(summary.yearlyTotal, summary.currency);
+    elements.subCount.textContent = String(summary.count);
+
+    if (!summary.items.length) {
+      showEmpty(elements.subList, "サブスク登録がありません。パスワード管理タブで項目にサブスク情報を追加してください。");
+      return;
+    }
+
+    elements.subList.innerHTML = summary.items
+      .map((item) => `
+        <li class="card">
+          <div class="card-head">
+            <div class="card-icon card-type">💳</div>
+            <div class="card-info">
+              <p class="card-title">${escapeHtml(item.title)}</p>
+              <p class="meta">${escapeHtml(cycleLabel(item.cycle))} ${escapeHtml(formatCurrency(item.amount, item.currency))} → 月額 ${escapeHtml(formatCurrency(item.monthlyAmount, item.currency))}</p>
+            </div>
+          </div>
+          ${item.nextBillingDate ? `<p class="meta">次回請求: ${escapeHtml(item.nextBillingDate)}</p>` : ""}
+        </li>
+      `)
+      .join("");
+  } catch {
+    // subscription loading failure is non-critical
+  }
+}
+
+/* -------------- Deadman's Switch -------------- */
+
+let deadmanContacts = [];
+
+function renderDeadmanContacts() {
+  elements.deadmanContactList.innerHTML = deadmanContacts
+    .map((contact, index) => `
+      <div class="deadman-contact-row" style="display: flex; gap: 6px; margin-bottom: 6px;">
+        <input type="text" value="${escapeHtml(contact.name)}" placeholder="名前" data-dm-field="name" data-dm-index="${index}" style="flex: 1;" />
+        <input type="email" value="${escapeHtml(contact.email)}" placeholder="メールアドレス" data-dm-field="email" data-dm-index="${index}" style="flex: 1.5;" />
+        <button type="button" class="ghost danger" data-dm-remove="${index}" style="padding: 6px 8px; font-size: 11px;">✕</button>
+      </div>
+    `)
+    .join("");
+
+  // Bind inline events
+  elements.deadmanContactList.querySelectorAll("[data-dm-field]").forEach((input) => {
+    input.addEventListener("input", () => {
+      const idx = Number(input.dataset.dmIndex);
+      const field = input.dataset.dmField;
+      if (deadmanContacts[idx]) {
+        deadmanContacts[idx][field] = input.value;
+      }
+    });
+  });
+
+  elements.deadmanContactList.querySelectorAll("[data-dm-remove]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const idx = Number(btn.dataset.dmRemove);
+      deadmanContacts.splice(idx, 1);
+      renderDeadmanContacts();
+    });
+  });
+}
+
+async function loadDeadmanConfig() {
+  try {
+    const response = await callBackground("getDeadmanConfig");
+    const config = response.config;
+    if (!config) return;
+
+    elements.deadmanEnabled.checked = config.enabled;
+    elements.deadmanDays.value = config.inactiveDays || 90;
+    deadmanContacts = Array.isArray(config.contacts) ? [...config.contacts] : [];
+    renderDeadmanContacts();
+
+    if (config.lastHeartbeat) {
+      elements.deadmanStatus.textContent = `最終ハートビート: ${new Date(config.lastHeartbeat).toLocaleString()}`;
+    } else {
+      elements.deadmanStatus.textContent = "未記録";
+    }
+  } catch {
+    // deadman config loading is non-critical
+  }
 }
 
 function bindEvents() {
   elements.tabbar?.addEventListener("click", (event) => {
-    const target = event.target;
-    if (!(target instanceof HTMLButtonElement)) {
-      return;
-    }
+    const target = event.target.closest(".sidebar-btn.tab");
+    if (!target) return;
 
     const tab = target.dataset.tab;
-    if (!tab) {
-      return;
-    }
+    if (!tab) return;
 
     setTab(tab);
   });
@@ -828,13 +1038,13 @@ function bindEvents() {
       return;
     }
 
-    if (event.key === "ArrowRight") {
+    if (event.key === "ArrowDown" || event.key === "ArrowRight") {
       event.preventDefault();
       moveTabFocus(target, "next");
       return;
     }
 
-    if (event.key === "ArrowLeft") {
+    if (event.key === "ArrowUp" || event.key === "ArrowLeft") {
       event.preventDefault();
       moveTabFocus(target, "prev");
       return;
@@ -850,6 +1060,19 @@ function bindEvents() {
       event.preventDefault();
       moveTabFocus(target, "last");
     }
+  });
+
+  // Add item button
+  elements.addItemButton?.addEventListener("click", () => {
+    // Navigate to all-items tab and show form
+    setTab("all-items");
+    clearItemForm();
+    showItemForm("新規追加");
+  });
+
+  // Close item form button
+  elements.closeItemFormButton?.addEventListener("click", () => {
+    hideItemForm();
   });
 
   elements.setupForm.addEventListener("submit", async (event) => {
@@ -912,6 +1135,10 @@ function bindEvents() {
     }
   });
 
+  elements.importButton?.addEventListener("click", () => {
+    elements.importInput?.click();
+  });
+
   elements.importInput.addEventListener("change", async (event) => {
     const file = event.target.files?.[0];
     event.target.value = "";
@@ -941,7 +1168,7 @@ function bindEvents() {
         replaceExisting: draft.replaceExisting
       });
 
-      await Promise.all([loadItems(), loadSuggestions(), loadCaptures(), loadSecurityReport()]);
+      await Promise.all([loadItems(), loadSuggestions(), loadSecurityReport()]);
       elements.migrationForm.reset();
       clearMigrationDraft();
       setStatus(buildMigrationMessage(result), false);
@@ -1028,44 +1255,6 @@ function bindEvents() {
     }
   });
 
-  elements.formLearningRefreshButton.addEventListener("click", async () => {
-    try {
-      await loadFormLearningSummary();
-      setStatus("フォーム学習状態を更新しました。", false);
-    } catch (error) {
-      setStatus(error.message, true);
-    }
-  });
-
-  elements.formLearningResetSiteButton.addEventListener("click", async () => {
-    if (!state.currentDomain) {
-      setStatus("現在サイトのドメインが取得できないためリセットできません。", true);
-      return;
-    }
-
-    try {
-      const result = await callBackground("resetFormLearning", { domain: state.currentDomain });
-      await loadFormLearningSummary();
-      setStatus(`サイト学習をリセットしました（${result.removed}件削除）。`, false);
-    } catch (error) {
-      setStatus(error.message, true);
-    }
-  });
-
-  elements.formLearningResetAllButton.addEventListener("click", async () => {
-    if (!window.confirm("フォーム学習データを全削除します。よろしいですか？")) {
-      return;
-    }
-
-    try {
-      const result = await callBackground("resetFormLearning");
-      await loadFormLearningSummary();
-      setStatus(`全学習をリセットしました（${result.removed}件削除）。`, false);
-    } catch (error) {
-      setStatus(error.message, true);
-    }
-  });
-
   elements.itemType.addEventListener("change", updateTypeVisibility);
 
   elements.generateButton.addEventListener("click", async () => {
@@ -1079,13 +1268,30 @@ function bindEvents() {
     }
   });
 
+  // Alias generation
+  elements.aliasButton?.addEventListener("click", async () => {
+    try {
+      const domain = state.currentDomain || "";
+      const response = await callBackground("generateEmailAlias", { mode: "domain", domain });
+      elements.itemUsername.value = response.alias;
+      setStatus(`エイリアスメールを生成しました: ${response.alias}`, false);
+    } catch (error) {
+      setStatus(error.message, true);
+    }
+  });
+
+  // Subscription toggle
+  elements.itemIsSubscription?.addEventListener("change", () => {
+    elements.subscriptionDetails.classList.toggle("hidden", !elements.itemIsSubscription.checked);
+  });
+
   elements.itemForm.addEventListener("submit", async (event) => {
     event.preventDefault();
 
     try {
       await callBackground("saveItem", { item: buildItemFromForm() });
       setStatus("項目を保存しました。", false);
-      clearItemForm();
+      hideItemForm();
       await Promise.all([loadItems(), loadSuggestions(), loadSecurityReport()]);
     } catch (error) {
       setStatus(error.message, true);
@@ -1093,7 +1299,7 @@ function bindEvents() {
   });
 
   elements.cancelEdit.addEventListener("click", () => {
-    clearItemForm();
+    hideItemForm();
     setStatus("編集をキャンセルしました。", false);
   });
 
@@ -1103,14 +1309,6 @@ function bindEvents() {
     searchTimer = window.setTimeout(() => {
       loadItems().catch((error) => setStatus(error.message, true));
     }, 180);
-  });
-
-  elements.filterType.addEventListener("change", () => {
-    loadItems().catch((error) => setStatus(error.message, true));
-  });
-
-  elements.onlyFavorite.addEventListener("change", () => {
-    loadItems().catch((error) => setStatus(error.message, true));
   });
 
   elements.itemList.addEventListener("click", async (event) => {
@@ -1181,7 +1379,7 @@ function bindEvents() {
     }
   });
 
-  elements.suggestionList.addEventListener("click", async (event) => {
+  elements.autofillList.addEventListener("click", async (event) => {
     const target = event.target;
     if (!(target instanceof HTMLButtonElement)) {
       return;
@@ -1210,35 +1408,6 @@ function bindEvents() {
       const learnedText = response.learned ? " フォーム学習を更新しました。" : "";
       setStatus(`候補を使って自動入力しました（${riskLabel(response.risk)}）。${learnedText}`, false);
       await loadSuggestions();
-    } catch (error) {
-      setStatus(error.message, true);
-    }
-  });
-
-  elements.captureList.addEventListener("click", async (event) => {
-    const target = event.target;
-    if (!(target instanceof HTMLButtonElement)) {
-      return;
-    }
-
-    const id = target.dataset.id;
-    const action = target.dataset.action;
-    if (!id || !action) {
-      return;
-    }
-
-    try {
-      if (action === "capture-save") {
-        await callBackground("savePendingCapture", { id });
-        setStatus("保存候補をVaultに登録しました。", false);
-      }
-
-      if (action === "capture-discard") {
-        await callBackground("discardPendingCapture", { id });
-        setStatus("保存候補を破棄しました。", false);
-      }
-
-      await Promise.all([loadCaptures(), loadItems(), loadSuggestions(), loadSecurityReport()]);
     } catch (error) {
       setStatus(error.message, true);
     }
@@ -1285,6 +1454,80 @@ function bindEvents() {
     } catch (error) {
       setStatus(error.message, true);
     }
+  });
+
+  // Alias settings
+  elements.aliasSettingsForm?.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    try {
+      await callBackground("saveSettings", {
+        settings: {
+          ...state.settings,
+          aliasBaseEmail: elements.settingAliasEmail.value.trim()
+        }
+      });
+      await loadSettings();
+      setStatus("エイリアス設定を保存しました。", false);
+    } catch (error) {
+      setStatus(error.message, true);
+    }
+  });
+
+  // Subscription tab
+  elements.refreshSubsButton?.addEventListener("click", async () => {
+    try {
+      await loadSubscriptionSummary();
+      setStatus("サブスク情報を更新しました。", false);
+    } catch (error) {
+      setStatus(error.message, true);
+    }
+  });
+
+  // Deadman's Switch
+  elements.deadmanAddContact?.addEventListener("click", () => {
+    if (deadmanContacts.length >= 5) {
+      setStatus("連絡先は最大5人までです。", true);
+      return;
+    }
+    deadmanContacts.push({ name: "", email: "" });
+    renderDeadmanContacts();
+  });
+
+  elements.deadmanForm?.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    try {
+      const config = {
+        enabled: elements.deadmanEnabled.checked,
+        inactiveDays: Number(elements.deadmanDays.value) || 90,
+        contacts: deadmanContacts.filter((c) => c.email)
+      };
+      await callBackground("saveDeadmanConfig", { config });
+      await loadDeadmanConfig();
+      setStatus("デジタル遺言設定を保存しました。", false);
+    } catch (error) {
+      setStatus(error.message, true);
+    }
+  });
+
+  // Generator tab
+  elements.genNewButton?.addEventListener("click", async () => {
+    try {
+      const response = await callBackground("generatePassword");
+      elements.genResult.value = response.password;
+      paintStrength(elements.genStrength, response.password);
+      setStatus("パスワードを生成しました。", false);
+    } catch (error) {
+      setStatus(error.message, true);
+    }
+  });
+
+  elements.genCopyButton?.addEventListener("click", async () => {
+    const pw = elements.genResult.value;
+    if (!pw) {
+      setStatus("先にパスワードを生成してください。", true);
+      return;
+    }
+    await copyWithAutoClear(pw);
   });
 }
 

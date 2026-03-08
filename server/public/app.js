@@ -39,18 +39,40 @@ const buttons = {
 };
 
 const recoveredSecretBox = document.querySelector("#recovered-secret-box");
+const screenTabs = document.querySelectorAll(".view-nav button[data-screen]");
+const screens = document.querySelectorAll(".screen[data-screen]");
+
+function loadStoredToken() {
+  const sessionToken = sessionStorage.getItem("pm_cloud_token");
+  if (sessionToken) {
+    localStorage.removeItem("pm_cloud_token");
+    return sessionToken;
+  }
+
+  const legacyToken = localStorage.getItem("pm_cloud_token");
+  if (legacyToken) {
+    sessionStorage.setItem("pm_cloud_token", legacyToken);
+    localStorage.removeItem("pm_cloud_token");
+    return legacyToken;
+  }
+
+  return "";
+}
 
 const state = {
-  token: localStorage.getItem("pm_cloud_token") || "",
+  token: loadStoredToken(),
   latestShares: [],
   account: null
 };
 
-function setStatus(message, isError = false) {
+function setStatus(message, tone = "ok") {
   const hasMessage = Boolean(message);
+  const resolvedTone = tone === true ? "error" : tone === false ? "ok" : tone;
   statusEl.textContent = hasMessage ? String(message) : "";
-  statusEl.classList.toggle("ok", hasMessage && !isError);
-  statusEl.classList.toggle("error", hasMessage && isError);
+  statusEl.classList.remove("ok", "error", "loading");
+  if (hasMessage && ["ok", "error", "loading"].includes(resolvedTone)) {
+    statusEl.classList.add(resolvedTone);
+  }
 }
 
 function strengthLabel(complexity) {
@@ -128,11 +150,53 @@ function bindPasswordAssistUi() {
   }
 }
 
+function setBusy(button, busy) {
+  if (!button) return;
+  button.disabled = busy;
+  button.setAttribute("aria-busy", busy ? "true" : "false");
+}
+
+async function runWithFeedback({ button, loadingText, successText, fn }) {
+  try {
+    setBusy(button, true);
+    if (loadingText) {
+      setStatus(loadingText, "loading");
+    }
+    await fn();
+    if (successText) {
+      setStatus(successText, "ok");
+    }
+  } catch (error) {
+    setStatus(error.message || "エラーが発生しました。", "error");
+  } finally {
+    setBusy(button, false);
+  }
+}
+
+function switchScreen(target) {
+  screens.forEach((screen) => {
+    screen.classList.toggle("active", screen.dataset.screen === target);
+  });
+  screenTabs.forEach((tab) => {
+    const active = tab.dataset.screen === target;
+    tab.classList.toggle("active", active);
+    tab.setAttribute("aria-pressed", active ? "true" : "false");
+  });
+}
+
+function bindScreenNavigation() {
+  screenTabs.forEach((tab) => {
+    tab.addEventListener("click", () => switchScreen(tab.dataset.screen));
+  });
+}
+
 function saveToken(token) {
   state.token = token || "";
   if (state.token) {
-    localStorage.setItem("pm_cloud_token", state.token);
+    sessionStorage.setItem("pm_cloud_token", state.token);
+    localStorage.removeItem("pm_cloud_token");
   } else {
+    sessionStorage.removeItem("pm_cloud_token");
     localStorage.removeItem("pm_cloud_token");
   }
 }
@@ -274,11 +338,11 @@ async function refreshAccount() {
     };
     renderAccount(payload);
 
-    setStatus("アカウント情報を更新しました。", false);
+    setStatus("アカウント情報を更新しました。", "ok");
   } catch (error) {
     saveToken("");
     renderLoggedOutAccount();
-    setStatus(error.message, true);
+    setStatus(error.message, "error");
   }
 }
 
@@ -294,8 +358,8 @@ async function register() {
   saveToken(data.token);
   inputs.registerPassword.value = "";
   paintStrength(inputs.registerPasswordStrength, "", 10);
-  setStatus("アカウントを作成しました。", false);
   await refreshAccount();
+  switchScreen("account");
 }
 
 async function login() {
@@ -310,14 +374,15 @@ async function login() {
   saveToken(data.token);
   inputs.loginPassword.value = "";
   paintStrength(inputs.loginPasswordStrength, "", 10);
-  setStatus("ログインしました。", false);
+  setStatus("ログインしました。", "ok");
   await refreshAccount();
+  switchScreen("account");
 }
 
 function logout() {
   saveToken("");
   renderLoggedOutAccount();
-  setStatus("ログアウトしました。", false);
+  setStatus("ログアウトしました。", "ok");
 }
 
 async function startCheckout() {
@@ -354,7 +419,7 @@ async function emergencyExport() {
   const data = await api("/api/vault/emergency-export");
   const date = new Date().toISOString().slice(0, 19).replaceAll(":", "-");
   downloadJson(`passwordmaneger-emergency-export-${date}.json`, data.snapshot);
-  setStatus("暗号化データをダウンロードしました。マスターパスワードと一緒に安全な場所へ保管してください。", false);
+  setStatus("暗号化データをダウンロードしました。マスターパスワードと一緒に安全な場所へ保管してください。", "ok");
 }
 
 function randomRecoverySecret() {
@@ -561,7 +626,7 @@ function splitRecoveryKey() {
   const shares = splitSecret(secret, threshold, totalShares);
   state.latestShares = shares;
   inputs.sharesOutput.value = shares.join("\n");
-  setStatus(`鍵分割を作成しました（${threshold} of ${totalShares}）。`, false);
+  setStatus(`鍵分割を作成しました（${threshold} of ${totalShares}）。`, "ok");
 }
 
 function recoverFromShares() {
@@ -572,10 +637,11 @@ function recoverFromShares() {
 
   const recovered = recoverSecret(lines);
   recoveredSecretBox.textContent = recovered;
-  setStatus("シェアから復旧キーを再構築しました。", false);
+  setStatus("シェアから復旧キーを再構築しました。", "ok");
 }
 
 bindPasswordAssistUi();
+bindScreenNavigation();
 
 buttons.register.addEventListener("click", () => {
   register().catch((error) => setStatus(error.message, true));
@@ -607,39 +673,46 @@ buttons.emergency.addEventListener("click", () => {
 
 buttons.recoveryGenerate.addEventListener("click", () => {
   inputs.recoverySecret.value = randomRecoverySecret();
-  setStatus("復旧キーを生成しました。必要なら鍵分割してください。", false);
+  setStatus("復旧キーを生成しました。必要なら鍵分割してください。", "ok");
 });
 
 buttons.splitShares.addEventListener("click", () => {
   try {
     splitRecoveryKey();
   } catch (error) {
-    setStatus(error.message, true);
+    setStatus(error.message, "error");
   }
 });
 
 buttons.downloadShares.addEventListener("click", () => {
   if (!state.latestShares.length) {
-    setStatus("先に鍵分割を作成してください。", true);
+    setStatus("先に鍵分割を作成してください。", "error");
     return;
   }
 
   const date = new Date().toISOString().slice(0, 19).replaceAll(":", "-");
   downloadText(`passwordmaneger-key-shares-${date}.txt`, state.latestShares.join("\n"), "text/plain");
-  setStatus("鍵分割結果を保存しました。別々の安全な場所へ保管してください。", false);
+  setStatus("鍵分割結果を保存しました。別々の安全な場所へ保管してください。", "ok");
 });
 
 buttons.recoverSecret.addEventListener("click", () => {
   try {
     recoverFromShares();
   } catch (error) {
-    setStatus(error.message, true);
+    setStatus(error.message, "error");
   }
 });
 
 const params = new URLSearchParams(window.location.search);
 if (params.get("view") === "emergency") {
-  setStatus("緊急アクセス画面です。ログイン後に「緊急アクセス」を押して暗号化データを取得してください。", false);
+  switchScreen("recovery");
+  setStatus("緊急アクセス画面です。ログイン後に「緊急アクセス」を押して暗号化データを取得してください。", "ok");
+} else if (params.get("checkout") === "success") {
+  switchScreen("account");
+  setStatus("課金フローが完了しました。契約状態を確認してください。", "ok");
+} else if (params.get("checkout") === "cancel") {
+  switchScreen("billing");
+  setStatus("課金フローをキャンセルしました。", "error");
 }
 
 refreshAccount().catch((error) => setStatus(error.message, true));

@@ -1,11 +1,13 @@
 import fs from "node:fs/promises";
 import path from "node:path";
-import { webcrypto } from "node:crypto";
+import { webcrypto, randomUUID } from "node:crypto";
 import { createVaultEnvelope, encryptJson, unlockVaultEnvelope } from "./shared/crypto.js";
 import { generatePassword } from "./shared/password.js";
 import { generateTotp } from "./shared/totp.js";
 import { buildSecurityReport } from "./shared/security-audit.js";
 import { parseExternalItems } from "./shared/migration.js";
+import { AuditLogger } from "../../../src/lib/audit-log.js";
+import { safeCloudBaseUrl, validateCloudBaseUrl } from "../../../src/lib/cloud-url.js";
 
 if (!globalThis.crypto?.subtle || !globalThis.crypto?.getRandomValues) {
   globalThis.crypto = webcrypto;
@@ -21,14 +23,6 @@ if (!globalThis.atob) {
 
 function nowIso() {
   return new Date().toISOString();
-}
-
-function normalizeBaseUrl(baseUrl) {
-  const value = String(baseUrl || "").trim();
-  if (!value) {
-    return "";
-  }
-  return value.replace(/\/+$/, "");
 }
 
 async function readJsonFile(filePath, fallback) {
@@ -301,17 +295,22 @@ export class DesktopVaultService {
   constructor(options) {
     this.envelopeFile = path.join(options.dataDir, "vault-envelope.json");
     this.cloudStateFile = path.join(options.dataDir, "cloud-state.json");
-    this.defaultCloudBaseUrl = normalizeBaseUrl(options.defaultCloudBaseUrl || "http://localhost:8787");
+    this.defaultCloudBaseUrl = validateCloudBaseUrl(options.defaultCloudBaseUrl || "http://localhost:8787", { allowEmpty: false });
     this.extensionPath = options.extensionPath;
     this.webBaseUrl = options.webBaseUrl || this.defaultCloudBaseUrl;
     this.cloudToken = "";
+    this.auditLog = new AuditLogger(path.join(options.dataDir, "audit-log.jsonl"));
 
     this.session = {
       unlocked: false,
       key: null,
       kdf: null,
       vault: null,
-      lastActivityAt: 0
+      lastActivityAt: 0,
+      scope: null,
+      accessMode: "full",
+      expiresAt: null,
+      sessionId: ""
     };
 
     this.autoLockTimer = setInterval(() => {
@@ -334,6 +333,10 @@ export class DesktopVaultService {
     this.session.kdf = null;
     this.session.vault = null;
     this.session.lastActivityAt = 0;
+    this.session.scope = null;
+    this.session.accessMode = "full";
+    this.session.expiresAt = null;
+    this.session.sessionId = "";
   }
 
   enforceAutoLock() {
@@ -341,9 +344,19 @@ export class DesktopVaultService {
       return;
     }
 
+    // 短寿命セッション: expiresAtが設定されていれば優先
+    if (this.session.expiresAt) {
+      if (Date.now() >= this.session.expiresAt) {
+        this.auditLog.log("autoLock", "system", { reason: "session_ttl_expired" }, this.session.sessionId).catch(() => { });
+        this.resetSession();
+        return;
+      }
+    }
+
     const timeoutMinutes = Number(this.session.vault?.settings?.autoLockMinutes) || 10;
     const elapsed = Date.now() - this.session.lastActivityAt;
     if (elapsed >= timeoutMinutes * 60 * 1000) {
+      this.auditLog.log("autoLock", "system", { reason: "inactivity" }, this.session.sessionId).catch(() => { });
       this.resetSession();
     }
   }
@@ -351,6 +364,60 @@ export class DesktopVaultService {
   ensureUnlocked() {
     if (!this.session.unlocked || !this.session.vault) {
       throw new Error("Vault is locked.");
+    }
+
+    // TTLチェック（タイマー間隔の隙間を埋める）
+    if (this.session.expiresAt && Date.now() >= this.session.expiresAt) {
+      this.resetSession();
+      throw new Error("Session expired.");
+    }
+  }
+
+  ensureWriteAccess() {
+    this.ensureUnlocked();
+    if (this.session.accessMode === "readonly") {
+      throw new Error("読み取り専用モードです。書き込み操作は許可されていません。");
+    }
+  }
+
+  /**
+   * スコープが設定されている場合、アイテムがスコープ内かチェックする。
+   */
+  isItemInScope(item) {
+    if (!this.session.scope) {
+      return true;
+    }
+
+    const { tags, folders } = this.session.scope;
+    const itemTags = item.tags || [];
+
+    if (tags && tags.length > 0) {
+      if (!itemTags.some((tag) => tags.includes(tag))) {
+        return false;
+      }
+    }
+
+    if (folders && folders.length > 0) {
+      if (!itemTags.some((tag) => folders.some((f) => tag.startsWith(`folder:${f}`)))) {
+        return false;
+      }
+    }
+
+    return true;
+  }
+
+  ensureScopeAccess(itemId) {
+    if (!this.session.scope) {
+      return;
+    }
+
+    const item = this.session.vault.items.find((i) => i.id === itemId);
+    if (!item) {
+      return;
+    }
+
+    if (!this.isItemInScope(item)) {
+      throw new Error("スコープ外のアイテムです。操作は許可されていません。");
     }
   }
 
@@ -370,7 +437,7 @@ export class DesktopVaultService {
       this.cloudToken = diskToken;
       try {
         await writeJsonFile(this.cloudStateFile, {
-          baseUrl: normalizeBaseUrl(payload.baseUrl || this.defaultCloudBaseUrl),
+          baseUrl: safeCloudBaseUrl(payload.baseUrl || this.defaultCloudBaseUrl),
           token: "",
           revision: Number(payload.revision) || 0,
           lastSyncAt: payload.lastSyncAt || null,
@@ -382,7 +449,7 @@ export class DesktopVaultService {
     }
 
     return {
-      baseUrl: normalizeBaseUrl(payload.baseUrl || this.defaultCloudBaseUrl),
+      baseUrl: safeCloudBaseUrl(payload.baseUrl || this.defaultCloudBaseUrl),
       token: this.cloudToken,
       revision: Number(payload.revision) || 0,
       lastSyncAt: payload.lastSyncAt || null,
@@ -393,7 +460,7 @@ export class DesktopVaultService {
   async setCloudState(next) {
     this.cloudToken = String(next.token || "");
     await writeJsonFile(this.cloudStateFile, {
-      baseUrl: normalizeBaseUrl(next.baseUrl || this.defaultCloudBaseUrl),
+      baseUrl: safeCloudBaseUrl(next.baseUrl || this.defaultCloudBaseUrl),
       token: "",
       revision: Number(next.revision) || 0,
       lastSyncAt: next.lastSyncAt || null,
@@ -413,7 +480,7 @@ export class DesktopVaultService {
   }
 
   async cloudRequest(cloudState, endpoint, options = {}) {
-    const baseUrl = normalizeBaseUrl(cloudState.baseUrl || "");
+    const baseUrl = validateCloudBaseUrl(cloudState.baseUrl || "", { allowEmpty: false });
     if (!baseUrl) {
       throw new Error("クラウドAPIのURLが設定されていません。");
     }
@@ -457,7 +524,7 @@ export class DesktopVaultService {
     return { created: true };
   }
 
-  async unlockVault(masterPassword) {
+  async unlockVault(masterPassword, options = {}) {
     const envelope = await this.getStoredEnvelope();
     if (!envelope) {
       throw new Error("Vault is not initialized.");
@@ -468,10 +535,25 @@ export class DesktopVaultService {
     this.session.key = unlocked.key;
     this.session.kdf = envelope.kdf;
     this.session.vault = normalizeVault(unlocked.vault);
+    this.session.sessionId = randomUUID();
+    this.session.scope = options.scope || null;
+    this.session.accessMode = options.accessMode || "full";
+
+    // 短寿命セッション
+    if (options.sessionTtlSeconds && Number(options.sessionTtlSeconds) > 0) {
+      this.session.expiresAt = Date.now() + Number(options.sessionTtlSeconds) * 1000;
+    } else {
+      this.session.expiresAt = null;
+    }
+
     this.touchSession();
 
     return {
-      itemCount: this.session.vault.items.length
+      itemCount: this.session.vault.items.length,
+      sessionId: this.session.sessionId,
+      expiresAt: this.session.expiresAt ? new Date(this.session.expiresAt).toISOString() : null,
+      scope: this.session.scope,
+      accessMode: this.session.accessMode
     };
   }
 
@@ -501,6 +583,11 @@ export class DesktopVaultService {
 
     let items = sortByUpdated(this.session.vault.items);
 
+    // スコープフィルタ
+    if (this.session.scope) {
+      items = items.filter((item) => this.isItemInScope(item));
+    }
+
     if (filters.type && filters.type !== "all") {
       items = items.filter((item) => item.type === filters.type);
     }
@@ -515,11 +602,22 @@ export class DesktopVaultService {
   }
 
   upsertItem(input) {
-    this.ensureUnlocked();
+    this.ensureWriteAccess();
+
+    // 既存アイテム更新時はスコープチェック
+    if (input.id) {
+      this.ensureScopeAccess(input.id);
+    }
 
     const index = this.session.vault.items.findIndex((item) => item.id === input.id);
     const existing = index >= 0 ? this.session.vault.items[index] : null;
     const item = normalizeItem(input, existing);
+
+    // 新規作成時: スコープがある場合はスコープのタグを自動付与
+    if (index < 0 && this.session.scope?.tags?.length) {
+      const merged = new Set([...(item.tags || []), ...this.session.scope.tags]);
+      item.tags = [...merged].slice(0, 20);
+    }
 
     if (index >= 0) {
       this.session.vault.items[index] = item;
@@ -531,13 +629,16 @@ export class DesktopVaultService {
   }
 
   removeItem(itemId) {
-    this.ensureUnlocked();
+    this.ensureWriteAccess();
+    this.ensureScopeAccess(itemId);
     const countBefore = this.session.vault.items.length;
     this.session.vault.items = this.session.vault.items.filter((item) => item.id !== itemId);
     return countBefore !== this.session.vault.items.length;
   }
 
   async handleAction(message) {
+    const auditActor = message?.actor || "unknown";
+
     switch (message?.action) {
       case "getState": {
         const envelope = await this.getStoredEnvelope();
@@ -547,7 +648,11 @@ export class DesktopVaultService {
           itemCount: this.session.vault?.items?.length || 0,
           supportsAutofill: false,
           extensionPath: this.extensionPath,
-          webBaseUrl: this.webBaseUrl
+          webBaseUrl: this.webBaseUrl,
+          scope: this.session.scope,
+          accessMode: this.session.accessMode,
+          sessionExpiresAt: this.session.expiresAt ? new Date(this.session.expiresAt).toISOString() : null,
+          sessionId: this.session.sessionId || ""
         };
       }
 
@@ -566,7 +671,86 @@ export class DesktopVaultService {
           throw new Error("マスターパスワードを入力してください。");
         }
 
-        return this.unlockVault(password);
+        const result = await this.unlockVault(password, {
+          sessionTtlSeconds: message.sessionTtlSeconds,
+          accessMode: message.accessMode
+        });
+        await this.auditLog.log("unlockVault", auditActor, { sessionId: this.session.sessionId, accessMode: this.session.accessMode }, this.session.sessionId);
+        return result;
+      }
+
+      case "unlockVaultScoped": {
+        const password = String(message.masterPassword || "");
+        if (!password) {
+          throw new Error("マスターパスワードを入力してください。");
+        }
+
+        const scope = message.scope || {};
+        if (!scope.tags?.length && !scope.folders?.length) {
+          throw new Error("スコープ（tags または folders）を指定してください。");
+        }
+
+        const result = await this.unlockVault(password, {
+          scope,
+          sessionTtlSeconds: message.sessionTtlSeconds,
+          accessMode: message.accessMode || "full"
+        });
+        await this.auditLog.log("unlockVaultScoped", auditActor, { sessionId: this.session.sessionId, scope, accessMode: this.session.accessMode }, this.session.sessionId);
+        return result;
+      }
+
+      case "setAccessMode": {
+        this.ensureUnlocked();
+        const mode = message.mode;
+        if (mode !== "full" && mode !== "readonly") {
+          throw new Error("accessMode は 'full' または 'readonly' である必要があります。");
+        }
+
+        this.session.accessMode = mode;
+        await this.auditLog.log("setAccessMode", auditActor, { mode }, this.session.sessionId);
+        return { accessMode: mode };
+      }
+
+      case "getAuditLog": {
+        const entries = await this.auditLog.query({
+          action: message.filterAction,
+          actor: message.filterActor,
+          since: message.since,
+          limit: message.limit
+        });
+        return { entries, count: entries.length };
+      }
+
+      case "agentSaveCredential": {
+        this.ensureWriteAccess();
+        const agentName = String(message.agentName || "unknown-agent").trim().slice(0, 60);
+        const url = String(message.url || "").trim();
+        const username = String(message.username || "").trim();
+        const password = String(message.password || "");
+
+        if (!url && !username) {
+          throw new Error("url または username を指定してください。");
+        }
+        if (!password) {
+          throw new Error("password を指定してください。");
+        }
+
+        const agentTag = `agent:${agentName}`;
+        const inputTags = sanitizeTags(message.tags || []);
+        const tags = [agentTag, ...inputTags.filter((t) => t !== agentTag)];
+
+        const item = this.upsertItem({
+          type: "login",
+          title: message.title || url || username,
+          username,
+          password,
+          url,
+          notes: message.notes || `Saved by agent: ${agentName}`,
+          tags
+        });
+        await this.persistVault();
+        await this.auditLog.log("agentSaveCredential", auditActor, { itemId: item.id, agentName, url }, this.session.sessionId);
+        return { item };
       }
 
       case "lockVault": {
@@ -577,14 +761,15 @@ export class DesktopVaultService {
       case "saveItem": {
         const item = this.upsertItem(message.item || {});
         await this.persistVault();
+        await this.auditLog.log("saveItem", auditActor, { itemId: item.id, title: item.title }, this.session.sessionId);
         return { item };
       }
 
       case "deleteItem": {
-        this.ensureUnlocked();
         const deleted = this.removeItem(message.id);
         if (deleted) {
           await this.persistVault();
+          await this.auditLog.log("deleteItem", auditActor, { itemId: message.id }, this.session.sessionId);
         }
         return { deleted };
       }
@@ -641,6 +826,7 @@ export class DesktopVaultService {
       }
 
       case "changeMasterPassword": {
+        this.ensureWriteAccess();
         this.ensureUnlocked();
         const oldPassword = String(message.oldPassword || "");
         const newPassword = String(message.newPassword || "");
@@ -670,7 +856,7 @@ export class DesktopVaultService {
       }
 
       case "saveSettings": {
-        this.ensureUnlocked();
+        this.ensureWriteAccess();
         const next = message.settings || {};
         this.session.vault.settings = {
           ...this.session.vault.settings,
@@ -696,6 +882,7 @@ export class DesktopVaultService {
       }
 
       case "applyExternalImport": {
+        this.ensureWriteAccess();
         this.ensureUnlocked();
         const analyzed = analyzeImportRequest(this.session.vault.items, {
           provider: message.provider,
@@ -756,7 +943,7 @@ export class DesktopVaultService {
       }
 
       case "cloudRegister": {
-        const baseUrl = normalizeBaseUrl(message.baseUrl || this.defaultCloudBaseUrl);
+        const baseUrl = validateCloudBaseUrl(message.baseUrl || this.defaultCloudBaseUrl, { allowEmpty: false });
         const email = String(message.email || "").trim();
         const password = String(message.password || "");
 
@@ -786,7 +973,7 @@ export class DesktopVaultService {
       }
 
       case "cloudLogin": {
-        const baseUrl = normalizeBaseUrl(message.baseUrl || this.defaultCloudBaseUrl);
+        const baseUrl = validateCloudBaseUrl(message.baseUrl || this.defaultCloudBaseUrl, { allowEmpty: false });
         const email = String(message.email || "").trim();
         const password = String(message.password || "");
 

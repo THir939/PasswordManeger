@@ -21,6 +21,7 @@ const elements = {
 
   lockButton: document.querySelector("#lock-btn"),
   exportButton: document.querySelector("#export-btn"),
+  importButton: document.querySelector("#import-btn"),
   importInput: document.querySelector("#import-input"),
 
   platformBox: document.querySelector("#platform-box"),
@@ -99,7 +100,8 @@ const state = {
   currentItems: [],
   cloudStatus: null,
   platformInfo: null,
-  migrationDraft: null
+  migrationDraft: null,
+  currentTab: "items"
 };
 
 function setStatus(message = "", isError = false) {
@@ -377,17 +379,16 @@ function clearItemForm() {
 }
 
 function itemToMeta(item) {
-  const lines = [`種類: ${item.type}`];
+  const lines = [];
 
-  if (item.username) lines.push(`ユーザー: ${item.username}`);
-  if (item.url) lines.push(`URL: ${item.url}`);
+  if (item.username) lines.push(item.username);
+  if (item.url) lines.push(item.url);
   if (item.tags?.length) lines.push(`タグ: ${item.tags.join(", ")}`);
-  if (item.favorite) lines.push("お気に入り: はい");
   if (item.type === "card" && item.cardNumber) lines.push(`カード末尾: ${item.cardNumber.slice(-4)}`);
-  if (item.type === "identity" && item.email) lines.push(`メール: ${item.email}`);
-  if (item.updatedAt) lines.push(`更新: ${new Date(item.updatedAt).toLocaleString()}`);
+  if (item.type === "identity" && item.email) lines.push(item.email);
+  if (item.updatedAt) lines.push(`更新: ${new Date(item.updatedAt).toLocaleDateString()}`);
 
-  return lines.join("\n");
+  return lines.filter(Boolean).join("\n");
 }
 
 function renderItems(items) {
@@ -398,25 +399,47 @@ function renderItems(items) {
     return;
   }
 
+  const typeIcons = {
+    login: "🔑",
+    card: "💳",
+    identity: "👤",
+    note: "📝"
+  };
+  const typeClass = {
+    login: "login",
+    card: "card-type",
+    identity: "identity",
+    note: "note"
+  };
+
   elements.itemList.innerHTML = items
     .map((item) => {
       const otpButton = item.otpSecret
-        ? `<button type="button" data-action="totp" data-id="${escapeHtml(item.id)}" class="ghost">OTP表示</button>`
+        ? `<button type="button" data-action="totp" data-id="${escapeHtml(item.id)}" class="ghost">OTP</button>`
         : "";
+      const favStar = item.favorite ? '<span class="fav-star">★</span>' : "";
+      const icon = typeIcons[item.type] || "🔑";
+      const cls = typeClass[item.type] || "login";
+      const detailLines = itemToMeta(item).split("\n").filter(Boolean);
+      const primaryMeta = detailLines[0] || item.type;
+      const secondaryMeta = detailLines.slice(1, 3).join(" / ");
 
       return `
         <li class="card">
           <div class="card-head">
-            <p class="card-title">${escapeHtml(item.title)}</p>
-            <span class="small">${escapeHtml(item.type)}</span>
+            <div class="card-icon ${cls}">${icon}</div>
+            <div class="card-info">
+              <p class="card-title">${escapeHtml(item.title)}${favStar}</p>
+              <p class="meta meta-primary">${escapeHtml(primaryMeta)}</p>
+              ${secondaryMeta ? `<p class="meta meta-secondary">${escapeHtml(secondaryMeta)}</p>` : ""}
+            </div>
           </div>
-          <p class="meta">${escapeHtml(itemToMeta(item))}</p>
           <div class="card-actions">
             <button type="button" data-action="copy-user" data-id="${escapeHtml(item.id)}" class="ghost">IDコピー</button>
             <button type="button" data-action="copy-pass" data-id="${escapeHtml(item.id)}" class="ghost">PWコピー</button>
             ${otpButton}
             <button type="button" data-action="edit" data-id="${escapeHtml(item.id)}" class="ghost">編集</button>
-            <button type="button" data-action="delete" data-id="${escapeHtml(item.id)}" class="ghost">削除</button>
+            <button type="button" data-action="delete" data-id="${escapeHtml(item.id)}" class="ghost danger">削除</button>
           </div>
         </li>
       `;
@@ -553,6 +576,7 @@ function editItem(item) {
   elements.cancelEdit.classList.remove("hidden");
   refreshPasswordStrengthUi();
   setStatus(`編集モード: ${item.title}`, false);
+  switchTab("add-edit");
 }
 
 function buildItemFromForm() {
@@ -724,6 +748,10 @@ function bindEvents() {
     } catch (error) {
       setStatus(error.message, true);
     }
+  });
+
+  elements.importButton?.addEventListener("click", () => {
+    elements.importInput?.click();
   });
 
   elements.importInput.addEventListener("change", async (event) => {
@@ -1008,9 +1036,46 @@ function bindEvents() {
   });
 }
 
+/* --- Tab Switching --- */
+function switchTab(tabName) {
+  state.currentTab = tabName;
+
+  // Update sidebar buttons
+  document.querySelectorAll("#tabbar .sidebar-btn[data-tab]").forEach(btn => {
+    const isActive = btn.dataset.tab === tabName;
+    btn.classList.toggle("active", isActive);
+    btn.setAttribute("aria-selected", isActive ? "true" : "false");
+  });
+
+  // Show/hide tab panels
+  document.querySelectorAll(".tab-panel[data-tab-panel]").forEach(panel => {
+    panel.classList.toggle("hidden", panel.dataset.tabPanel !== tabName);
+  });
+}
+
+function bindTabEvents() {
+  document.querySelectorAll("#tabbar .sidebar-btn[data-tab]").forEach(btn => {
+    btn.addEventListener("click", () => {
+      switchTab(btn.dataset.tab);
+    });
+  });
+
+  // Sync API URL from advanced settings to hidden field
+  const advancedUrlInput = document.querySelector("#cloud-base-url-setting");
+  if (advancedUrlInput) {
+    advancedUrlInput.addEventListener("change", () => {
+      const hiddenUrl = document.querySelector("#cloud-base-url");
+      if (hiddenUrl) {
+        hiddenUrl.value = advancedUrlInput.value.trim() || "http://localhost:8787";
+      }
+    });
+  }
+}
+
 async function bootstrap() {
   bindPasswordAssistUi();
   bindEvents();
+  bindTabEvents();
   clearItemForm();
   refreshPasswordStrengthUi();
 

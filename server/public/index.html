@@ -25,6 +25,15 @@
         --accent: #c76828;
         --danger: #b33a35;
         --ok: #0e7c68;
+        --space-1: 0.5rem;
+        --space-2: 0.75rem;
+        --space-3: 1rem;
+        --space-4: 1.5rem;
+        --text-sm: 0.88rem;
+        --text-base: 1rem;
+        --text-lg: 1.08rem;
+        --radius-md: 12px;
+        --radius-lg: 20px;
         --shadow-soft: 0 20px 40px rgba(35, 28, 20, 0.09);
         --shadow-card: 0 12px 24px rgba(36, 30, 20, 0.08);
       }
@@ -54,10 +63,37 @@
       .hero,
       .panel {
         border: 1px solid var(--line);
-        border-radius: 20px;
+        border-radius: var(--radius-lg);
         background: var(--paper);
         box-shadow: var(--shadow-soft);
         backdrop-filter: blur(8px);
+      }
+
+      .view-nav {
+        display: flex;
+        flex-wrap: wrap;
+        gap: var(--space-1);
+      }
+
+      .view-nav button {
+        background: rgba(255, 255, 255, 0.72);
+        color: var(--ink);
+        border: 1px solid #c7bba6;
+        box-shadow: none;
+      }
+
+      .view-nav button.active {
+        background: var(--brand);
+        border-color: var(--brand);
+        color: #fff;
+      }
+
+      .screen {
+        display: none;
+      }
+
+      .screen.active {
+        display: block;
       }
 
       .hero {
@@ -185,6 +221,15 @@
         transform: translateY(-1px);
       }
 
+      button:active {
+        transform: translateY(0);
+      }
+
+      button[aria-busy="true"] {
+        opacity: 0.7;
+        cursor: progress;
+      }
+
       button:focus-visible {
         outline: 3px solid rgba(120, 153, 187, 0.32);
         outline-offset: 2px;
@@ -287,6 +332,11 @@
       .status.error {
         color: var(--danger);
         border-color: rgba(179, 58, 53, 0.35);
+      }
+
+      .status.loading {
+        color: var(--brand);
+        border-color: rgba(30, 58, 95, 0.35);
       }
 
       .status:empty {
@@ -496,138 +546,153 @@
 
       <p id="status" class="status" role="status" aria-live="polite"></p>
 
-      <section class="grid">
-        <article class="panel">
-          <h2>1. 新規登録</h2>
-          <label>
-            メール
-            <input id="register-email" type="email" autocomplete="email" />
-          </label>
-          <label>
-            パスワード（10文字以上）
-            <div class="secret-row">
-              <input id="register-password" type="password" autocomplete="new-password" />
-              <button id="register-password-toggle" type="button" class="ghost secret-toggle" data-target="register-password">表示</button>
-            </div>
-            <div id="register-password-strength" class="strength-box" aria-live="polite">
-              <div class="strength-bar"><span class="strength-fill"></span></div>
-              <p class="strength-text">強度: 未入力</p>
-            </div>
-          </label>
-          <button id="register-btn" type="button">アカウント作成</button>
-        </article>
+      <nav class="panel view-nav" aria-label="画面切り替え">
+        <button type="button" data-screen="auth" class="active" aria-pressed="true">認証</button>
+        <button type="button" data-screen="billing" aria-pressed="false">課金</button>
+        <button type="button" data-screen="account" aria-pressed="false">契約状態</button>
+        <button type="button" data-screen="recovery" aria-pressed="false">緊急復旧</button>
+      </nav>
 
-        <article class="panel">
-          <h2>2. ログイン</h2>
-          <label>
-            メール
-            <input id="login-email" type="email" autocomplete="email" />
-          </label>
-          <label>
-            パスワード
-            <div class="secret-row">
-              <input id="login-password" type="password" autocomplete="current-password" />
-              <button id="login-password-toggle" type="button" class="ghost secret-toggle" data-target="login-password">表示</button>
+      <section class="screen active" data-screen="auth">
+        <section class="grid">
+          <article class="panel">
+            <h2>新規登録</h2>
+            <label>
+              メール
+              <input id="register-email" type="email" autocomplete="email" />
+            </label>
+            <label>
+              パスワード（10文字以上）
+              <div class="secret-row">
+                <input id="register-password" type="password" autocomplete="new-password" />
+                <button id="register-password-toggle" type="button" class="ghost secret-toggle" data-target="register-password">表示</button>
+              </div>
+              <div id="register-password-strength" class="strength-box" aria-live="polite">
+                <div class="strength-bar"><span class="strength-fill"></span></div>
+                <p class="strength-text">強度: 未入力</p>
+              </div>
+            </label>
+            <button id="register-btn" type="button">アカウント作成</button>
+          </article>
+
+          <article class="panel">
+            <h2>ログイン</h2>
+            <label>
+              メール
+              <input id="login-email" type="email" autocomplete="email" />
+            </label>
+            <label>
+              パスワード
+              <div class="secret-row">
+                <input id="login-password" type="password" autocomplete="current-password" />
+                <button id="login-password-toggle" type="button" class="ghost secret-toggle" data-target="login-password">表示</button>
+              </div>
+              <div id="login-password-strength" class="strength-box" aria-live="polite">
+                <div class="strength-bar"><span class="strength-fill"></span></div>
+                <p class="strength-text">強度: 未入力</p>
+              </div>
+            </label>
+            <div class="row">
+              <button id="login-btn" type="button">ログイン</button>
+              <button id="logout-btn" type="button" class="ghost">ログアウト</button>
             </div>
-            <div id="login-password-strength" class="strength-box" aria-live="polite">
-              <div class="strength-bar"><span class="strength-fill"></span></div>
-              <p class="strength-text">強度: 未入力</p>
-            </div>
-          </label>
+          </article>
+        </section>
+      </section>
+
+      <section class="screen" data-screen="billing">
+        <section class="panel">
+          <h2>課金</h2>
+          <p class="hint">Stripe Checkoutでサブスク開始し、同期APIの利用権を有効化します。</p>
           <div class="row">
-            <button id="login-btn" type="button">ログイン</button>
-            <button id="logout-btn" type="button" class="ghost">ログアウト</button>
+            <button id="checkout-btn" type="button">課金を開始</button>
+            <button id="portal-btn" type="button" class="ghost">契約管理を開く</button>
+            <button id="emergency-btn" type="button" class="ghost">緊急アクセス（暗号化データ取得）</button>
           </div>
-        </article>
+        </section>
       </section>
 
-      <section class="panel">
-        <h2>3. 課金</h2>
-        <p class="hint">Stripe Checkoutでサブスク開始し、同期APIの利用権を有効化します。</p>
-        <div class="row">
-          <button id="checkout-btn" type="button">課金を開始</button>
-          <button id="portal-btn" type="button" class="ghost">契約管理を開く</button>
-          <button id="emergency-btn" type="button" class="ghost">緊急アクセス（暗号化データ取得）</button>
-        </div>
+      <section class="screen" data-screen="account">
+        <section class="panel account-panel">
+          <div class="panel-head">
+            <h2>アカウント状態</h2>
+            <button id="refresh-account-btn" type="button" class="ghost">状態を更新</button>
+          </div>
+
+          <div id="account-summary" class="summary-grid">
+            <article class="summary-card">
+              <p class="summary-label">メール</p>
+              <p id="summary-email" class="summary-value">未ログイン</p>
+            </article>
+            <article class="summary-card">
+              <p class="summary-label">プラン状態</p>
+              <p id="summary-plan" class="summary-value plan-inactive">inactive</p>
+            </article>
+            <article class="summary-card">
+              <p class="summary-label">有料アクセス</p>
+              <p id="summary-paid" class="summary-value">いいえ</p>
+            </article>
+            <article class="summary-card">
+              <p class="summary-label">次回期限</p>
+              <p id="summary-period" class="summary-value">-</p>
+            </article>
+          </div>
+
+          <div>
+            <h3>利用権ソース</h3>
+            <ul id="entitlement-list" class="entitlement-list">
+              <li class="empty">未ログイン</li>
+            </ul>
+          </div>
+
+          <details class="raw-details">
+            <summary>生データ（JSON）</summary>
+            <pre id="account-box" class="mono">未ログイン</pre>
+          </details>
+        </section>
       </section>
 
-      <section class="panel account-panel">
-        <div class="panel-head">
-          <h2>アカウント状態</h2>
-          <button id="refresh-account-btn" type="button" class="ghost">状態を更新</button>
-        </div>
-
-        <div id="account-summary" class="summary-grid">
-          <article class="summary-card">
-            <p class="summary-label">メール</p>
-            <p id="summary-email" class="summary-value">未ログイン</p>
-          </article>
-          <article class="summary-card">
-            <p class="summary-label">プラン状態</p>
-            <p id="summary-plan" class="summary-value plan-inactive">inactive</p>
-          </article>
-          <article class="summary-card">
-            <p class="summary-label">有料アクセス</p>
-            <p id="summary-paid" class="summary-value">いいえ</p>
-          </article>
-          <article class="summary-card">
-            <p class="summary-label">次回期限</p>
-            <p id="summary-period" class="summary-value">-</p>
-          </article>
-        </div>
-
-        <div>
-          <h3>利用権ソース</h3>
-          <ul id="entitlement-list" class="entitlement-list">
-            <li class="empty">未ログイン</li>
-          </ul>
-        </div>
-
-        <details class="raw-details">
-          <summary>生データ（JSON）</summary>
-          <pre id="account-box" class="mono">未ログイン</pre>
-        </details>
-      </section>
-
-      <section class="panel">
-        <h2>4. 緊急復旧オプション（鍵分割）</h2>
-        <p class="hint">
-          復旧キーをブラウザ内で分割し、複数人・複数デバイスに配布できます。サーバーには送信しません。
-        </p>
-        <div class="two-col">
-          <article>
-            <label>
-              復旧キー（未入力なら自動生成）
-              <input id="recovery-secret-input" type="text" placeholder="例: PM-RECOVERY-..." />
-            </label>
-            <div class="row">
-              <button id="recovery-generate-btn" type="button" class="ghost">キー生成</button>
-            </div>
-            <label>
-              分割数（N）
-              <input id="share-total-input" type="number" min="2" max="10" value="5" />
-            </label>
-            <label>
-              復元に必要な数（K）
-              <input id="share-threshold-input" type="number" min="2" max="10" value="3" />
-            </label>
-            <div class="row">
-              <button id="split-shares-btn" type="button">鍵を分割</button>
-              <button id="download-shares-btn" type="button" class="ghost">分割結果を保存</button>
-            </div>
-            <textarea id="shares-output" rows="10" placeholder="ここに分割結果が表示されます"></textarea>
-          </article>
-          <article>
-            <label>
-              復元に使うシェア（1行に1つ）
-              <textarea id="shares-input" rows="10" placeholder="PM-SHARE-1:..."></textarea>
-            </label>
-            <div class="row">
-              <button id="recover-secret-btn" type="button">シェアから復元</button>
-            </div>
-            <pre id="recovered-secret-box" class="mono">未復元</pre>
-          </article>
-        </div>
+      <section class="screen" data-screen="recovery">
+        <section class="panel">
+          <h2>緊急復旧オプション（鍵分割）</h2>
+          <p class="hint">
+            復旧キーをブラウザ内で分割し、複数人・複数デバイスに配布できます。サーバーには送信しません。
+          </p>
+          <div class="two-col">
+            <article>
+              <label>
+                復旧キー（未入力なら自動生成）
+                <input id="recovery-secret-input" type="text" placeholder="例: PM-RECOVERY-..." />
+              </label>
+              <div class="row">
+                <button id="recovery-generate-btn" type="button" class="ghost">キー生成</button>
+              </div>
+              <label>
+                分割数（N）
+                <input id="share-total-input" type="number" min="2" max="10" value="5" />
+              </label>
+              <label>
+                復元に必要な数（K）
+                <input id="share-threshold-input" type="number" min="2" max="10" value="3" />
+              </label>
+              <div class="row">
+                <button id="split-shares-btn" type="button">鍵を分割</button>
+                <button id="download-shares-btn" type="button" class="ghost">分割結果を保存</button>
+              </div>
+              <textarea id="shares-output" rows="10" placeholder="ここに分割結果が表示されます"></textarea>
+            </article>
+            <article>
+              <label>
+                復元に使うシェア（1行に1つ）
+                <textarea id="shares-input" rows="10" placeholder="PM-SHARE-1:..."></textarea>
+              </label>
+              <div class="row">
+                <button id="recover-secret-btn" type="button">シェアから復元</button>
+              </div>
+              <pre id="recovered-secret-box" class="mono">未復元</pre>
+            </article>
+          </div>
+        </section>
       </section>
     </main>
 

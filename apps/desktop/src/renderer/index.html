@@ -1,162 +1,212 @@
 <!doctype html>
 <html lang="ja">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>PasswordManeger Desktop</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link
-      href="https://fonts.googleapis.com/css2?family=BIZ+UDGothic:wght@400;700&family=Cormorant+Garamond:wght@500;700&display=swap"
-      rel="stylesheet"
-    />
-    <link rel="stylesheet" href="./styles.css" />
-  </head>
-  <body>
-    <main class="shell">
-      <header class="hero">
-        <p class="eyebrow">Native First Architecture</p>
-        <h1>PasswordManeger Desktop</h1>
-        <p class="sub">主役: ネイティブアプリ + ブラウザ拡張 / 補助: Web（課金・アカウント管理・緊急アクセス）</p>
-      </header>
 
-      <p id="status" class="status" role="status" aria-live="polite"></p>
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PasswordManeger Desktop</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="./styles.css" />
+</head>
 
-      <section id="setup-view" class="panel">
-        <h2>1. 初期セットアップ</h2>
-        <p class="muted">最初にマスターパスワードを作成します。忘れると復元できません。</p>
-        <form id="setup-form" class="form-grid">
-          <label>
-            マスターパスワード（10文字以上）
-            <div class="secret-row">
-              <input id="setup-password" type="password" minlength="10" required autocomplete="new-password" />
-              <button id="setup-password-toggle" class="ghost small-toggle" type="button" data-target="setup-password">表示</button>
-            </div>
-            <div id="setup-password-strength" class="strength-box" aria-live="polite">
-              <div class="strength-bar"><span class="strength-fill"></span></div>
-              <p class="strength-text">強度: 未入力</p>
-            </div>
-          </label>
-          <label>
-            確認入力
-            <div class="secret-row">
-              <input id="setup-confirm" type="password" minlength="10" required autocomplete="new-password" />
-              <button id="setup-confirm-toggle" class="ghost small-toggle" type="button" data-target="setup-confirm">表示</button>
-            </div>
-          </label>
-          <button type="submit">Vaultを作成して開始</button>
-        </form>
-      </section>
+<body>
+  <main class="shell">
+    <p id="status" class="status" role="status" aria-live="polite"></p>
 
-      <section id="unlock-view" class="panel hidden">
-        <h2>2. Vaultを解錠</h2>
-        <form id="unlock-form" class="form-grid">
-          <label>
-            マスターパスワード
-            <div class="secret-row">
-              <input id="unlock-password" type="password" required autocomplete="current-password" />
-              <button id="unlock-password-toggle" class="ghost small-toggle" type="button" data-target="unlock-password">表示</button>
-            </div>
-          </label>
-          <button type="submit">解錠する</button>
-        </form>
-      </section>
+    <!-- ===== Setup View ===== -->
+    <section id="setup-view" class="auth-screen">
+      <div class="auth-logo">🔒</div>
+      <h2>Vault作成</h2>
+      <p>マスターパスワードを作成します。忘れると復元できないため安全に保管してください。</p>
+      <form id="setup-form" class="auth-form">
+        <label>
+          マスターパスワード (10文字以上)
+          <div class="secret-row">
+            <input id="setup-password" type="password" minlength="10" required autocomplete="new-password" />
+            <button id="setup-password-toggle" class="ghost small-toggle" type="button"
+              data-target="setup-password">表示</button>
+          </div>
+          <div id="setup-password-strength" class="strength-box" aria-live="polite">
+            <div class="strength-bar"><span class="strength-fill"></span></div>
+            <p class="strength-text">強度: 未入力</p>
+          </div>
+        </label>
+        <label>
+          確認入力
+          <div class="secret-row">
+            <input id="setup-confirm" type="password" minlength="10" required autocomplete="new-password" />
+            <button id="setup-confirm-toggle" class="ghost small-toggle" type="button"
+              data-target="setup-confirm">表示</button>
+          </div>
+        </label>
+        <button type="submit">Vaultを作成して開く</button>
+      </form>
+    </section>
 
-      <section id="main-view" class="main hidden">
-        <aside class="left-col">
-          <section class="panel card-surface">
-            <div class="toolbar">
-              <button id="lock-btn" class="ghost" type="button">ロック</button>
-              <button id="export-btn" class="ghost" type="button">暗号化バックアップ</button>
-              <label class="file-btn ghost">
-                復元
-                <input id="import-input" type="file" accept="application/json" hidden />
+    <!-- ===== Unlock View ===== -->
+    <section id="unlock-view" class="auth-screen hidden">
+      <div class="auth-logo">🔒</div>
+      <h2>Vault解錠</h2>
+      <p>マスターパスワードを入力して解錠してください。</p>
+      <form id="unlock-form" class="auth-form">
+        <label>
+          マスターパスワード
+          <div class="secret-row">
+            <input id="unlock-password" type="password" required autocomplete="current-password" />
+            <button id="unlock-password-toggle" class="ghost small-toggle" type="button"
+              data-target="unlock-password">表示</button>
+          </div>
+        </label>
+        <button type="submit">解錠する</button>
+      </form>
+    </section>
+
+    <!-- ===== Main View ===== -->
+    <section id="main-view" class="app-layout hidden">
+
+      <!-- Sidebar -->
+      <nav class="sidebar" id="tabbar" role="tablist" aria-label="機能リボン">
+        <div class="sidebar-header">
+          <div class="sidebar-logo">🔐</div>
+          <span class="sidebar-title">Vault Workspace</span>
+        </div>
+
+        <div class="sidebar-nav">
+          <div class="sidebar-section">
+            <div class="sidebar-section-label">保管庫</div>
+            <button class="sidebar-btn active" data-tab="items" role="tab" aria-selected="true" title="すべてのアイテム">
+              <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2"
+                stroke-linecap="round" stroke-linejoin="round">
+                <rect x="3" y="3" width="7" height="7"></rect>
+                <rect x="14" y="3" width="7" height="7"></rect>
+                <rect x="14" y="14" width="7" height="7"></rect>
+                <rect x="3" y="14" width="7" height="7"></rect>
+              </svg>
+              <span>一覧を見る</span>
+            </button>
+            <button class="sidebar-btn" data-tab="add-edit" role="tab" aria-selected="false" title="追加/編集">
+              <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2"
+                stroke-linecap="round" stroke-linejoin="round">
+                <line x1="12" y1="5" x2="12" y2="19"></line>
+                <line x1="5" y1="12" x2="19" y2="12"></line>
+              </svg>
+              <span>追加・編集</span>
+            </button>
+          </div>
+
+          <div class="sidebar-section">
+            <div class="sidebar-section-label">保護と同期</div>
+            <button class="sidebar-btn" data-tab="security" role="tab" aria-selected="false" title="セキュリティ">
+              <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2"
+                stroke-linecap="round" stroke-linejoin="round">
+                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
+              </svg>
+              <span>セキュリティ診断</span>
+            </button>
+            <button class="sidebar-btn" data-tab="cloud" role="tab" aria-selected="false" title="クラウド同期">
+              <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2"
+                stroke-linecap="round" stroke-linejoin="round">
+                <path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"></path>
+              </svg>
+              <span>クラウド同期</span>
+            </button>
+            <button class="sidebar-btn" data-tab="migrate" role="tab" aria-selected="false" title="移行">
+              <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2"
+                stroke-linecap="round" stroke-linejoin="round">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                <polyline points="17 8 12 3 7 8"></polyline>
+                <line x1="12" y1="3" x2="12" y2="15"></line>
+              </svg>
+              <span>移行</span>
+            </button>
+          </div>
+
+          <div class="sidebar-section sidebar-bottom">
+            <div class="sidebar-section-label">環境</div>
+            <button class="sidebar-btn" data-tab="settings" role="tab" aria-selected="false" title="設定">
+              <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2"
+                stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="3"></circle>
+                <path
+                  d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l-.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z">
+                </path>
+              </svg>
+              <span>設定</span>
+            </button>
+            <button id="lock-btn" class="sidebar-btn" type="button" title="ロック">
+              <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2"
+                stroke-linecap="round" stroke-linejoin="round">
+                <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+                <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+              </svg>
+              <span>ロック</span>
+            </button>
+          </div>
+        </div>
+      </nav>
+
+      <!-- Content Area -->
+      <div class="content-area">
+        <header class="topbar">
+          <div class="search-box">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"
+              stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="11" cy="11" r="8"></circle>
+              <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+            </svg>
+            <input id="search-input" type="search" placeholder="検索..." autocomplete="off" />
+          </div>
+          <div class="topbar-actions">
+            <button id="export-btn" class="icon-btn" type="button" title="バックアップ">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"
+                stroke-linecap="round" stroke-linejoin="round">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                <polyline points="7 10 12 15 17 10"></polyline>
+                <line x1="12" y1="15" x2="12" y2="3"></line>
+              </svg>
+            </button>
+            <button id="import-btn" class="icon-btn" type="button" title="復元" aria-label="バックアップを復元">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"
+                stroke-linecap="round" stroke-linejoin="round">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                <polyline points="17 8 12 3 7 8"></polyline>
+                <line x1="12" y1="3" x2="12" y2="15"></line>
+              </svg>
+            </button>
+            <input id="import-input" type="file" accept="application/json" hidden />
+          </div>
+        </header>
+
+        <div class="views-container">
+
+          <!-- ===== Items Panel ===== -->
+          <div class="tab-panel" data-tab-panel="items" role="tabpanel">
+            <div class="panel-header">
+              <h2>すべてのアイテム</h2>
+            </div>
+            <div class="filters">
+              <select id="filter-type">
+                <option value="all">全種別</option>
+                <option value="login">ログイン</option>
+                <option value="card">カード</option>
+                <option value="identity">個人情報</option>
+                <option value="note">ノート</option>
+              </select>
+              <label class="checkbox compact">
+                <input id="only-favorite" type="checkbox" />
+                お気に入りのみ
               </label>
             </div>
-          </section>
+            <ul id="item-list" class="stack-list"></ul>
+          </div>
 
-          <section class="panel card-surface">
-            <h3>拡張機能との連携</h3>
-            <p class="muted">
-              自動入力はブラウザ拡張で行います。デスクトップはVault管理の中核です。
-            </p>
-            <pre id="platform-box" class="mono"></pre>
-            <div class="button-row">
-              <button id="open-extension-btn" class="ghost" type="button">拡張機能フォルダを開く</button>
-              <button id="open-billing-btn" class="ghost" type="button">Web課金ページを開く</button>
-              <button id="open-emergency-btn" class="ghost" type="button">緊急アクセス画面を開く</button>
+          <!-- ===== Add/Edit Panel ===== -->
+          <div class="tab-panel hidden" data-tab-panel="add-edit" role="tabpanel">
+            <div class="panel-header">
+              <h2>新規作成 / 編集</h2>
             </div>
-          </section>
-
-          <section class="panel card-surface">
-            <h3>クラウド同期（有料）</h3>
-            <form id="cloud-auth-form" class="form-grid">
-              <label>
-                APIベースURL
-                <input id="cloud-base-url" type="url" placeholder="http://localhost:8787" value="http://localhost:8787" />
-              </label>
-              <label>
-                メール
-                <input id="cloud-email" type="email" autocomplete="email" />
-              </label>
-              <label>
-                パスワード
-                <div class="secret-row">
-                  <input id="cloud-password" type="password" autocomplete="current-password" />
-                  <button id="cloud-password-toggle" class="ghost small-toggle" type="button" data-target="cloud-password">表示</button>
-                </div>
-                <div id="cloud-password-strength" class="strength-box" aria-live="polite">
-                  <div class="strength-bar"><span class="strength-fill"></span></div>
-                  <p class="strength-text">強度: 未入力</p>
-                </div>
-              </label>
-              <div class="button-row three">
-                <button id="cloud-register-btn" type="button">登録</button>
-                <button id="cloud-login-btn" class="ghost" type="button">ログイン</button>
-                <button id="cloud-logout-btn" class="ghost" type="button">ログアウト</button>
-              </div>
-            </form>
-            <div class="button-row three">
-              <button id="cloud-pull-btn" class="ghost" type="button">クラウドから取得</button>
-              <button id="cloud-push-btn" class="ghost" type="button">クラウドへ送信</button>
-              <button id="cloud-refresh-btn" class="ghost" type="button">状態更新</button>
-            </div>
-            <pre id="cloud-status-box" class="mono"></pre>
-          </section>
-
-          <section class="panel card-surface">
-            <h3>他サービスから移行</h3>
-            <form id="migration-form" class="form-grid">
-              <label>
-                移行元サービス
-                <select id="migration-provider">
-                  <option value="auto">自動判定（推奨）</option>
-                  <option value="1password">1Password</option>
-                  <option value="bitwarden">Bitwarden</option>
-                  <option value="lastpass">LastPass</option>
-                  <option value="generic">その他（汎用CSV/JSON）</option>
-                </select>
-              </label>
-              <label>
-                エクスポートファイル（CSV / JSON）
-                <input id="migration-file" type="file" accept=".csv,.json,text/csv,application/json" required />
-              </label>
-              <label class="checkbox">
-                <input id="migration-replace" type="checkbox" />
-                既存データを削除して置き換える
-              </label>
-              <div class="button-row">
-                <button id="migration-preview-btn" type="button">差分プレビュー</button>
-                <button id="migration-apply-btn" class="ghost" type="submit">プレビュー確認後に実行</button>
-              </div>
-            </form>
-            <pre id="migration-preview-box" class="mono hidden"></pre>
-          </section>
-        </aside>
-
-        <section class="right-col">
-          <section class="panel card-surface">
-            <h3>新規作成 / 編集</h3>
             <form id="item-form" class="form-grid">
               <input id="item-id" type="hidden" />
               <label>
@@ -185,7 +235,8 @@
                   パスワード
                   <div class="inline inline-with-toggle">
                     <input id="item-password" type="password" maxlength="500" />
-                    <button id="item-password-toggle" class="ghost small-toggle" type="button" data-target="item-password">表示</button>
+                    <button id="item-password-toggle" class="ghost small-toggle" type="button"
+                      data-target="item-password">表示</button>
                     <button id="generate-btn" class="ghost" type="button">生成</button>
                   </div>
                   <div id="item-password-strength" class="strength-box" aria-live="polite">
@@ -210,41 +261,17 @@
               </div>
 
               <div class="type-identity grid-identity">
-                <label>
-                  氏名
-                  <input id="item-fullname" type="text" maxlength="200" />
-                </label>
-                <label>
-                  メール
-                  <input id="item-email" type="email" maxlength="200" />
-                </label>
-                <label>
-                  電話
-                  <input id="item-phone" type="text" maxlength="50" />
-                </label>
-                <label>
-                  住所
-                  <textarea id="item-address" rows="2" maxlength="400"></textarea>
-                </label>
+                <label>氏名 <input id="item-fullname" type="text" maxlength="200" /></label>
+                <label>メール <input id="item-email" type="email" maxlength="200" /></label>
+                <label>電話 <input id="item-phone" type="text" maxlength="50" /></label>
+                <label>住所 <textarea id="item-address" rows="2" maxlength="400"></textarea></label>
               </div>
 
               <div class="type-card grid-card">
-                <label>
-                  名義人
-                  <input id="item-card-holder" type="text" maxlength="120" />
-                </label>
-                <label>
-                  カード番号
-                  <input id="item-card-number" type="text" maxlength="40" />
-                </label>
-                <label>
-                  有効期限 (MM/YY)
-                  <input id="item-card-expiry" type="text" maxlength="10" />
-                </label>
-                <label>
-                  CVC
-                  <input id="item-card-cvc" type="text" maxlength="10" />
-                </label>
+                <label>名義人 <input id="item-card-holder" type="text" maxlength="120" /></label>
+                <label>カード番号 <input id="item-card-number" type="text" maxlength="40" /></label>
+                <label>有効期限 (MM/YY) <input id="item-card-expiry" type="text" maxlength="10" /></label>
+                <label>CVC <input id="item-card-cvc" type="text" maxlength="10" /></label>
               </div>
 
               <label>
@@ -265,35 +292,95 @@
                 <button id="cancel-edit" class="ghost hidden" type="button">編集をキャンセル</button>
               </div>
             </form>
-          </section>
+          </div>
 
-          <section class="panel card-surface">
-            <h3>検索 / 一覧</h3>
-            <div class="filters">
-              <input id="search-input" type="search" placeholder="タイトル・ユーザー名・タグで検索" />
-              <select id="filter-type">
-                <option value="all">全種別</option>
-                <option value="login">ログイン</option>
-                <option value="card">カード</option>
-                <option value="identity">個人情報</option>
-                <option value="note">ノート</option>
-              </select>
-              <label class="checkbox compact">
-                <input id="only-favorite" type="checkbox" />
-                お気に入りのみ
-              </label>
+          <!-- ===== Security Panel ===== -->
+          <div class="tab-panel hidden" data-tab-panel="security" role="tabpanel">
+            <div class="panel-header">
+              <h2>セキュリティ診断</h2>
             </div>
-            <ul id="item-list" class="stack-list"></ul>
-          </section>
+            <button id="refresh-report" class="ghost" type="button">診断を更新</button>
+            <pre id="report-box" class="mono"></pre>
+          </div>
 
-          <section class="panel card-surface two-col">
-            <article>
-              <h3>セキュリティ診断</h3>
-              <button id="refresh-report" class="ghost" type="button">診断を更新</button>
-              <pre id="report-box" class="mono"></pre>
-            </article>
-            <article>
-              <h3>設定</h3>
+          <!-- ===== Cloud Sync Panel ===== -->
+          <div class="tab-panel hidden" data-tab-panel="cloud" role="tabpanel">
+            <div class="panel-header">
+              <h2>クラウド同期</h2>
+            </div>
+            <form id="cloud-auth-form" class="form-grid">
+              <label>
+                メール
+                <input id="cloud-email" type="email" autocomplete="email" />
+              </label>
+              <label>
+                パスワード
+                <div class="secret-row">
+                  <input id="cloud-password" type="password" autocomplete="current-password" />
+                  <button id="cloud-password-toggle" class="ghost small-toggle" type="button"
+                    data-target="cloud-password">表示</button>
+                </div>
+                <div id="cloud-password-strength" class="strength-box" aria-live="polite">
+                  <div class="strength-bar"><span class="strength-fill"></span></div>
+                  <p class="strength-text">強度: 未入力</p>
+                </div>
+              </label>
+              <div class="button-row three">
+                <button id="cloud-register-btn" type="button">登録</button>
+                <button id="cloud-login-btn" class="ghost" type="button">ログイン</button>
+                <button id="cloud-logout-btn" class="ghost" type="button">ログアウト</button>
+              </div>
+            </form>
+            <div class="button-row three">
+              <button id="cloud-pull-btn" class="ghost" type="button">クラウドから取得</button>
+              <button id="cloud-push-btn" class="ghost" type="button">クラウドへ送信</button>
+              <button id="cloud-refresh-btn" class="ghost" type="button">状態更新</button>
+            </div>
+            <pre id="cloud-status-box" class="mono"></pre>
+            <!-- API URL は詳細設定に隠蔽 -->
+            <input id="cloud-base-url" type="hidden" value="http://localhost:8787" />
+          </div>
+
+          <!-- ===== Migration Panel ===== -->
+          <div class="tab-panel hidden" data-tab-panel="migrate" role="tabpanel">
+            <div class="panel-header">
+              <h2>他サービスから移行</h2>
+            </div>
+            <form id="migration-form" class="form-grid">
+              <label>
+                移行元サービス
+                <select id="migration-provider">
+                  <option value="auto">自動判定（推奨）</option>
+                  <option value="1password">1Password</option>
+                  <option value="bitwarden">Bitwarden</option>
+                  <option value="lastpass">LastPass</option>
+                  <option value="generic">その他（汎用CSV/JSON）</option>
+                </select>
+              </label>
+              <label>
+                エクスポートファイル（CSV / JSON）
+                <input id="migration-file" type="file" accept=".csv,.json,text/csv,application/json" required />
+              </label>
+              <label class="checkbox">
+                <input id="migration-replace" type="checkbox" />
+                既存データを削除して置き換える
+              </label>
+              <div class="button-row">
+                <button id="migration-preview-btn" type="button">差分プレビュー</button>
+                <button id="migration-apply-btn" class="ghost" type="submit">プレビュー確認後に実行</button>
+              </div>
+            </form>
+            <pre id="migration-preview-box" class="mono hidden"></pre>
+          </div>
+
+          <!-- ===== Settings Panel ===== -->
+          <div class="tab-panel hidden" data-tab-panel="settings" role="tabpanel">
+            <div class="panel-header">
+              <h2>設定</h2>
+            </div>
+
+            <div class="settings-section">
+              <h3>一般</h3>
               <form id="settings-form" class="form-grid">
                 <label>
                   自動ロック（分）
@@ -305,21 +392,25 @@
                 </label>
                 <button type="submit">設定を保存</button>
               </form>
+            </div>
 
-              <form id="master-form" class="form-grid mt-12">
-                <h4>マスターパスワード変更</h4>
+            <div class="settings-section">
+              <h3>マスターパスワード変更</h3>
+              <form id="master-form" class="form-grid">
                 <label>
                   現在のマスターパスワード
                   <div class="secret-row">
                     <input id="old-master" type="password" />
-                    <button id="old-master-toggle" class="ghost small-toggle" type="button" data-target="old-master">表示</button>
+                    <button id="old-master-toggle" class="ghost small-toggle" type="button"
+                      data-target="old-master">表示</button>
                   </div>
                 </label>
                 <label>
                   新しいマスターパスワード
                   <div class="secret-row">
                     <input id="new-master" type="password" minlength="10" />
-                    <button id="new-master-toggle" class="ghost small-toggle" type="button" data-target="new-master">表示</button>
+                    <button id="new-master-toggle" class="ghost small-toggle" type="button"
+                      data-target="new-master">表示</button>
                   </div>
                   <div id="new-master-strength" class="strength-box" aria-live="polite">
                     <div class="strength-bar"><span class="strength-fill"></span></div>
@@ -328,12 +419,38 @@
                 </label>
                 <button type="submit">変更する</button>
               </form>
-            </article>
-          </section>
-        </section>
-      </section>
-    </main>
+            </div>
 
-    <script type="module" src="./app.js"></script>
-  </body>
+            <div class="settings-section">
+              <h3>拡張機能との連携</h3>
+              <p class="muted">自動入力はブラウザ拡張で行います。デスクトップはVault管理の中核です。</p>
+              <pre id="platform-box" class="mono"></pre>
+              <div class="button-row">
+                <button id="open-extension-btn" class="ghost" type="button">拡張機能フォルダを開く</button>
+                <button id="open-billing-btn" class="ghost" type="button">Web課金ページを開く</button>
+                <button id="open-emergency-btn" class="ghost" type="button">緊急アクセス</button>
+              </div>
+            </div>
+
+            <details class="advanced-settings-accordion">
+              <summary>詳細設定</summary>
+              <div class="advanced-settings-content">
+                <label>
+                  APIベースURL
+                  <input id="cloud-base-url-setting" type="url" placeholder="http://localhost:8787"
+                    value="http://localhost:8787" />
+                  <p class="muted">クラウド同期のAPI接続先です。通常は変更不要です。</p>
+                </label>
+              </div>
+            </details>
+          </div>
+
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <script type="module" src="./app.js"></script>
+</body>
+
 </html>

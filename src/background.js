@@ -8,6 +8,8 @@ import { generateTotp } from "./lib/totp.js";
 import { buildSecurityReport } from "./lib/security-audit.js";
 import { parseExternalItems } from "./lib/migration.js";
 import { buildAutofillRisk, extractDomain } from "./lib/autofill-risk.js";
+import { generateDomainAlias, generateRandomAlias } from "./lib/email-alias.js";
+import { safeCloudBaseUrl, validateCloudBaseUrl } from "./lib/cloud-url.js";
 
 const STORAGE_KEY = "pm_encrypted_vault";
 const AUTO_LOCK_ALARM = "pm-auto-lock";
@@ -15,13 +17,18 @@ const CLOUD_AUTH_PUBLIC_KEY = "pm_cloud_auth_public";
 const CLOUD_AUTH_TOKEN_KEY = "pm_cloud_auth_token";
 const FORM_LEARNING_KEY = "pm_form_learning_profiles";
 const AUTOFILL_TRUST_KEY = "pm_autofill_trust";
+const DEADMAN_CONFIG_KEY = "pm_deadman_config";
+const DEADMAN_CHECK_ALARM = "pm-deadman-check";
 
 const session = {
   unlocked: false,
   key: null,
   kdf: null,
   vault: null,
-  lastActivityAt: 0
+  lastActivityAt: 0,
+  isDecoy: false,
+  decoyKey: null,
+  decoyVault: null
 };
 
 const pendingCaptures = [];
@@ -32,14 +39,6 @@ function normalizeHostForCompare(value) {
 
 function nowIso() {
   return new Date().toISOString();
-}
-
-function normalizeBaseUrl(baseUrl) {
-  const value = String(baseUrl || "").trim();
-  if (!value) {
-    return "";
-  }
-  return value.replace(/\/+$/, "");
 }
 
 function getCloudTokenStorage() {
@@ -60,7 +59,7 @@ async function getCloudState() {
   const tokenPayload = tokenResult[CLOUD_AUTH_TOKEN_KEY] || {};
 
   return {
-    baseUrl: normalizeBaseUrl(payload.baseUrl || ""),
+    baseUrl: safeCloudBaseUrl(payload.baseUrl || ""),
     token: String(tokenPayload.token || ""),
     revision: Number(payload.revision) || 0,
     lastSyncAt: payload.lastSyncAt || null,
@@ -73,7 +72,7 @@ async function setCloudState(next) {
   await Promise.all([
     chrome.storage.local.set({
       [CLOUD_AUTH_PUBLIC_KEY]: {
-        baseUrl: normalizeBaseUrl(next.baseUrl || ""),
+        baseUrl: safeCloudBaseUrl(next.baseUrl || ""),
         revision: Number(next.revision) || 0,
         lastSyncAt: next.lastSyncAt || null,
         user: next.user || null
@@ -109,7 +108,7 @@ async function ensureCloudStateMigration() {
     }
 
     await setCloudState({
-      baseUrl: normalizeBaseUrl(payload.baseUrl || ""),
+      baseUrl: safeCloudBaseUrl(payload.baseUrl || ""),
       token: String(payload.token || ""),
       revision: Number(payload.revision) || 0,
       lastSyncAt: payload.lastSyncAt || null,
@@ -148,7 +147,7 @@ async function setAutofillTrust(next) {
 }
 
 async function cloudRequest(cloudState, endpoint, options = {}) {
-  const baseUrl = normalizeBaseUrl(cloudState.baseUrl || "");
+  const baseUrl = validateCloudBaseUrl(cloudState.baseUrl || "", { allowEmpty: false });
   if (!baseUrl) {
     throw new Error("クラウドAPIのURLが設定されていません。");
   }
@@ -183,6 +182,7 @@ function createDefaultVault() {
     settings: {
       autoLockMinutes: 10,
       clipboardClearSeconds: 20,
+      aliasBaseEmail: "",
       generator: {
         length: 20,
         uppercase: true,
@@ -191,12 +191,18 @@ function createDefaultVault() {
         symbols: true
       }
     },
-    items: []
+    items: [],
+    decoy: {
+      enabled: false,
+      kdf: null,
+      cipher: null
+    }
   };
 }
 
 function normalizeStoredItem(item) {
   const now = nowIso();
+  const sub = item?.subscription || {};
   return {
     id: item?.id || crypto.randomUUID(),
     type: ["login", "card", "identity", "note"].includes(item?.type) ? item.type : "login",
@@ -216,6 +222,13 @@ function normalizeStoredItem(item) {
     cardCvc: String(item?.cardCvc || "").trim().slice(0, 10),
     tags: sanitizeTags(item?.tags || []),
     favorite: Boolean(item?.favorite),
+    subscription: {
+      isSubscription: Boolean(sub.isSubscription),
+      amount: Math.max(0, Number(sub.amount) || 0),
+      currency: String(sub.currency || "JPY").slice(0, 5),
+      cycle: ["monthly", "yearly", "weekly"].includes(sub.cycle) ? sub.cycle : "monthly",
+      nextBillingDate: String(sub.nextBillingDate || "").slice(0, 20)
+    },
     passwordUpdatedAt: item?.passwordUpdatedAt || null,
     createdAt: item?.createdAt || now,
     updatedAt: item?.updatedAt || now,
@@ -237,12 +250,14 @@ function normalizeVault(vault) {
     settings: {
       autoLockMinutes: Number(incoming.settings?.autoLockMinutes) || fallback.settings.autoLockMinutes,
       clipboardClearSeconds: Number(incoming.settings?.clipboardClearSeconds) || fallback.settings.clipboardClearSeconds,
+      aliasBaseEmail: String(incoming.settings?.aliasBaseEmail || "").trim(),
       generator: {
         ...fallback.settings.generator,
         ...(incoming.settings?.generator || {})
       }
     },
-    items
+    items,
+    decoy: incoming.decoy || fallback.decoy
   };
 }
 
@@ -252,6 +267,9 @@ function resetSession() {
   session.kdf = null;
   session.vault = null;
   session.lastActivityAt = 0;
+  session.isDecoy = false;
+  session.decoyKey = null;
+  session.decoyVault = null;
 }
 
 function touchSession() {
@@ -577,26 +595,95 @@ async function unlockVault(masterPassword) {
     throw new Error("Vault is not initialized.");
   }
 
-  const unlocked = await unlockVaultEnvelope(envelope, masterPassword);
+  // まずメインパスワードで試す
+  let unlocked = null;
+  let isDecoy = false;
+  try {
+    unlocked = await unlockVaultEnvelope(envelope, masterPassword);
+  } catch {
+    // メインで失敗 → ダミーパスワードで試す
+    unlocked = null;
+  }
+
+  if (!unlocked) {
+    // ダミーVaultの復号を試みる
+    if (envelope.decoy?.kdf && envelope.decoy?.cipher) {
+      try {
+        const decoyEnvelope = {
+          version: 1,
+          kdf: envelope.decoy.kdf,
+          cipher: envelope.decoy.cipher
+        };
+        unlocked = await unlockVaultEnvelope(decoyEnvelope, masterPassword);
+        isDecoy = true;
+      } catch {
+        throw new Error("パスワードが正しくありません。");
+      }
+    } else {
+      throw new Error("パスワードが正しくありません。");
+    }
+  }
+
   session.unlocked = true;
-  session.key = unlocked.key;
-  session.kdf = envelope.kdf;
-  session.vault = normalizeVault(unlocked.vault);
+  session.isDecoy = isDecoy;
+
+  if (isDecoy) {
+    session.key = unlocked.key;
+    session.kdf = envelope.decoy.kdf;
+    session.vault = normalizeVault(unlocked.vault);
+    session.decoyKey = null;
+    session.decoyVault = null;
+  } else {
+    session.key = unlocked.key;
+    session.kdf = envelope.kdf;
+    session.vault = normalizeVault(unlocked.vault);
+    // ダミーVaultがあればセッションにも保持
+    if (unlocked.vault?.decoy?.kdf && unlocked.vault?.decoy?.cipher) {
+      session.decoyKey = null;
+      session.decoyVault = null;
+    }
+  }
+
   touchSession();
+  await recordDeadmanHeartbeat();
 
   return {
-    itemCount: session.vault.items.length
+    itemCount: session.vault.items.length,
+    isDecoy
   };
 }
 
-async function initializeVault(masterPassword) {
+async function initializeVault(masterPassword, decoyPassword = "") {
   const existing = await getStoredEnvelope();
   if (existing) {
     throw new Error("Vault already exists.");
   }
 
   const vault = createDefaultVault();
+
+  // ダミーパスワードが設定されている場合、ダミーVaultの暗号化データを作成
+  if (decoyPassword && decoyPassword.length >= 6) {
+    const decoyVault = createDefaultVault();
+    decoyVault.items = [];
+    const decoyEnvelope = await createVaultEnvelope(decoyVault, decoyPassword);
+    vault.decoy = {
+      enabled: true,
+      kdf: decoyEnvelope.kdf,
+      cipher: decoyEnvelope.cipher
+    };
+  }
+
   const envelope = await createVaultEnvelope(vault, masterPassword);
+
+  // ダミーVaultのデータをエンベロープの外側にも配置（メイン暗号化の外に置くことで、
+  // メインパスワードなしでもダミーパスワードだけで復号できるようにする）
+  if (vault.decoy?.enabled) {
+    envelope.decoy = {
+      kdf: vault.decoy.kdf,
+      cipher: vault.decoy.cipher
+    };
+  }
+
   await setStoredEnvelope(envelope);
   const unlocked = await unlockVaultEnvelope(envelope, masterPassword);
 
@@ -604,9 +691,111 @@ async function initializeVault(masterPassword) {
   session.key = unlocked.key;
   session.kdf = envelope.kdf;
   session.vault = vault;
+  session.isDecoy = false;
   touchSession();
 
   return { created: true };
+}
+
+/* ---------- Deadman's Switch helpers ---------- */
+
+async function getDeadmanConfig() {
+  const result = await chrome.storage.local.get(DEADMAN_CONFIG_KEY);
+  const config = result[DEADMAN_CONFIG_KEY];
+  return config && typeof config === "object"
+    ? config
+    : { enabled: false, inactiveDays: 90, contacts: [], lastHeartbeat: null };
+}
+
+async function setDeadmanConfig(config) {
+  await chrome.storage.local.set({ [DEADMAN_CONFIG_KEY]: config });
+}
+
+async function recordDeadmanHeartbeat() {
+  const config = await getDeadmanConfig();
+  if (!config.enabled) return;
+  config.lastHeartbeat = nowIso();
+  await setDeadmanConfig(config);
+}
+
+async function checkDeadmanSwitch() {
+  const config = await getDeadmanConfig();
+  if (!config.enabled || !config.lastHeartbeat || !config.contacts?.length) return;
+
+  const lastBeat = new Date(config.lastHeartbeat).getTime();
+  const thresholdMs = (config.inactiveDays || 90) * 24 * 60 * 60 * 1000;
+  const elapsed = Date.now() - lastBeat;
+
+  if (elapsed >= thresholdMs) {
+    // 非アクティブ期間超過 → 通知を発行
+    const contactList = config.contacts.map((c) => `${c.name} <${c.email}>`).join(", ");
+
+    // Chrome通知を表示
+    try {
+      await chrome.notifications.create("deadman-alert", {
+        type: "basic",
+        iconUrl: "src/lib/icon-128.png",
+        title: "PasswordManeger - デジタル遺言",
+        message: `${config.inactiveDays}日間操作がありません。連絡先: ${contactList}`,
+        priority: 2
+      });
+    } catch {
+      // notifications permission may not be granted
+    }
+
+    // mailto: リンクを生成してタブで開く（フォールバック通知手段）
+    const emails = config.contacts.map((c) => c.email).join(",");
+    const subject = encodeURIComponent("PasswordManeger - デジタル遺言通知");
+    const body = encodeURIComponent(
+      `このメールはPasswordManeger拡張のデッドマンズ・スイッチにより自動生成されました。\n` +
+      `設定された非アクティブ期間（${config.inactiveDays}日）を超過したため、パスワードVaultの引き継ぎが必要な可能性があります。\n\n` +
+      `最終アクセス: ${config.lastHeartbeat}`
+    );
+    try {
+      await chrome.tabs.create({ url: `mailto:${emails}?subject=${subject}&body=${body}`, active: false });
+    } catch {
+      // tab creation may fail
+    }
+  }
+}
+
+/* ---------- Subscription summary ---------- */
+
+function buildSubscriptionSummary(items) {
+  const subs = items.filter((item) => item.subscription?.isSubscription);
+  let monthlyTotal = 0;
+  let yearlyTotal = 0;
+
+  const details = subs.map((item) => {
+    const sub = item.subscription;
+    let monthlyAmount = sub.amount;
+    if (sub.cycle === "yearly") {
+      monthlyAmount = sub.amount / 12;
+    } else if (sub.cycle === "weekly") {
+      monthlyAmount = sub.amount * 4.33;
+    }
+    monthlyTotal += monthlyAmount;
+    yearlyTotal += monthlyAmount * 12;
+
+    return {
+      id: item.id,
+      title: item.title,
+      url: item.url,
+      amount: sub.amount,
+      currency: sub.currency,
+      cycle: sub.cycle,
+      monthlyAmount: Math.round(monthlyAmount),
+      nextBillingDate: sub.nextBillingDate
+    };
+  });
+
+  return {
+    count: subs.length,
+    monthlyTotal: Math.round(monthlyTotal),
+    yearlyTotal: Math.round(yearlyTotal),
+    currency: details[0]?.currency || "JPY",
+    items: details
+  };
 }
 
 function searchItems(items, query) {
@@ -750,6 +939,7 @@ async function handleAction(message, sender) {
       return {
         initialized: Boolean(envelope),
         unlocked: session.unlocked,
+        isDecoy: session.isDecoy,
         itemCount: session.vault?.items?.length || 0,
         pendingCaptureCount: pendingCaptures.length
       };
@@ -760,7 +950,8 @@ async function handleAction(message, sender) {
       if (password.length < 10) {
         throw new Error("マスターパスワードは10文字以上にしてください。");
       }
-      return initializeVault(password);
+      const decoyPw = String(message.decoyPassword || "");
+      return initializeVault(password, decoyPw);
     }
 
     case "unlockVault": {
@@ -967,6 +1158,58 @@ async function handleAction(message, sender) {
       return { settings: session.vault.settings };
     }
 
+    /* ---------- Email Alias ---------- */
+
+    case "generateEmailAlias": {
+      ensureUnlocked();
+      const baseEmail = session.vault.settings.aliasBaseEmail;
+      if (!baseEmail) {
+        throw new Error("設定画面でベースメールアドレスを設定してください。");
+      }
+      const mode = String(message.mode || "domain");
+      const domain = String(message.domain || "");
+      const alias = mode === "random"
+        ? generateRandomAlias(baseEmail)
+        : generateDomainAlias(baseEmail, domain);
+      return { alias };
+    }
+
+    /* ---------- Subscription Summary ---------- */
+
+    case "getSubscriptionSummary": {
+      ensureUnlocked();
+      return { summary: buildSubscriptionSummary(session.vault.items) };
+    }
+
+    /* ---------- Deadman's Switch ---------- */
+
+    case "getDeadmanConfig": {
+      const dmConfig = await getDeadmanConfig();
+      return { config: dmConfig };
+    }
+
+    case "saveDeadmanConfig": {
+      const dmNext = message.config || {};
+      const dmConfig = {
+        enabled: Boolean(dmNext.enabled),
+        inactiveDays: Math.max(1, Math.min(365, Number(dmNext.inactiveDays) || 90)),
+        contacts: Array.isArray(dmNext.contacts)
+          ? dmNext.contacts
+            .filter((c) => c && c.email)
+            .map((c) => ({ name: String(c.name || "").slice(0, 100), email: String(c.email || "").slice(0, 200) }))
+            .slice(0, 5)
+          : [],
+        lastHeartbeat: dmNext.lastHeartbeat || nowIso()
+      };
+      await setDeadmanConfig(dmConfig);
+      return { config: dmConfig };
+    }
+
+    case "deadmanHeartbeat": {
+      await recordDeadmanHeartbeat();
+      return { recorded: true };
+    }
+
     case "getPendingCaptures": {
       ensureUnlocked();
       return { captures: pendingCaptures };
@@ -1090,7 +1333,7 @@ async function handleAction(message, sender) {
     }
 
     case "cloudRegister": {
-      const baseUrl = normalizeBaseUrl(message.baseUrl || "http://localhost:8787");
+      const baseUrl = validateCloudBaseUrl(message.baseUrl || "http://localhost:8787", { allowEmpty: false });
       const email = String(message.email || "").trim();
       const password = String(message.password || "");
 
@@ -1120,7 +1363,7 @@ async function handleAction(message, sender) {
     }
 
     case "cloudLogin": {
-      const baseUrl = normalizeBaseUrl(message.baseUrl || "http://localhost:8787");
+      const baseUrl = validateCloudBaseUrl(message.baseUrl || "http://localhost:8787", { allowEmpty: false });
       const email = String(message.email || "").trim();
       const password = String(message.password || "");
 
@@ -1303,6 +1546,11 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 });
 
 chrome.alarms.onAlarm.addListener((alarm) => {
+  if (alarm.name === DEADMAN_CHECK_ALARM) {
+    checkDeadmanSwitch().catch(() => { });
+    return;
+  }
+
   if (alarm.name !== AUTO_LOCK_ALARM || !session.unlocked) {
     return;
   }
@@ -1316,8 +1564,10 @@ chrome.alarms.onAlarm.addListener((alarm) => {
 
 chrome.runtime.onInstalled.addListener(async () => {
   await chrome.alarms.create(AUTO_LOCK_ALARM, { periodInMinutes: 1 });
+  await chrome.alarms.create(DEADMAN_CHECK_ALARM, { periodInMinutes: 1440 }); // 24h
 });
 
 chrome.runtime.onStartup.addListener(async () => {
   await chrome.alarms.create(AUTO_LOCK_ALARM, { periodInMinutes: 1 });
+  await chrome.alarms.create(DEADMAN_CHECK_ALARM, { periodInMinutes: 1440 });
 });
