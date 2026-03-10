@@ -1,0 +1,28 @@
+- generic [ref=e2]:
+  - banner [ref=e3]:
+    - img [ref=e5]
+    - generic [ref=e8]:
+      - paragraph [ref=e9]: PasswordManeger Extension
+      - heading "設定ガイド & ドキュメント" [level=1] [ref=e10]
+  - navigation [ref=e11]:
+    - button "概要 / 構成" [ref=e12] [cursor=pointer]
+    - button "できること" [ref=e13] [cursor=pointer]
+    - button "使い方 (最短)" [ref=e14] [cursor=pointer]
+    - button "注意点 (大事)" [active] [ref=e15] [cursor=pointer]
+    - button "困ったとき" [ref=e16] [cursor=pointer]
+  - main [ref=e17]:
+    - generic [ref=e36]:
+      - heading "⚠️ 注意点（必ずお読みください）" [level=2] [ref=e37]
+      - list [ref=e38]:
+        - listitem [ref=e39]:
+          - strong [ref=e40]: "マスターパスワードの紛失:"
+          - text: 忘れるとデータを復元・復号することは一切できません。必ず安全な場所に記憶・記録してください。
+        - listitem [ref=e41]:
+          - strong [ref=e42]: "クラウド同期の制限:"
+          - text: 「有料ユーザーのみ」利用可能です。サーバー側でStripeの利用権ステータスを毎回検証します。
+        - listitem [ref=e43]:
+          - strong [ref=e44]: "自動入力の精度:"
+          - text: サイトごとのDOM（HTML構造）差分により、自動入力がうまく機能しないことがあります。
+        - listitem [ref=e45]:
+          - strong [ref=e46]: "フォーム学習の限界:"
+          - text: 自動学習が誤る場合があります。違和感があれば設定から「リセット」を行ってください。

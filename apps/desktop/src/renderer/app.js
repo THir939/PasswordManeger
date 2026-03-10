@@ -1,4 +1,4 @@
-import { passwordStrength } from "../shared/password.js";
+import { passwordStrength } from "@pm/core/password";
 
 const bridge = window.pmDesktop || null;
 
@@ -80,6 +80,22 @@ const elements = {
   onlyFavorite: document.querySelector("#only-favorite"),
   itemList: document.querySelector("#item-list"),
 
+  tagFilterBar: document.querySelector("#tag-filter-bar"),
+  tagFilterBadges: document.querySelector("#tag-filter-badges"),
+  tagFilterInput: document.querySelector("#tag-filter-input"),
+  tagFilterSuggestions: document.querySelector("#tag-filter-suggestions"),
+  tagFilterModeBtn: document.querySelector("#tag-filter-mode-btn"),
+  tagFilterClearBtn: document.querySelector("#tag-filter-clear-btn"),
+
+  folderTree: document.querySelector("#folder-tree"),
+  newFolderBtn: document.querySelector("#new-folder-btn"),
+  itemsPanelTitle: document.querySelector("#items-panel-title"),
+
+  itemTagBadges: document.querySelector("#item-tag-badges"),
+  itemTagSuggestions: document.querySelector("#item-tag-suggestions"),
+  itemFolderSelect: document.querySelector("#item-folder-select"),
+  itemFolderInput: document.querySelector("#item-folder-input"),
+
   refreshReportButton: document.querySelector("#refresh-report"),
   reportBox: document.querySelector("#report-box"),
 
@@ -101,7 +117,15 @@ const state = {
   cloudStatus: null,
   platformInfo: null,
   migrationDraft: null,
-  currentTab: "items"
+  currentTab: "items",
+  allTags: [],
+  plainTags: [],
+  folderTags: [],
+  folderTree: {},
+  selectedTagFilters: [],
+  tagFilterMode: "or",
+  selectedFolder: "",
+  itemTagList: []
 };
 
 function setStatus(message = "", isError = false) {
@@ -335,7 +359,10 @@ function currentFilters() {
   return {
     search: elements.searchInput.value,
     type: elements.filterType.value,
-    onlyFavorites: elements.onlyFavorite.checked
+    onlyFavorites: elements.onlyFavorite.checked,
+    tags: state.selectedTagFilters.length > 0 ? state.selectedTagFilters : undefined,
+    tagMode: state.tagFilterMode,
+    folder: state.selectedFolder || undefined
   };
 }
 
@@ -374,6 +401,12 @@ function clearItemForm() {
   elements.itemNotes.value = "";
   elements.itemFavorite.checked = false;
   elements.cancelEdit.classList.add("hidden");
+  // タグバッジリセット
+  state.itemTagList = [];
+  renderItemTagBadges();
+  // フォルダリセット
+  if (elements.itemFolderSelect) elements.itemFolderSelect.value = "";
+  if (elements.itemFolderInput) elements.itemFolderInput.value = "";
   updateTypeVisibility();
   refreshPasswordStrengthUi();
 }
@@ -450,6 +483,20 @@ function renderItems(items) {
 async function loadItems() {
   const response = await callService("listItems", { filters: currentFilters() });
   renderItems(response.items || []);
+}
+
+async function loadTags() {
+  try {
+    const response = await callService("getTags");
+    state.allTags = response.allTags || [];
+    state.plainTags = response.plainTags || [];
+    state.folderTags = response.folderTags || [];
+    state.folderTree = response.folderTree || {};
+    renderFolderTree();
+    updateFolderSelect();
+  } catch {
+    // タグ取得に失敗してもクラッシュさせない
+  }
 }
 
 function buildReportText(report) {
@@ -568,9 +615,31 @@ function editItem(item) {
   elements.itemCardNumber.value = item.cardNumber || "";
   elements.itemCardExpiry.value = item.cardExpiry || "";
   elements.itemCardCvc.value = item.cardCvc || "";
-  elements.itemTags.value = (item.tags || []).join(", ");
+  elements.itemTags.value = "";
   elements.itemNotes.value = item.notes || "";
   elements.itemFavorite.checked = Boolean(item.favorite);
+
+  // タグとフォルダを分離してバッジ描画
+  const folderTags = (item.tags || []).filter((t) => t.startsWith("folder:"));
+  const plainTags = (item.tags || []).filter((t) => !t.startsWith("folder:"));
+  state.itemTagList = plainTags;
+  renderItemTagBadges();
+
+  // フォルダ選択の復元
+  const folderPath = folderTags.length > 0 ? folderTags[0].slice("folder:".length) : "";
+  if (elements.itemFolderSelect) {
+    const opt = [...elements.itemFolderSelect.options].find((o) => o.value === folderPath);
+    if (opt) {
+      elements.itemFolderSelect.value = folderPath;
+      if (elements.itemFolderInput) elements.itemFolderInput.value = "";
+    } else if (folderPath) {
+      elements.itemFolderSelect.value = "";
+      if (elements.itemFolderInput) elements.itemFolderInput.value = folderPath;
+    } else {
+      elements.itemFolderSelect.value = "";
+      if (elements.itemFolderInput) elements.itemFolderInput.value = "";
+    }
+  }
 
   updateTypeVisibility();
   elements.cancelEdit.classList.remove("hidden");
@@ -580,6 +649,16 @@ function editItem(item) {
 }
 
 function buildItemFromForm() {
+  // プレーンタグ（バッジUIから）
+  const tags = [...state.itemTagList];
+
+  // フォルダタグを追加
+  const folderValue = (elements.itemFolderInput?.value.trim() || elements.itemFolderSelect?.value || "");
+  if (folderValue) {
+    const folderTag = `folder:${folderValue}`;
+    if (!tags.includes(folderTag)) tags.push(folderTag);
+  }
+
   return {
     id: elements.itemId.value || undefined,
     type: elements.itemType.value,
@@ -596,7 +675,7 @@ function buildItemFromForm() {
     cardNumber: elements.itemCardNumber.value,
     cardExpiry: elements.itemCardExpiry.value,
     cardCvc: elements.itemCardCvc.value,
-    tags: elements.itemTags.value,
+    tags,
     notes: elements.itemNotes.value,
     favorite: elements.itemFavorite.checked
   };
@@ -686,7 +765,7 @@ async function buildMigrationDraftFromForm() {
 }
 
 async function refreshMainScreen() {
-  await Promise.all([loadPlatformInfo(), loadSettings(), loadItems(), loadSecurityReport(), loadCloudStatus()]);
+  await Promise.all([loadPlatformInfo(), loadSettings(), loadTags(), loadItems(), loadSecurityReport(), loadCloudStatus()]);
 }
 
 function bindEvents() {
@@ -918,7 +997,7 @@ function bindEvents() {
       await callService("saveItem", { item: buildItemFromForm() });
       setStatus("項目を保存しました。", false);
       clearItemForm();
-      await Promise.all([loadItems(), loadSecurityReport()]);
+      await Promise.all([loadTags(), loadItems(), loadSecurityReport()]);
     } catch (error) {
       setStatus(error.message, true);
     }
@@ -1036,6 +1115,308 @@ function bindEvents() {
   });
 }
 
+/* === Folder Tree === */
+function renderFolderTree() {
+  const el = elements.folderTree;
+  if (!el) return;
+
+  function buildNodes(tree, prefix) {
+    return Object.keys(tree).map((name) => {
+      const fullPath = prefix ? `${prefix}/${name}` : name;
+      const children = buildNodes(tree[name], fullPath);
+      const isActive = state.selectedFolder === fullPath;
+      return `
+        <li class="folder-tree-item${isActive ? " active" : ""}" data-folder="${escapeHtml(fullPath)}">
+          <span class="folder-icon">📁</span>
+          <span class="folder-name">${escapeHtml(name)}</span>
+          ${children.length > 0 ? `<ul class="folder-subtree">${children.join("")}</ul>` : ""}
+        </li>`;
+    });
+  }
+
+  const allActive = state.selectedFolder === "";
+  const nodes = buildNodes(state.folderTree, "");
+  el.innerHTML = `
+    <li class="folder-tree-item${allActive ? " active" : ""}" data-folder="">
+      <span class="folder-icon">🏠</span>
+      <span class="folder-name">すべて</span>
+    </li>
+    ${nodes.join("")}`;
+}
+
+function updateFolderSelect() {
+  const sel = elements.itemFolderSelect;
+  if (!sel) return;
+  const current = sel.value;
+  sel.innerHTML = `<option value="">フォルダなし</option>`;
+  for (const tag of state.folderTags) {
+    const path = tag.slice("folder:".length);
+    const opt = document.createElement("option");
+    opt.value = path;
+    opt.textContent = path;
+    sel.appendChild(opt);
+  }
+  if ([...sel.options].some((o) => o.value === current)) {
+    sel.value = current;
+  }
+}
+
+/* === Tag Badges (Item Form) === */
+function renderItemTagBadges() {
+  const el = elements.itemTagBadges;
+  if (!el) return;
+  if (state.itemTagList.length === 0) {
+    el.innerHTML = "";
+    return;
+  }
+  el.innerHTML = state.itemTagList
+    .map(
+      (tag, i) =>
+        `<span class="tag-badge">
+          ${escapeHtml(tag)}
+          <button type="button" class="tag-badge-remove" data-tag-index="${i}" aria-label="タグ削除">×</button>
+        </span>`
+    )
+    .join("");
+}
+
+function addItemTag(tag) {
+  const t = tag.trim();
+  if (!t || state.itemTagList.includes(t)) return;
+  state.itemTagList.push(t);
+  renderItemTagBadges();
+}
+
+function removeItemTag(index) {
+  state.itemTagList.splice(index, 1);
+  renderItemTagBadges();
+}
+
+/* === Tag Suggestions === */
+function buildSuggestionList(input, suggestionsEl, tagPool, onSelect) {
+  if (!input || !suggestionsEl) return;
+
+  input.addEventListener("input", () => {
+    const query = input.value.trim().toLowerCase();
+    const filtered = query
+      ? tagPool().filter((t) => t.toLowerCase().includes(query))
+      : tagPool().slice(0, 20);
+
+    if (filtered.length === 0) {
+      suggestionsEl.classList.add("hidden");
+      return;
+    }
+    suggestionsEl.innerHTML = filtered
+      .map((t) => `<div class="tag-suggestion-item" data-tag="${escapeHtml(t)}">${escapeHtml(t)}</div>`)
+      .join("");
+    suggestionsEl.classList.remove("hidden");
+  });
+
+  input.addEventListener("blur", () => {
+    setTimeout(() => suggestionsEl.classList.add("hidden"), 180);
+  });
+
+  input.addEventListener("focus", () => {
+    if (input.value.trim() === "" && tagPool().length > 0) {
+      const filtered = tagPool().slice(0, 20);
+      suggestionsEl.innerHTML = filtered
+        .map((t) => `<div class="tag-suggestion-item" data-tag="${escapeHtml(t)}">${escapeHtml(t)}</div>`)
+        .join("");
+      suggestionsEl.classList.remove("hidden");
+    }
+  });
+
+  suggestionsEl.addEventListener("mousedown", (e) => {
+    const item = e.target.closest(".tag-suggestion-item");
+    if (!item) return;
+    e.preventDefault();
+    onSelect(item.dataset.tag);
+    input.value = "";
+    suggestionsEl.classList.add("hidden");
+  });
+}
+
+/* === Tag Filter Bar === */
+function renderTagFilterBadges() {
+  const el = elements.tagFilterBadges;
+  if (!el) return;
+  if (state.selectedTagFilters.length === 0) {
+    el.innerHTML = "";
+    return;
+  }
+  el.innerHTML = state.selectedTagFilters
+    .map(
+      (tag, i) =>
+        `<span class="tag-badge filter-badge">
+          ${escapeHtml(tag)}
+          <button type="button" class="tag-badge-remove" data-filter-index="${i}" aria-label="タグフィルター削除">×</button>
+        </span>`
+    )
+    .join("");
+}
+
+function addTagFilter(tag) {
+  const t = tag.trim();
+  if (!t || state.selectedTagFilters.includes(t)) return;
+  state.selectedTagFilters.push(t);
+  renderTagFilterBadges();
+  loadItems().catch((e) => setStatus(e.message, true));
+}
+
+function removeTagFilter(index) {
+  state.selectedTagFilters.splice(index, 1);
+  renderTagFilterBadges();
+  loadItems().catch((e) => setStatus(e.message, true));
+}
+
+function bindFolderTagEvents() {
+  // --- フォルダツリー ---
+  const folderTreeEl = elements.folderTree;
+  if (folderTreeEl) {
+    folderTreeEl.addEventListener("click", (e) => {
+      const item = e.target.closest(".folder-tree-item");
+      if (!item) return;
+      const folder = item.dataset.folder;
+      state.selectedFolder = folder;
+      renderFolderTree();
+      // パネルタイトル更新
+      if (elements.itemsPanelTitle) {
+        elements.itemsPanelTitle.textContent = folder ? `📁 ${folder}` : "すべてのアイテム";
+      }
+      loadItems().catch((err) => setStatus(err.message, true));
+      // アイテムタブに切り替え
+      switchTab("items");
+    });
+  }
+
+  // --- 新しいフォルダ作成ボタン ---
+  const newFolderBtn = elements.newFolderBtn;
+  if (newFolderBtn) {
+    newFolderBtn.addEventListener("click", () => {
+      const name = window.prompt("新しいフォルダ名を入力してください（/ で階層化）:");
+      if (!name?.trim()) return;
+      // フォルダ選択入力に反映してタブ切り替え
+      if (elements.itemFolderInput) elements.itemFolderInput.value = name.trim();
+      if (elements.itemFolderSelect) elements.itemFolderSelect.value = "";
+      switchTab("add-edit");
+    });
+  }
+
+  // --- 編集フォーム: タグ入力 ---
+  const tagInput = elements.itemTags;
+  const tagSug = elements.itemTagSuggestions;
+
+  if (tagInput) {
+    buildSuggestionList(
+      tagInput,
+      tagSug,
+      () => state.plainTags.filter((t) => !state.itemTagList.includes(t)),
+      (tag) => {
+        addItemTag(tag);
+      }
+    );
+
+    tagInput.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" || e.key === ",") {
+        e.preventDefault();
+        const val = tagInput.value.replace(/,/g, "").trim();
+        if (val) {
+          addItemTag(val);
+          tagInput.value = "";
+          if (tagSug) tagSug.classList.add("hidden");
+        }
+      } else if (e.key === "Backspace" && tagInput.value === "" && state.itemTagList.length > 0) {
+        removeItemTag(state.itemTagList.length - 1);
+      }
+    });
+  }
+
+  // --- タグバッジ: 削除 (編集フォーム) ---
+  const tagBadgesEl = elements.itemTagBadges;
+  if (tagBadgesEl) {
+    tagBadgesEl.addEventListener("click", (e) => {
+      const btn = e.target.closest(".tag-badge-remove");
+      if (!btn) return;
+      const idx = Number(btn.dataset.tagIndex);
+      removeItemTag(idx);
+    });
+  }
+
+  // --- フォルダ選択: selectとfreeテキストの排他制御 ---
+  const folderSel = elements.itemFolderSelect;
+  const folderInp = elements.itemFolderInput;
+  if (folderSel && folderInp) {
+    folderSel.addEventListener("change", () => {
+      if (folderSel.value) folderInp.value = "";
+    });
+    folderInp.addEventListener("input", () => {
+      if (folderInp.value.trim()) folderSel.value = "";
+    });
+  }
+
+  // --- タグフィルターバー ---
+  const filterInput = elements.tagFilterInput;
+  const filterSug = elements.tagFilterSuggestions;
+
+  if (filterInput) {
+    buildSuggestionList(
+      filterInput,
+      filterSug,
+      () => state.plainTags.filter((t) => !state.selectedTagFilters.includes(t)),
+      (tag) => {
+        addTagFilter(tag);
+        filterInput.value = "";
+      }
+    );
+
+    filterInput.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        const val = filterInput.value.trim();
+        if (val) {
+          addTagFilter(val);
+          filterInput.value = "";
+          if (filterSug) filterSug.classList.add("hidden");
+        }
+      }
+    });
+  }
+
+  // --- タグフィルターバッジ削除 ---
+  const filterBadgesEl = elements.tagFilterBadges;
+  if (filterBadgesEl) {
+    filterBadgesEl.addEventListener("click", (e) => {
+      const btn = e.target.closest(".tag-badge-remove");
+      if (!btn) return;
+      const idx = Number(btn.dataset.filterIndex);
+      removeTagFilter(idx);
+    });
+  }
+
+  // --- AND/ORトグル ---
+  const modeBtn = elements.tagFilterModeBtn;
+  if (modeBtn) {
+    modeBtn.addEventListener("click", () => {
+      state.tagFilterMode = state.tagFilterMode === "or" ? "and" : "or";
+      modeBtn.textContent = state.tagFilterMode.toUpperCase();
+      modeBtn.classList.toggle("mode-and", state.tagFilterMode === "and");
+      if (state.selectedTagFilters.length > 0) {
+        loadItems().catch((e) => setStatus(e.message, true));
+      }
+    });
+  }
+
+  // --- タグフィルタークリア ---
+  const clearBtn = elements.tagFilterClearBtn;
+  if (clearBtn) {
+    clearBtn.addEventListener("click", () => {
+      state.selectedTagFilters = [];
+      renderTagFilterBadges();
+      loadItems().catch((e) => setStatus(e.message, true));
+    });
+  }
+}
+
 /* --- Tab Switching --- */
 function switchTab(tabName) {
   state.currentTab = tabName;
@@ -1076,6 +1457,7 @@ async function bootstrap() {
   bindPasswordAssistUi();
   bindEvents();
   bindTabEvents();
+  bindFolderTagEvents();
   clearItemForm();
   refreshPasswordStrengthUi();
 

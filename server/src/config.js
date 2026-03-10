@@ -26,7 +26,11 @@ export const config = {
   stripeWebhookSecret: process.env.STRIPE_WEBHOOK_SECRET || "",
   allowInsecureWebhook: String(process.env.ALLOW_INSECURE_WEBHOOK || "") === "1",
   appBaseUrl: process.env.APP_BASE_URL || "http://localhost:8787",
-  entitlementIngestToken: process.env.ENTITLEMENT_INGEST_TOKEN || ""
+  entitlementIngestToken: process.env.ENTITLEMENT_INGEST_TOKEN || "",
+  // In-App Purchase (IAP)
+  appleSharedSecret: process.env.APPLE_SHARED_SECRET || "",
+  googlePlayPackageName: process.env.GOOGLE_PLAY_PACKAGE_NAME || "",
+  googleServiceAccountKey: process.env.GOOGLE_SERVICE_ACCOUNT_KEY || "",
 };
 
 export function assertBillingEnv() {

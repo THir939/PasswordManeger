@@ -1,0 +1,324 @@
+<!doctype html>
+<html lang="ja">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <meta name="theme-color" content="#0f0f1a" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <title>PasswordManeger Mobile</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap"
+        rel="stylesheet" />
+    <link rel="stylesheet" href="styles.css" />
+</head>
+
+<body>
+    <div id="app">
+
+        <!-- ===== Setup Screen ===== -->
+        <section id="setup-screen" class="auth-screen hidden">
+            <div class="auth-container">
+                <div class="auth-icon">🔒</div>
+                <h1>Vault 作成</h1>
+                <p class="auth-desc">マスターパスワードを設定してください。<br>忘れると復元できません。</p>
+                <form id="setup-form">
+                    <div class="input-group">
+                        <label>マスターパスワード (10文字以上)</label>
+                        <div class="password-field">
+                            <input id="setup-pw" type="password" minlength="10" required autocomplete="new-password"
+                                placeholder="マスターパスワードを入力" />
+                            <button type="button" class="toggle-pw" data-target="setup-pw">👁</button>
+                        </div>
+                        <div class="strength-meter" id="setup-strength">
+                            <div class="strength-track">
+                                <div class="strength-fill"></div>
+                            </div>
+                            <span class="strength-label">強度: 未入力</span>
+                        </div>
+                    </div>
+                    <div class="input-group">
+                        <label>確認入力</label>
+                        <div class="password-field">
+                            <input id="setup-confirm" type="password" minlength="10" required
+                                autocomplete="new-password" placeholder="もう一度入力" />
+                            <button type="button" class="toggle-pw" data-target="setup-confirm">👁</button>
+                        </div>
+                    </div>
+                    <button type="submit" class="btn-primary">Vaultを作成して開く</button>
+                </form>
+            </div>
+        </section>
+
+        <!-- ===== Unlock Screen ===== -->
+        <section id="unlock-screen" class="auth-screen hidden">
+            <div class="auth-container">
+                <div class="auth-icon pulse">🔐</div>
+                <h1>Vault 解錠</h1>
+                <p class="auth-desc">マスターパスワードを入力してください。</p>
+                <form id="unlock-form">
+                    <div class="input-group">
+                        <div class="password-field">
+                            <input id="unlock-pw" type="password" required autocomplete="current-password"
+                                placeholder="マスターパスワード" />
+                            <button type="button" class="toggle-pw" data-target="unlock-pw">👁</button>
+                        </div>
+                    </div>
+                    <button type="submit" class="btn-primary">解錠する</button>
+                </form>
+            </div>
+        </section>
+
+        <!-- ===== Main App ===== -->
+        <section id="main-screen" class="hidden">
+
+            <!-- Header -->
+            <header id="app-header">
+                <div class="header-title">
+                    <span class="header-logo">🔐</span>
+                    <h1>PasswordManeger</h1>
+                </div>
+                <button id="lock-btn" class="header-action" title="ロック">🔒</button>
+            </header>
+
+            <!-- Toast -->
+            <div id="toast" class="toast hidden"></div>
+
+            <!-- Search Bar -->
+            <div id="search-bar" class="search-bar">
+                <span class="search-icon">🔍</span>
+                <input id="search-input" type="search" placeholder="アイテムを検索..." autocomplete="off" />
+            </div>
+
+            <!-- Views Container -->
+            <div id="views">
+
+                <!-- Items List View -->
+                <div id="view-items" class="view">
+                    <div class="filter-bar">
+                        <select id="filter-type" class="filter-select">
+                            <option value="all">全種別</option>
+                            <option value="login">ログイン</option>
+                            <option value="card">カード</option>
+                            <option value="identity">個人情報</option>
+                            <option value="note">ノート</option>
+                        </select>
+                        <label class="filter-fav">
+                            <input id="filter-fav" type="checkbox" /> ★のみ
+                        </label>
+                    </div>
+                    <ul id="item-list" class="item-list"></ul>
+                    <div id="empty-state" class="empty-state hidden">
+                        <div class="empty-icon">📋</div>
+                        <p>アイテムがありません</p>
+                        <button class="btn-ghost" onclick="switchTab('add')">最初のアイテムを追加</button>
+                    </div>
+                </div>
+
+                <!-- Item Detail View -->
+                <div id="view-detail" class="view hidden">
+                    <button id="detail-back" class="back-btn">← 一覧に戻る</button>
+                    <div id="detail-content" class="detail-card"></div>
+                </div>
+
+                <!-- Add/Edit View -->
+                <div id="view-add" class="view hidden">
+                    <div class="view-header">
+                        <h2 id="form-title">新規作成</h2>
+                    </div>
+                    <form id="item-form" class="item-form">
+                        <input id="f-id" type="hidden" />
+                        <div class="input-group">
+                            <label>種別</label>
+                            <select id="f-type" class="form-select">
+                                <option value="login">ログイン</option>
+                                <option value="card">クレジットカード</option>
+                                <option value="identity">個人情報</option>
+                                <option value="note">セキュアノート</option>
+                            </select>
+                        </div>
+                        <div class="input-group">
+                            <label>タイトル *</label>
+                            <input id="f-title" type="text" required maxlength="140" placeholder="例: GitHub" />
+                        </div>
+                        <div class="type-fields" data-for="login,identity,note">
+                            <div class="input-group">
+                                <label>ユーザー名 / メール</label>
+                                <input id="f-username" type="text" maxlength="200" />
+                            </div>
+                        </div>
+                        <div class="type-fields" data-for="login">
+                            <div class="input-group">
+                                <label>パスワード *</label>
+                                <div class="password-field">
+                                    <input id="f-password" type="password" maxlength="500" />
+                                    <button type="button" class="toggle-pw" data-target="f-password">👁</button>
+                                    <button type="button" id="gen-pw-btn" class="gen-btn">生成</button>
+                                </div>
+                                <div class="strength-meter" id="f-pw-strength">
+                                    <div class="strength-track">
+                                        <div class="strength-fill"></div>
+                                    </div>
+                                    <span class="strength-label">強度: 未入力</span>
+                                </div>
+                            </div>
+                            <div class="input-group">
+                                <label>URL</label>
+                                <input id="f-url" type="url" maxlength="300" placeholder="https://example.com" />
+                            </div>
+                            <div class="input-group">
+                                <label>TOTP シークレット</label>
+                                <input id="f-otp" type="text" maxlength="300" placeholder="Base32 または otpauth://" />
+                            </div>
+                        </div>
+                        <div class="type-fields" data-for="identity">
+                            <div class="input-group"><label>氏名</label><input id="f-fullname" type="text"
+                                    maxlength="200" /></div>
+                            <div class="input-group"><label>メール</label><input id="f-email" type="email"
+                                    maxlength="200" /></div>
+                            <div class="input-group"><label>電話</label><input id="f-phone" type="text" maxlength="50" />
+                            </div>
+                            <div class="input-group"><label>住所</label><textarea id="f-address" rows="2"
+                                    maxlength="400"></textarea></div>
+                        </div>
+                        <div class="type-fields" data-for="card">
+                            <div class="input-group"><label>名義人</label><input id="f-cardholder" type="text"
+                                    maxlength="120" /></div>
+                            <div class="input-group"><label>カード番号</label><input id="f-cardnumber" type="text"
+                                    maxlength="40" /></div>
+                            <div class="input-group"><label>有効期限</label><input id="f-cardexpiry" type="text"
+                                    maxlength="10" placeholder="MM/YY" /></div>
+                            <div class="input-group"><label>CVC</label><input id="f-cardcvc" type="text"
+                                    maxlength="10" /></div>
+                        </div>
+                        <div class="input-group">
+                            <label>タグ (カンマ区切り)</label>
+                            <input id="f-tags" type="text" maxlength="400" placeholder="work, personal" />
+                        </div>
+                        <div class="input-group">
+                            <label>メモ</label>
+                            <textarea id="f-notes" rows="3" maxlength="4000"></textarea>
+                        </div>
+                        <label class="checkbox-label">
+                            <input id="f-favorite" type="checkbox" />
+                            <span>★ お気に入りにする</span>
+                        </label>
+                        <div class="form-actions">
+                            <button type="submit" class="btn-primary">保存</button>
+                            <button type="button" id="cancel-edit" class="btn-ghost">キャンセル</button>
+                        </div>
+                    </form>
+                </div>
+
+                <!-- Security Report View -->
+                <div id="view-security" class="view hidden">
+                    <div class="view-header">
+                        <h2>セキュリティ診断</h2>
+                    </div>
+                    <button id="refresh-report" class="btn-ghost" style="margin-bottom:12px">診断を更新</button>
+                    <div id="report-content" class="report-content"></div>
+                </div>
+
+                <!-- Settings View -->
+                <div id="view-settings" class="view hidden">
+                    <div class="view-header">
+                        <h2>設定</h2>
+                    </div>
+                    <form id="settings-form" class="item-form">
+                        <div class="input-group">
+                            <label>自動ロック（分）</label>
+                            <input id="s-autolock" type="number" min="1" max="120" />
+                        </div>
+                        <div class="input-group">
+                            <label>クリップボード自動クリア（秒）</label>
+                            <input id="s-clipboard" type="number" min="0" max="120" />
+                        </div>
+                        <button type="submit" class="btn-primary">設定を保存</button>
+                    </form>
+                    <hr class="divider" />
+                    <h3 class="section-title">マスターパスワード変更</h3>
+                    <form id="master-form" class="item-form">
+                        <div class="input-group">
+                            <label>現在のパスワード</label>
+                            <div class="password-field">
+                                <input id="m-old" type="password" />
+                                <button type="button" class="toggle-pw" data-target="m-old">👁</button>
+                            </div>
+                        </div>
+                        <div class="input-group">
+                            <label>新しいパスワード (10文字以上)</label>
+                            <div class="password-field">
+                                <input id="m-new" type="password" minlength="10" />
+                                <button type="button" class="toggle-pw" data-target="m-new">👁</button>
+                            </div>
+                            <div class="strength-meter" id="m-strength">
+                                <div class="strength-track">
+                                    <div class="strength-fill"></div>
+                                </div>
+                                <span class="strength-label">強度: 未入力</span>
+                            </div>
+                        </div>
+                        <button type="submit" class="btn-primary">パスワードを変更</button>
+                    </form>
+                </div>
+
+                <!-- Password Generator -->
+                <div id="view-generator" class="view hidden">
+                    <div class="view-header">
+                        <h2>パスワード生成</h2>
+                    </div>
+                    <div class="generator-card">
+                        <div id="generated-pw" class="generated-pw">ここにパスワードが表示されます</div>
+                        <div class="gen-options">
+                            <div class="input-group"><label>長さ</label><input id="g-length" type="range" min="8" max="64"
+                                    value="20" /><span id="g-length-val">20</span></div>
+                            <label class="checkbox-label"><input id="g-upper" type="checkbox" checked /><span>大文字
+                                    (A-Z)</span></label>
+                            <label class="checkbox-label"><input id="g-lower" type="checkbox" checked /><span>小文字
+                                    (a-z)</span></label>
+                            <label class="checkbox-label"><input id="g-numbers" type="checkbox" checked /><span>数字
+                                    (0-9)</span></label>
+                            <label class="checkbox-label"><input id="g-symbols" type="checkbox" /><span>記号
+                                    (!@#$%)</span></label>
+                        </div>
+                        <div class="gen-actions">
+                            <button id="gen-generate" class="btn-primary">生成</button>
+                            <button id="gen-copy" class="btn-ghost">コピー</button>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+
+            <!-- Bottom Tab Bar -->
+            <nav id="tab-bar" class="tab-bar">
+                <button class="tab-btn active" data-tab="items">
+                    <span class="tab-icon">📋</span>
+                    <span class="tab-label">一覧</span>
+                </button>
+                <button class="tab-btn" data-tab="add">
+                    <span class="tab-icon">➕</span>
+                    <span class="tab-label">追加</span>
+                </button>
+                <button class="tab-btn" data-tab="generator">
+                    <span class="tab-icon">🔑</span>
+                    <span class="tab-label">生成</span>
+                </button>
+                <button class="tab-btn" data-tab="security">
+                    <span class="tab-icon">🛡️</span>
+                    <span class="tab-label">診断</span>
+                </button>
+                <button class="tab-btn" data-tab="settings">
+                    <span class="tab-icon">⚙️</span>
+                    <span class="tab-label">設定</span>
+                </button>
+            </nav>
+
+        </section>
+    </div>
+    <script src="app.js"></script>
+</body>
+
+</html>

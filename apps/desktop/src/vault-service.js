@@ -1,13 +1,13 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import { webcrypto, randomUUID } from "node:crypto";
-import { createVaultEnvelope, encryptJson, unlockVaultEnvelope } from "./shared/crypto.js";
-import { generatePassword } from "./shared/password.js";
-import { generateTotp } from "./shared/totp.js";
-import { buildSecurityReport } from "./shared/security-audit.js";
-import { parseExternalItems } from "./shared/migration.js";
-import { AuditLogger } from "../../../src/lib/audit-log.js";
-import { safeCloudBaseUrl, validateCloudBaseUrl } from "../../../src/lib/cloud-url.js";
+import { createVaultEnvelope, encryptJson, unlockVaultEnvelope } from "@pm/core/crypto";
+import { generatePassword } from "@pm/core/password";
+import { generateTotp } from "@pm/core/totp";
+import { buildSecurityReport } from "@pm/core/security-audit";
+import { parseExternalItems } from "@pm/core/migration";
+import { AuditLogger } from "@pm/core/audit-log";
+import { safeCloudBaseUrl, validateCloudBaseUrl } from "@pm/core/cloud-url";
 
 if (!globalThis.crypto?.subtle || !globalThis.crypto?.getRandomValues) {
   globalThis.crypto = webcrypto;
@@ -209,6 +209,56 @@ function searchItems(items, query) {
       tags.includes(q)
     );
   });
+}
+
+function filterByTags(items, tags, tagMode) {
+  if (!Array.isArray(tags) || tags.length === 0) {
+    return items;
+  }
+  const mode = tagMode === "and" ? "and" : "or";
+  return items.filter((item) => {
+    const itemTags = (item.tags || []).map((t) => t.toLowerCase());
+    if (mode === "and") {
+      return tags.every((t) => itemTags.includes(t.toLowerCase()));
+    }
+    return tags.some((t) => itemTags.includes(t.toLowerCase()));
+  });
+}
+
+function filterByFolder(items, folder) {
+  if (!folder) {
+    return items;
+  }
+  const prefix = `folder:${folder}`.toLowerCase();
+  return items.filter((item) =>
+    (item.tags || []).some((t) => t.toLowerCase() === prefix)
+  );
+}
+
+function collectAllTags(items) {
+  const tagSet = new Set();
+  for (const item of items) {
+    for (const tag of item.tags || []) {
+      tagSet.add(tag);
+    }
+  }
+  return [...tagSet].sort();
+}
+
+function buildFolderTree(tags) {
+  // folder:path/subpath 形式のタグを階層ツリーに変換
+  const tree = {};
+  for (const tag of tags) {
+    if (!tag.startsWith("folder:")) continue;
+    const path = tag.slice("folder:".length);
+    const parts = path.split("/").filter(Boolean);
+    let node = tree;
+    for (const part of parts) {
+      if (!node[part]) node[part] = {};
+      node = node[part];
+    }
+  }
+  return tree;
 }
 
 function buildDedupFingerprint(item) {
@@ -596,9 +646,28 @@ export class DesktopVaultService {
       items = items.filter((item) => item.favorite);
     }
 
+    // フォルダフィルタ
+    if (filters.folder) {
+      items = filterByFolder(items, filters.folder);
+    }
+
+    // タグ複数フィルタ（AND / OR）
+    if (Array.isArray(filters.tags) && filters.tags.length > 0) {
+      items = filterByTags(items, filters.tags, filters.tagMode || "or");
+    }
+
     items = searchItems(items, filters.search || "");
 
     return items;
+  }
+
+  getAllTags() {
+    this.ensureUnlocked();
+    const allTags = collectAllTags(this.session.vault.items);
+    const folderTree = buildFolderTree(allTags);
+    const plainTags = allTags.filter((t) => !t.startsWith("folder:"));
+    const folderTags = allTags.filter((t) => t.startsWith("folder:"));
+    return { allTags, plainTags, folderTags, folderTree };
   }
 
   upsertItem(input) {
@@ -776,6 +845,10 @@ export class DesktopVaultService {
 
       case "listItems": {
         return { items: this.listItems(message.filters || {}) };
+      }
+
+      case "getTags": {
+        return this.getAllTags();
       }
 
       case "generatePassword": {

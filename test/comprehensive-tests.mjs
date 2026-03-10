@@ -7,8 +7,8 @@
  */
 
 import assert from "node:assert/strict";
-import { createVaultEnvelope, unlockVaultEnvelope } from "../src/lib/crypto.js";
-import { generateDomainAlias, generateRandomAlias } from "../src/lib/email-alias.js";
+import { createVaultEnvelope, unlockVaultEnvelope } from "@pm/core/crypto";
+import { generateDomainAlias, generateRandomAlias } from "@pm/core/email-alias";
 
 let passed = 0;
 let failed = 0;

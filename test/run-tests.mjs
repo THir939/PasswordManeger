@@ -1,11 +1,11 @@
 import assert from "node:assert/strict";
-import { createVaultEnvelope, unlockVaultEnvelope } from "../src/lib/crypto.js";
-import { generatePassword, passwordStrength } from "../src/lib/password.js";
-import { generateTotp } from "../src/lib/totp.js";
-import { buildSecurityReport } from "../src/lib/security-audit.js";
-import { parseExternalItems } from "../src/lib/migration.js";
-import { buildAutofillRisk } from "../src/lib/autofill-risk.js";
-import { validateCloudBaseUrl } from "../src/lib/cloud-url.js";
+import { createVaultEnvelope, unlockVaultEnvelope } from "@pm/core/crypto";
+import { generatePassword, passwordStrength } from "@pm/core/password";
+import { generateTotp } from "@pm/core/totp";
+import { buildSecurityReport } from "@pm/core/security-audit";
+import { parseExternalItems } from "@pm/core/migration";
+import { buildAutofillRisk } from "@pm/core/autofill-risk";
+import { validateCloudBaseUrl } from "@pm/core/cloud-url";
 import {
   FEATURE_CLOUD_SYNC,
   mapStripeStatusToEntitlementStatus,
@@ -217,7 +217,7 @@ await run("cloud url normalizes https", () => {
 });
 
 await run("email alias domain-based generation", async () => {
-  const { generateDomainAlias, generateRandomAlias } = await import("../src/lib/email-alias.js");
+  const { generateDomainAlias, generateRandomAlias } = await import("@pm/core/email-alias");
   const alias = generateDomainAlias("user@gmail.com", "amazon.co.jp");
   assert.equal(alias.startsWith("user+amazon.co.jp_"), true);
   assert.equal(alias.endsWith("@gmail.com"), true);
@@ -225,7 +225,7 @@ await run("email alias domain-based generation", async () => {
 });
 
 await run("email alias random generation", async () => {
-  const { generateRandomAlias } = await import("../src/lib/email-alias.js");
+  const { generateRandomAlias } = await import("@pm/core/email-alias");
   const alias = generateRandomAlias("test@example.com");
   assert.equal(alias.startsWith("test+"), true);
   assert.equal(alias.endsWith("@example.com"), true);
@@ -235,7 +235,7 @@ await run("email alias random generation", async () => {
 });
 
 await run("email alias throws on invalid email", async () => {
-  const { generateDomainAlias } = await import("../src/lib/email-alias.js");
+  const { generateDomainAlias } = await import("@pm/core/email-alias");
   assert.throws(() => generateDomainAlias("not-an-email", "example.com"));
 });
 
@@ -243,7 +243,7 @@ await run("audit log write and query", async () => {
   const fs = await import("node:fs/promises");
   const os = await import("node:os");
   const path = await import("node:path");
-  const { AuditLogger } = await import("../src/lib/audit-log.js");
+  const { AuditLogger } = await import("@pm/core/audit-log");
 
   const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "audit-test-"));
   const logger = new AuditLogger(path.join(tmpDir, "test.jsonl"));

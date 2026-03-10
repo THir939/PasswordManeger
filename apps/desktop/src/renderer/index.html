@@ -144,6 +144,20 @@
               <span>ロック</span>
             </button>
           </div>
+
+          <!-- Folder Tree -->
+          <div class="sidebar-section folder-tree-section">
+            <div class="sidebar-section-label folder-tree-header">
+              <span>📁 フォルダ</span>
+              <button id="new-folder-btn" class="folder-new-btn" type="button" title="新しいフォルダ">＋</button>
+            </div>
+            <ul id="folder-tree" class="folder-tree-list">
+              <li class="folder-tree-item active" data-folder="">
+                <span class="folder-icon">🏠</span>
+                <span class="folder-name">すべて</span>
+              </li>
+            </ul>
+          </div>
         </div>
       </nav>
 
@@ -184,7 +198,7 @@
           <!-- ===== Items Panel ===== -->
           <div class="tab-panel" data-tab-panel="items" role="tabpanel">
             <div class="panel-header">
-              <h2>すべてのアイテム</h2>
+              <h2 id="items-panel-title">すべてのアイテム</h2>
             </div>
             <div class="filters">
               <select id="filter-type">
@@ -198,6 +212,20 @@
                 <input id="only-favorite" type="checkbox" />
                 お気に入りのみ
               </label>
+            </div>
+            <!-- Tag filter bar -->
+            <div class="tag-filter-bar" id="tag-filter-bar">
+              <div class="tag-filter-controls">
+                <span class="tag-filter-label">タグ絞り込み:</span>
+                <div class="tag-filter-badges" id="tag-filter-badges"></div>
+                <div class="tag-filter-add">
+                  <input id="tag-filter-input" type="text" placeholder="タグを入力..." autocomplete="off" />
+                  <div id="tag-filter-suggestions" class="tag-suggestions hidden"></div>
+                </div>
+                <button id="tag-filter-mode-btn" class="tag-mode-btn" type="button"
+                  title="AND: 全タグ一致 / OR: いずれか一致">OR</button>
+                <button id="tag-filter-clear-btn" class="ghost small" type="button">クリア</button>
+              </div>
             </div>
             <ul id="item-list" class="stack-list"></ul>
           </div>
@@ -275,8 +303,24 @@
               </div>
 
               <label>
-                タグ（カンマ区切り）
-                <input id="item-tags" type="text" maxlength="400" placeholder="work, personal" />
+                タグ（カンマ区切りで複数追加可）
+                <div class="tag-input-wrapper">
+                  <div class="tag-input-badges" id="item-tag-badges"></div>
+                  <div class="tag-input-row">
+                    <input id="item-tags" type="text" maxlength="400" placeholder="タグを入力してEnter" autocomplete="off" />
+                    <div id="item-tag-suggestions" class="tag-suggestions hidden"></div>
+                  </div>
+                </div>
+              </label>
+              <label>
+                フォルダ
+                <div class="folder-select-row">
+                  <select id="item-folder-select">
+                    <option value="">フォルダなし</option>
+                  </select>
+                  <span class="folder-select-or">または</span>
+                  <input id="item-folder-input" type="text" placeholder="新しいフォルダ名（/ で階層）" maxlength="200" />
+                </div>
               </label>
               <label>
                 メモ

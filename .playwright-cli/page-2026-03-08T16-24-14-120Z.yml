@@ -1,0 +1,43 @@
+- main [ref=e2]:
+  - generic [ref=e4]:
+    - generic [ref=e5]:
+      - paragraph [ref=e6]: Commercial Edition
+      - heading "PasswordManeger Cloud Billing" [level=1] [ref=e7]
+      - paragraph [ref=e8]: サーバー同期は有料プランのみ有効です。ここで登録・課金・契約管理を行います。
+    - generic [ref=e9]:
+      - generic [ref=e10]: Entitlement Unified
+      - generic [ref=e11]: Stripe Connected
+      - generic [ref=e12]: Emergency Recovery
+  - status [ref=e48]: アカウント情報を更新しました。
+  - navigation "画面切り替え" [ref=e13]:
+    - button "認証" [ref=e14] [cursor=pointer]
+    - button "課金" [ref=e15] [cursor=pointer]
+    - button "契約状態" [ref=e16] [cursor=pointer]
+    - button "緊急復旧" [ref=e17] [cursor=pointer]
+  - generic [ref=e19]:
+    - article [ref=e20]:
+      - heading "新規登録" [level=2] [ref=e21]
+      - generic [ref=e22]:
+        - text: メール
+        - textbox "メール" [ref=e23]: qa@example.com
+      - generic [ref=e24]:
+        - text: パスワード（10文字以上）
+        - generic [ref=e25]:
+          - 'textbox "パスワード（10文字以上） パスワードを表示 強度: 未入力" [ref=e49]'
+          - button "パスワードを表示" [ref=e27] [cursor=pointer]: 表示
+        - paragraph [ref=e30]: "強度: 未入力"
+      - button "アカウント作成" [active] [ref=e31] [cursor=pointer]
+    - article [ref=e32]:
+      - heading "ログイン" [level=2] [ref=e33]
+      - generic [ref=e34]:
+        - text: メール
+        - textbox "メール" [ref=e35]
+      - generic [ref=e36]:
+        - text: パスワード
+        - generic [ref=e37]:
+          - 'textbox "パスワード パスワードを表示 強度: 未入力" [ref=e38]'
+          - button "パスワードを表示" [ref=e39] [cursor=pointer]: 表示
+        - paragraph [ref=e42]: "強度: 未入力"
+      - generic [ref=e43]:
+        - button "ログイン" [ref=e44] [cursor=pointer]
+        - button "ログアウト" [ref=e45] [cursor=pointer]

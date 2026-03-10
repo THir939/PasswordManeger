@@ -1,0 +1,42 @@
+{
+    "expo": {
+        "name": "PasswordManeger",
+        "slug": "passwordmaneger-mobile",
+        "version": "0.1.0",
+        "orientation": "portrait",
+        "icon": "./assets/icon.png",
+        "userInterfaceStyle": "dark",
+        "splash": {
+            "backgroundColor": "#0f0f1a",
+            "resizeMode": "contain"
+        },
+        "assetBundlePatterns": [
+            "**/*"
+        ],
+        "ios": {
+            "supportsTablet": true,
+            "bundleIdentifier": "com.antigravity.passwordmaneger",
+            "infoPlist": {
+                "NSFaceIDUsageDescription": "Vaultの解錠に Face ID を使用します。"
+            }
+        },
+        "android": {
+            "adaptiveIcon": {
+                "backgroundColor": "#0f0f1a"
+            },
+            "package": "com.antigravity.passwordmaneger",
+            "permissions": [
+                "USE_BIOMETRIC",
+                "USE_FINGERPRINT"
+            ]
+        },
+        "plugins": [
+            [
+                "expo-local-authentication",
+                {
+                    "faceIDPermission": "Vaultの解錠にFace IDを使います。"
+                }
+            ]
+        ]
+    }
+}

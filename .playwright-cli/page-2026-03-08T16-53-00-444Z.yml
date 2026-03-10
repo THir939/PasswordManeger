@@ -1,0 +1,32 @@
+- generic [ref=e2]:
+  - banner [ref=e3]:
+    - img [ref=e5]
+    - generic [ref=e8]:
+      - paragraph [ref=e9]: PasswordManeger Extension
+      - heading "設定ガイド & ドキュメント" [level=1] [ref=e10]
+  - navigation [ref=e11]:
+    - button "概要 / 構成" [ref=e12] [cursor=pointer]
+    - button "できること" [ref=e13] [cursor=pointer]
+    - button "使い方 (最短)" [ref=e14] [cursor=pointer]
+    - button "注意点 (大事)" [ref=e15] [cursor=pointer]
+    - button "困ったとき" [ref=e16] [cursor=pointer]
+  - main [ref=e17]:
+    - generic [ref=e19]:
+      - heading "拡張機能単体でもパワフルに動作" [level=2] [ref=e20]
+      - paragraph [ref=e21]:
+        - text: 拡張機能だけでも「ローカル保管 + 自動入力 + 診断」までフル活用できます。
+        - text: 必要に応じて、有料プランでクラウド同期（複数端末連携）も追加可能です。
+      - generic [ref=e22]:
+        - generic [ref=e23]: ローカル暗号化 (AES-256-GCM)
+        - generic [ref=e24]: リスクベース自動入力
+        - generic [ref=e25]: フォーム学習
+        - generic [ref=e26]: 移行プレビュー
+      - heading "拡張機能だけでも使える？" [level=3] [ref=e28]
+      - paragraph [ref=e29]: 使えます。拡張機能は単体で完結します（ローカルVault運用）。ただし「複数端末の同期」だけは、サーバー（有料）を前提にしています。
+      - list [ref=e30]:
+        - listitem [ref=e31]:
+          - strong [ref=e32]: "拡張機能だけでできる:"
+          - text: 保存 / 自動入力 / バックアップ / 移行 / セキュリティ診断
+        - listitem [ref=e33]:
+          - strong [ref=e34]: "サーバーが必要:"
+          - text: 課金 / クラウド同期 / 緊急アクセス（暗号化データ回収）

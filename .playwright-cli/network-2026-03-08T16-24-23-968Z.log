@@ -1,0 +1,4 @@
+[POST] http://localhost:8787/api/auth/register => [201] Created
+[GET] http://localhost:8787/api/auth/me => [200] OK
+[GET] http://localhost:8787/api/billing/status => [200] OK
+[GET] http://localhost:8787/api/entitlements/status => [200] OK

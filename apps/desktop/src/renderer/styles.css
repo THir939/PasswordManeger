@@ -1040,3 +1040,340 @@ button.danger:hover {
     padding: 0 16px 24px;
   }
 }
+
+/* ============================
+   FOLDER TREE
+   ============================ */
+.folder-tree-section {
+  border-top: 1px solid var(--border-default);
+  padding-top: 12px;
+  margin-top: 4px;
+}
+
+.folder-tree-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 4px;
+}
+
+.folder-new-btn {
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  border: 1px solid var(--border-default);
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  padding: 0;
+  line-height: 1;
+  transition: all 0.2s ease;
+}
+
+.folder-new-btn:hover {
+  background: rgba(59, 130, 246, 0.08);
+  color: var(--accent-blue);
+  border-color: rgba(59, 130, 246, 0.25);
+  transform: none;
+}
+
+.folder-tree-list,
+.folder-subtree {
+  list-style: none;
+  margin: 4px 0 0;
+  padding: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.folder-subtree {
+  margin-left: 16px;
+  margin-top: 2px;
+}
+
+.folder-tree-item {
+  display: flex;
+  flex-direction: column;
+}
+
+.folder-tree-item>.folder-icon,
+.folder-tree-item>.folder-name {
+  display: inline;
+}
+
+.folder-tree-item {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 10px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  transition: all 0.2s ease;
+  flex-wrap: wrap;
+}
+
+.folder-tree-item:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.folder-tree-item.active {
+  background: rgba(59, 130, 246, 0.08);
+  color: var(--accent-blue);
+  font-weight: 600;
+}
+
+.folder-icon {
+  font-size: 14px;
+  flex-shrink: 0;
+}
+
+.folder-name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ============================
+   TAG BADGES
+   ============================ */
+.tag-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px 3px 10px;
+  border-radius: var(--radius-pill);
+  background: rgba(59, 130, 246, 0.1);
+  border: 1px solid rgba(59, 130, 246, 0.2);
+  color: var(--accent-blue);
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+  animation: badge-in 200ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+@keyframes badge-in {
+  from {
+    transform: scale(0.7);
+    opacity: 0;
+  }
+
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+.filter-badge {
+  background: rgba(99, 102, 241, 0.1);
+  border-color: rgba(99, 102, 241, 0.25);
+  color: #6366f1;
+}
+
+.tag-badge-remove {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: none;
+  background: rgba(0, 0, 0, 0.08);
+  color: inherit;
+  font-size: 11px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  padding: 0;
+  flex-shrink: 0;
+  transition: background 0.2s ease;
+}
+
+.tag-badge-remove:hover {
+  background: rgba(0, 0, 0, 0.18);
+  transform: none;
+}
+
+/* ============================
+   TAG SUGGESTIONS DROPDOWN
+   ============================ */
+.tag-suggestions {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  z-index: 200;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-md);
+  max-height: 180px;
+  overflow-y: auto;
+  animation: fade-up 150ms ease;
+}
+
+.tag-suggestion-item {
+  padding: 8px 14px;
+  font-size: 13px;
+  cursor: pointer;
+  color: var(--text-primary);
+  transition: background 0.15s ease;
+}
+
+.tag-suggestion-item:hover {
+  background: rgba(59, 130, 246, 0.06);
+  color: var(--accent-blue);
+}
+
+/* ============================
+   TAG INPUT WRAPPER (Item Form)
+   ============================ */
+.tag-input-wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: var(--radius-md);
+  background: var(--bg-input);
+  padding: 8px 10px;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.tag-input-wrapper:focus-within {
+  border-color: var(--accent-blue);
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.12);
+}
+
+.tag-input-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.tag-input-row {
+  position: relative;
+}
+
+.tag-input-row input {
+  border: none;
+  background: transparent;
+  padding: 4px 0;
+  box-shadow: none;
+  font-size: 13px;
+  transform: none !important;
+}
+
+.tag-input-row input:focus {
+  box-shadow: none;
+  border: none;
+}
+
+/* ============================
+   TAG FILTER BAR
+   ============================ */
+.tag-filter-bar {
+  background: rgba(248, 250, 252, 0.8);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  padding: 10px 14px;
+}
+
+.tag-filter-controls {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.tag-filter-label {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-tertiary);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  white-space: nowrap;
+}
+
+.tag-filter-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.tag-filter-add {
+  position: relative;
+  flex: 1;
+  min-width: 120px;
+}
+
+.tag-filter-add input {
+  height: 30px;
+  padding: 4px 12px;
+  font-size: 12px;
+  border-radius: var(--radius-pill);
+  background: #fff;
+}
+
+/* AND/OR toggle */
+.tag-mode-btn {
+  padding: 4px 10px;
+  border-radius: var(--radius-pill);
+  border: 1px solid rgba(99, 102, 241, 0.3);
+  background: rgba(99, 102, 241, 0.08);
+  color: #6366f1;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.tag-mode-btn:hover {
+  background: rgba(99, 102, 241, 0.15);
+  transform: none;
+}
+
+.tag-mode-btn.mode-and {
+  background: rgba(239, 68, 68, 0.08);
+  border-color: rgba(239, 68, 68, 0.3);
+  color: var(--accent-red);
+}
+
+button.ghost.small {
+  padding: 4px 10px;
+  font-size: 11px;
+  height: 28px;
+}
+
+/* ============================
+   FOLDER SELECT ROW (Item Form)
+   ============================ */
+.folder-select-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.folder-select-row select {
+  flex: 1;
+  min-width: 0;
+}
+
+.folder-select-row input {
+  flex: 1;
+  min-width: 0;
+}
+
+.folder-select-or {
+  font-size: 12px;
+  color: var(--text-tertiary);
+  white-space: nowrap;
+  flex-shrink: 0;
+}

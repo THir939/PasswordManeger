@@ -1,8 +1,10 @@
 import path from "node:path";
 import fs from "node:fs";
+import crypto from "node:crypto";
 import { timingSafeEqual } from "node:crypto";
 import { fileURLToPath } from "node:url";
 import express from "express";
+import compression from "compression";
 import cors from "cors";
 import Stripe from "stripe";
 import { config } from "./config.js";
@@ -27,8 +29,8 @@ const projectRoot = path.resolve(__dirname, "..");
 const publicDir = path.join(projectRoot, "public");
 const dataFile = config.dataFilePath
   ? (path.isAbsolute(config.dataFilePath)
-      ? config.dataFilePath
-      : path.resolve(projectRoot, config.dataFilePath))
+    ? config.dataFilePath
+    : path.resolve(projectRoot, config.dataFilePath))
   : path.join(projectRoot, "data", "db.json");
 
 const app = express();
@@ -63,6 +65,7 @@ const corsOptions = {
 };
 
 app.use(cors(corsOptions));
+app.use(compression({ threshold: 512 }));
 
 function getClientIp(req) {
   const forwarded = String(req.headers["x-forwarded-for"] || "")
@@ -484,10 +487,19 @@ function paidRequired(req, res, next) {
 
 app.get("/api/vault/snapshot", authRequired, paidRequired, (req, res) => {
   const snapshot = store.getVaultSnapshot(req.user.id);
-  return res.json({
-    ok: true,
-    snapshot
-  });
+
+  // ETag cache — no change => 304 Not Modified (zero transfer)
+  const body = JSON.stringify({ ok: true, snapshot });
+  const etag = '"' + crypto.createHash('md5').update(body).digest('hex') + '"';
+  res.setHeader('ETag', etag);
+  res.setHeader('Cache-Control', 'private, no-cache');
+
+  if (req.headers['if-none-match'] === etag) {
+    return res.status(304).end();
+  }
+
+  res.setHeader('Content-Type', 'application/json');
+  return res.send(body);
 });
 
 app.put("/api/vault/snapshot", authRequired, paidRequired, (req, res) => {
@@ -536,6 +548,10 @@ app.get("/api/vault/emergency-export", authRequired, (req, res) => {
     snapshot
   });
 });
+
+// --- In-App Purchase (IAP) レシート検証ルート ---
+import { registerIapRoutes } from "./iap.js";
+registerIapRoutes(app, authRequired, store);
 
 app.use(express.static(publicDir));
 app.get("*", (req, res, next) => {

@@ -1,0 +1,39 @@
+- main [ref=e2]:
+  - generic [ref=e4]:
+    - generic [ref=e5]:
+      - paragraph [ref=e6]: Commercial Edition
+      - heading "PasswordManeger Cloud Billing" [level=1] [ref=e7]
+      - paragraph [ref=e8]: サーバー同期は有料プランのみ有効です。ここで登録・課金・契約管理を行います。
+    - generic [ref=e9]:
+      - generic [ref=e10]: Entitlement Unified
+      - generic [ref=e11]: Stripe Connected
+      - generic [ref=e12]: Emergency Recovery
+  - status [ref=e48]: アカウント情報を更新しました。
+  - navigation "画面切り替え" [ref=e13]:
+    - button "認証" [ref=e14] [cursor=pointer]
+    - button "課金" [ref=e15] [cursor=pointer]
+    - button "契約状態" [pressed] [ref=e16] [cursor=pointer]
+    - button "緊急復旧" [ref=e17] [cursor=pointer]
+  - generic [ref=e50]:
+    - generic [ref=e51]:
+      - heading "アカウント状態" [level=2] [ref=e52]
+      - button "状態を更新" [ref=e53] [cursor=pointer]
+    - generic [ref=e54]:
+      - article [ref=e55]:
+        - paragraph [ref=e56]: メール
+        - paragraph [ref=e57]: qa+1772988345@example.com
+      - article [ref=e58]:
+        - paragraph [ref=e59]: プラン状態
+        - paragraph [ref=e60]: inactive
+      - article [ref=e61]:
+        - paragraph [ref=e62]: 有料アクセス
+        - paragraph [ref=e63]: いいえ
+      - article [ref=e64]:
+        - paragraph [ref=e65]: 次回期限
+        - paragraph [ref=e66]: "-"
+    - generic [ref=e67]:
+      - heading "利用権ソース" [level=3] [ref=e68]
+      - list [ref=e69]:
+        - listitem [ref=e70]: 有効な利用権がありません。
+    - group [ref=e71]:
+      - generic "生データ（JSON）" [ref=e72] [cursor=pointer]
