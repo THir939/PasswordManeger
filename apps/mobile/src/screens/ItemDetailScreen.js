@@ -4,7 +4,7 @@
  */
 import React, { useState, useEffect, useCallback } from 'react';
 import {
-    View, Text, TouchableOpacity, StyleSheet, ScrollView, Alert
+    View, Text, TouchableOpacity, StyleSheet, ScrollView, Alert, Platform
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as Clipboard from 'expo-clipboard';
@@ -25,7 +25,7 @@ export default function ItemDetailScreen({ route, navigation }) {
             Alert.alert('エラー', err.message);
             navigation.goBack();
         }
-    }, [id]);
+    }, [id, navigation]);
 
     useEffect(() => { load(); }, [load]);
 
@@ -121,6 +121,20 @@ export default function ItemDetailScreen({ route, navigation }) {
                         )}
                     </>
                 )}
+                {item.type === 'passkey' && (
+                    <>
+                        {item.passkey?.rpId && <Field label="RP ID" value={item.passkey.rpId} onCopy={() => copy(item.passkey.rpId, 'RP ID')} />}
+                        {item.passkey?.credentialId && <Field label="Credential ID" value={item.passkey.credentialId} onCopy={() => copy(item.passkey.credentialId, 'Credential ID')} />}
+                        {item.passkey?.userName && <Field label="ユーザー名" value={item.passkey.userName} onCopy={() => copy(item.passkey.userName, 'ユーザー名')} />}
+                        {item.passkey?.userDisplayName && <Field label="表示名" value={item.passkey.userDisplayName} />}
+                        {item.passkey?.userHandle && <Field label="User Handle" value={item.passkey.userHandle} onCopy={() => copy(item.passkey.userHandle, 'User Handle')} />}
+                        {item.passkey?.transports?.length > 0 && <Field label="Transport" value={item.passkey.transports.join(', ')} />}
+                        {Number.isFinite(Number(item.passkey?.signCount)) && Number(item.passkey?.signCount) > 0 && <Field label="Sign Count" value={String(item.passkey.signCount)} />}
+                        {item.passkey?.lastUsedAt && <Field label="最終利用" value={formatDateTime(item.passkey.lastUsedAt)} />}
+                        {item.passkey?.lastSeenAt && <Field label="最終検知" value={formatDateTime(item.passkey.lastSeenAt)} />}
+                        {item.url && <Field label="URL" value={item.url} onCopy={() => copy(item.url, 'URL')} />}
+                    </>
+                )}
                 {item.type === 'identity' && (
                     <>
                         {item.fullName && <Field label="氏名" value={item.fullName} onCopy={() => copy(item.fullName, '氏名')} />}
@@ -191,6 +205,13 @@ function formatDate(iso) {
     if (!iso) return '';
     const d = new Date(iso);
     return `${d.getFullYear()}/${String(d.getMonth() + 1).padStart(2, '0')}/${String(d.getDate()).padStart(2, '0')}`;
+}
+
+function formatDateTime(iso) {
+    if (!iso) return '';
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) return '';
+    return `${formatDate(iso)} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
 }
 
 const styles = StyleSheet.create({

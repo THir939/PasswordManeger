@@ -4,14 +4,27 @@
  */
 import React, { useState, useEffect } from 'react';
 import {
-    View, Text, TouchableOpacity, StyleSheet, ScrollView, Alert, ActivityIndicator
+    View, Text, TouchableOpacity, StyleSheet, ScrollView, Alert, ActivityIndicator, TextInput
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import * as Linking from 'expo-linking';
 import { theme } from '../theme';
 import {
     initIap, getSubscriptions, purchaseSubscription,
-    setupPurchaseListeners, restorePurchases, checkSubscriptionStatus
+    setupPurchaseListeners, restorePurchases, setIapServerBase, clearPurchaseListeners
 } from '../services/iap';
+import { api } from '../services/api';
+import { getTextInputAutofillProps } from '../services/text-input-autofill';
+import {
+    clearCloudSession,
+    fetchCloudBillingStatus,
+    loadCloudSession,
+    loginCloudAccount,
+    pullCloudVaultSnapshot,
+    pushCloudVaultSnapshot,
+    registerCloudAccount,
+    saveCloudSession
+} from '../services/cloud-auth';
 
 const FEATURES = [
     { icon: '☁️', title: 'クラウド同期', desc: 'すべてのデバイスでVaultを暗号化同期' },
@@ -20,45 +33,73 @@ const FEATURES = [
     { icon: '🛡️', title: '優先サポート', desc: 'メールによる技術サポート' },
 ];
 
-export default function PurchaseScreen({ authToken, navigation }) {
+export default function PurchaseScreen() {
     const [products, setProducts] = useState([]);
     const [loading, setLoading] = useState(true);
     const [purchasing, setPurchasing] = useState(false);
     const [currentPlan, setCurrentPlan] = useState(null);
+    const [authBusy, setAuthBusy] = useState(false);
+    const [cloudBaseUrl, setCloudBaseUrl] = useState('');
+    const [cloudEmail, setCloudEmail] = useState('');
+    const [cloudPassword, setCloudPassword] = useState('');
+    const [authToken, setAuthToken] = useState('');
+    const [syncBusy, setSyncBusy] = useState(false);
+    const [syncMeta, setSyncMeta] = useState({ revision: 0, lastSyncAt: '' });
 
     useEffect(() => {
         loadData();
-        return () => { };
+        return () => {
+            clearPurchaseListeners();
+        };
     }, []);
 
-    const loadData = async () => {
+    const loadData = async (sessionOverride = null) => {
         setLoading(true);
         try {
             await initIap();
 
+            const session = sessionOverride || await loadCloudSession();
+            setCloudBaseUrl(session.baseUrl || '');
+            setCloudEmail(session.email || '');
+            setAuthToken(session.token || '');
+            setSyncMeta({
+                revision: Number(session.revision) || 0,
+                lastSyncAt: session.lastSyncAt || ''
+            });
+            setIapServerBase(session.baseUrl || '');
+
             // 現在のステータスを確認
-            const status = await checkSubscriptionStatus(authToken);
-            if (status?.ok && status.isPaid) {
+            if (session.baseUrl && session.token) {
+                const status = await fetchCloudBillingStatus({
+                    baseUrl: session.baseUrl,
+                    token: session.token
+                });
                 setCurrentPlan(status);
+                setupPurchaseListeners(
+                    session.token,
+                    (result) => {
+                        setPurchasing(false);
+                        Alert.alert('✓ 購入完了', 'プレミアムプランが有効になりました！');
+                        setCurrentPlan((prev) => ({
+                            ...(prev || {}),
+                            ok: true,
+                            isPaid: true,
+                            expiresAt: result.expiresAt
+                        }));
+                    },
+                    (err) => {
+                        setPurchasing(false);
+                        Alert.alert('購入エラー', err.message);
+                    }
+                );
+            } else {
+                clearPurchaseListeners();
+                setCurrentPlan(null);
             }
 
             // 商品リストを取得
             const subs = await getSubscriptions();
             setProducts(subs);
-
-            // 購入リスナーを設定
-            setupPurchaseListeners(
-                authToken,
-                (result) => {
-                    setPurchasing(false);
-                    Alert.alert('✓ 購入完了', 'プレミアムプランが有効になりました！');
-                    setCurrentPlan({ isPaid: true, expiresAt: result.expiresAt });
-                },
-                (err) => {
-                    setPurchasing(false);
-                    Alert.alert('購入エラー', err.message);
-                }
-            );
         } catch (err) {
             console.warn('Load failed:', err);
         } finally {
@@ -66,7 +107,151 @@ export default function PurchaseScreen({ authToken, navigation }) {
         }
     };
 
+    const connectCloud = async (mode) => {
+        setAuthBusy(true);
+        try {
+            const authFn = mode === 'register' ? registerCloudAccount : loginCloudAccount;
+            const session = await authFn({
+                baseUrl: cloudBaseUrl,
+                email: cloudEmail,
+                password: cloudPassword
+            });
+            const persisted = await saveCloudSession({
+                baseUrl: session.baseUrl,
+                token: session.token,
+                email: session.user?.email || cloudEmail,
+                revision: 0,
+                lastSyncAt: ''
+            });
+            setCloudPassword('');
+            Alert.alert('✓', mode === 'register' ? 'クラウドアカウントを作成しました。' : 'クラウドにログインしました。');
+            await loadData(persisted);
+        } catch (err) {
+            Alert.alert('接続エラー', err.message);
+        } finally {
+            setAuthBusy(false);
+        }
+    };
+
+    const handleLogout = async () => {
+        await clearCloudSession();
+        clearPurchaseListeners();
+        setAuthToken('');
+        setCurrentPlan(null);
+        setSyncMeta({ revision: 0, lastSyncAt: '' });
+        setIapServerBase('');
+        Alert.alert('✓', 'クラウド接続を解除しました。');
+    };
+
+    const persistSyncMeta = async (next) => {
+        const persisted = await saveCloudSession({
+            baseUrl: cloudBaseUrl,
+            token: authToken,
+            email: cloudEmail,
+            revision: Number(next.revision) || 0,
+            lastSyncAt: next.lastSyncAt || ''
+        });
+        setSyncMeta({
+            revision: persisted.revision,
+            lastSyncAt: persisted.lastSyncAt
+        });
+    };
+
+    const handleSyncPush = async () => {
+        if (!authToken || !cloudBaseUrl) {
+            Alert.alert('クラウド接続が必要です', '先にクラウドURLとアカウントで接続してください。');
+            return;
+        }
+        if (!currentPlan?.isPaid) {
+            Alert.alert('プレミアム契約が必要です', 'クラウド同期は有料ユーザーのみ利用できます。先に購入または復元を完了してください。');
+            return;
+        }
+        setSyncBusy(true);
+        try {
+            const local = await api.exportVaultEnvelope();
+            if (!local.envelope) {
+                Alert.alert('未初期化', '同期するVaultがまだありません。');
+                return;
+            }
+            const snapshot = await pushCloudVaultSnapshot({
+                baseUrl: cloudBaseUrl,
+                token: authToken,
+                revision: syncMeta.revision,
+                envelope: local.envelope
+            });
+            const next = {
+                revision: Number(snapshot?.revision) || syncMeta.revision,
+                lastSyncAt: new Date().toISOString()
+            };
+            await persistSyncMeta(next);
+            Alert.alert('✓ 同期完了', 'この端末の暗号化Vaultをクラウドへ push しました。');
+        } catch (err) {
+            Alert.alert('同期エラー', err.message);
+        } finally {
+            setSyncBusy(false);
+        }
+    };
+
+    const handleSyncPull = async () => {
+        if (!authToken || !cloudBaseUrl) {
+            Alert.alert('クラウド接続が必要です', '先にクラウドURLとアカウントで接続してください。');
+            return;
+        }
+        if (!currentPlan?.isPaid) {
+            Alert.alert('プレミアム契約が必要です', 'クラウド同期は有料ユーザーのみ利用できます。先に購入または復元を完了してください。');
+            return;
+        }
+        setSyncBusy(true);
+        try {
+            const snapshot = await pullCloudVaultSnapshot({
+                baseUrl: cloudBaseUrl,
+                token: authToken
+            });
+            if (!snapshot?.envelope) {
+                Alert.alert('取得なし', 'クラウド側に同期済みVaultがありません。');
+                return;
+            }
+            await api.importVaultEnvelope(snapshot.envelope);
+            const next = {
+                revision: Number(snapshot.revision) || 0,
+                lastSyncAt: new Date().toISOString()
+            };
+            await persistSyncMeta(next);
+            Alert.alert('✓ 取得完了', 'クラウドの暗号化Vaultを端末に反映しました。安全のため再度解錠してください。');
+        } catch (err) {
+            Alert.alert('同期エラー', err.message);
+        } finally {
+            setSyncBusy(false);
+        }
+    };
+
+    const handleOpenCloudPortal = async () => {
+        if (!authToken || !cloudBaseUrl) {
+            Alert.alert('クラウド接続が必要です', '先にクラウドへログインしてください。');
+            return;
+        }
+        try {
+            const status = await fetch(`${cloudBaseUrl}/api/billing/portal-session`, {
+                method: 'POST',
+                headers: {
+                    Authorization: `Bearer ${authToken}`
+                }
+            });
+            const payload = await status.json();
+            if (!status.ok || payload?.ok === false || !payload?.url) {
+                throw new Error(payload?.error || '契約管理URLを作成できませんでした。');
+            }
+            await Linking.openURL(payload.url);
+        } catch (err) {
+            Alert.alert('エラー', err.message);
+        }
+    };
+
     const handlePurchase = async (productId) => {
+        if (!authToken || !cloudBaseUrl) {
+            Alert.alert('クラウド接続が必要です', '先にクラウドURLとアカウントで接続してください。');
+            return;
+        }
         setPurchasing(true);
         try {
             const result = await purchaseSubscription(productId);
@@ -81,13 +266,21 @@ export default function PurchaseScreen({ authToken, navigation }) {
     };
 
     const handleRestore = async () => {
+        if (!authToken || !cloudBaseUrl) {
+            Alert.alert('クラウド接続が必要です', '先にクラウドURLとアカウントで接続してください。');
+            return;
+        }
         setLoading(true);
         try {
             const results = await restorePurchases(authToken);
             const active = results.find(r => r.ok && r.active);
             if (active) {
                 Alert.alert('✓ 復元完了', 'サブスクリプションを復元しました。');
-                setCurrentPlan({ isPaid: true, expiresAt: active.expiresAt });
+                const refreshed = await fetchCloudBillingStatus({
+                    baseUrl: cloudBaseUrl,
+                    token: authToken
+                });
+                setCurrentPlan(refreshed);
             } else {
                 Alert.alert('復元なし', '有効なサブスクリプションが見つかりませんでした。');
             }
@@ -97,6 +290,15 @@ export default function PurchaseScreen({ authToken, navigation }) {
             setLoading(false);
         }
     };
+
+    const isConnected = Boolean(authToken && cloudBaseUrl);
+    const hasPaidAccess = Boolean(currentPlan?.isPaid);
+    const canSync = isConnected && hasPaidAccess && !syncBusy;
+    const syncGateText = !isConnected
+        ? '先にクラウドへ接続してください。'
+        : hasPaidAccess
+            ? '有料契約が有効なので、この端末から push / pull できます。'
+            : '接続済みですが、同期は有料契約の有効化後に使えます。';
 
     if (loading) {
         return (
@@ -114,6 +316,115 @@ export default function PurchaseScreen({ authToken, navigation }) {
             <ScrollView contentContainerStyle={styles.scroll}>
                 <Text style={styles.heading}>💎 プレミアムプラン</Text>
                 <Text style={styles.subheading}>クラウド同期で全デバイスをシームレスに。</Text>
+
+                <View style={styles.statusRow}>
+                    <View style={[styles.statusChip, isConnected ? styles.statusChipSuccess : styles.statusChipMuted]}>
+                        <Text style={[styles.statusChipText, isConnected ? styles.statusChipTextSuccess : null]}>
+                            {isConnected ? '接続済み' : '未接続'}
+                        </Text>
+                    </View>
+                    <View style={[styles.statusChip, hasPaidAccess ? styles.statusChipSuccess : styles.statusChipMuted]}>
+                        <Text style={[styles.statusChipText, hasPaidAccess ? styles.statusChipTextSuccess : null]}>
+                            {hasPaidAccess ? 'プレミアム有効' : '無料プラン'}
+                        </Text>
+                    </View>
+                    <View style={[styles.statusChip, canSync ? styles.statusChipAccent : styles.statusChipMuted]}>
+                        <Text style={[styles.statusChipText, canSync ? styles.statusChipTextAccent : null]}>
+                            {canSync ? '同期可能' : '同期待ち'}
+                        </Text>
+                    </View>
+                </View>
+
+                <View style={styles.authCard}>
+                    <Text style={styles.authTitle}>☁️ クラウド接続</Text>
+                    <Text style={styles.authDesc}>
+                        モバイル課金はクラウドアカウントと接続してから使います。まずサーバーURLとメール/パスワードを設定してください。
+                    </Text>
+                    <TextInput
+                        style={styles.input}
+                        value={cloudBaseUrl}
+                        onChangeText={setCloudBaseUrl}
+                        placeholder="https://api.example.com"
+                        placeholderTextColor={theme.colors.textMuted}
+                        autoCapitalize="none"
+                        autoCorrect={false}
+                    />
+                    <TextInput
+                        style={styles.input}
+                        value={cloudEmail}
+                        onChangeText={setCloudEmail}
+                        placeholder="email@example.com"
+                        placeholderTextColor={theme.colors.textMuted}
+                        autoCapitalize="none"
+                        autoCorrect={false}
+                        keyboardType="email-address"
+                        {...getTextInputAutofillProps('email')}
+                    />
+                    <TextInput
+                        style={styles.input}
+                        value={cloudPassword}
+                        onChangeText={setCloudPassword}
+                        placeholder="クラウド用パスワード"
+                        placeholderTextColor={theme.colors.textMuted}
+                        autoCapitalize="none"
+                        secureTextEntry
+                        {...getTextInputAutofillProps('currentPassword')}
+                    />
+                    <View style={styles.authActions}>
+                        <TouchableOpacity
+                            style={[styles.authButton, authBusy && styles.planCardDisabled]}
+                            onPress={() => connectCloud('register')}
+                            disabled={authBusy}
+                        >
+                            <Text style={styles.authButtonText}>新規登録</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                            style={[styles.authButton, styles.authButtonGhost, authBusy && styles.planCardDisabled]}
+                            onPress={() => connectCloud('login')}
+                            disabled={authBusy}
+                        >
+                            <Text style={styles.authButtonGhostText}>ログイン</Text>
+                        </TouchableOpacity>
+                    </View>
+                    {authToken ? (
+                        <View style={styles.connectedBox}>
+                            <Text style={styles.connectedText}>接続中: {cloudEmail || 'ログイン済みユーザー'}</Text>
+                            <TouchableOpacity style={styles.logoutBtn} onPress={handleLogout}>
+                                <Text style={styles.logoutBtnText}>接続解除</Text>
+                            </TouchableOpacity>
+                        </View>
+                    ) : (
+                        <Text style={styles.authHint}>未接続の状態では購入・復元は実行できません。</Text>
+                    )}
+                </View>
+
+                <View style={styles.syncCard}>
+                    <Text style={styles.syncTitle}>🔄 クラウド同期</Text>
+                    <Text style={styles.syncMeta}>
+                        現在のリビジョン: {syncMeta.revision} {'\n'}
+                        最終同期: {syncMeta.lastSyncAt ? new Date(syncMeta.lastSyncAt).toLocaleString('ja-JP') : '未同期'}
+                    </Text>
+                    <Text style={styles.syncHint}>{syncGateText}</Text>
+                    <View style={styles.authActions}>
+                        <TouchableOpacity
+                            style={[styles.authButton, !canSync && styles.planCardDisabled]}
+                            onPress={handleSyncPush}
+                            disabled={!canSync}
+                        >
+                            <Text style={styles.authButtonText}>{syncBusy ? '処理中...' : 'Push'}</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                            style={[styles.authButton, styles.authButtonGhost, !canSync && styles.planCardDisabled]}
+                            onPress={handleSyncPull}
+                            disabled={!canSync}
+                        >
+                            <Text style={styles.authButtonGhostText}>{syncBusy ? '処理中...' : 'Pull'}</Text>
+                        </TouchableOpacity>
+                    </View>
+                    <TouchableOpacity style={[styles.portalBtn, !isConnected && styles.planCardDisabled]} onPress={handleOpenCloudPortal} disabled={!isConnected}>
+                        <Text style={styles.portalBtnText}>契約管理をWebで開く</Text>
+                    </TouchableOpacity>
+                </View>
 
                 {/* 現在のプラン */}
                 {currentPlan?.isPaid && (
@@ -144,6 +455,11 @@ export default function PurchaseScreen({ authToken, navigation }) {
                 {/* 商品プラン */}
                 {!currentPlan?.isPaid && (
                     <View style={styles.plans}>
+                        {!authToken && (
+                            <Text style={styles.noProducts}>
+                                先にクラウド接続を完了してください。
+                            </Text>
+                        )}
                         {products.length === 0 ? (
                             <Text style={styles.noProducts}>
                                 ストアから商品情報を取得できませんでした。
@@ -152,9 +468,9 @@ export default function PurchaseScreen({ authToken, navigation }) {
                             products.map((p) => (
                                 <TouchableOpacity
                                     key={p.productId}
-                                    style={[styles.planCard, purchasing && styles.planCardDisabled]}
+                                    style={[styles.planCard, (purchasing || !isConnected) && styles.planCardDisabled]}
                                     onPress={() => handlePurchase(p.productId)}
-                                    disabled={purchasing}
+                                    disabled={purchasing || !isConnected}
                                 >
                                     <Text style={styles.planTitle}>{p.title}</Text>
                                     <Text style={styles.planPrice}>{p.price}</Text>
@@ -173,7 +489,7 @@ export default function PurchaseScreen({ authToken, navigation }) {
                 )}
 
                 {/* 復元ボタン */}
-                <TouchableOpacity style={styles.restoreBtn} onPress={handleRestore}>
+                <TouchableOpacity style={[styles.restoreBtn, !isConnected && styles.planCardDisabled]} onPress={handleRestore} disabled={!isConnected}>
                     <Text style={styles.restoreBtnText}>購入を復元する</Text>
                 </TouchableOpacity>
 
@@ -194,6 +510,21 @@ const styles = StyleSheet.create({
     scroll: { padding: 20, paddingBottom: 60 },
     heading: { fontSize: 26, fontWeight: '800', color: theme.colors.text, textAlign: 'center' },
     subheading: { fontSize: 14, color: theme.colors.textDim, textAlign: 'center', marginTop: 6, marginBottom: 20 },
+    statusRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, justifyContent: 'center', marginBottom: 16 },
+    statusChip: {
+        paddingHorizontal: 12,
+        paddingVertical: 8,
+        borderRadius: 999,
+        borderWidth: 1,
+        borderColor: theme.colors.border,
+        backgroundColor: theme.colors.bgInput,
+    },
+    statusChipMuted: { backgroundColor: theme.colors.bgInput },
+    statusChipSuccess: { backgroundColor: theme.colors.success + '16', borderColor: theme.colors.success + '40' },
+    statusChipAccent: { backgroundColor: theme.colors.accentGlow, borderColor: theme.colors.accent + '55' },
+    statusChipText: { fontSize: 12, fontWeight: '700', color: theme.colors.textDim },
+    statusChipTextSuccess: { color: theme.colors.success },
+    statusChipTextAccent: { color: theme.colors.accentLight },
     activePlan: {
         padding: 16, backgroundColor: theme.colors.success + '15', borderRadius: theme.radius,
         borderWidth: 1, borderColor: theme.colors.success + '40', alignItems: 'center', marginBottom: 16,
@@ -201,6 +532,74 @@ const styles = StyleSheet.create({
     activePlanIcon: { fontSize: 28 },
     activePlanText: { fontSize: 16, fontWeight: '700', color: theme.colors.success, marginTop: 4 },
     activePlanDate: { fontSize: 12, color: theme.colors.textDim, marginTop: 4 },
+    authCard: {
+        padding: 16,
+        backgroundColor: theme.colors.bgCard,
+        borderRadius: theme.radius,
+        borderWidth: 1,
+        borderColor: theme.colors.border,
+        marginBottom: 18,
+        gap: 10,
+    },
+    authTitle: { fontSize: 16, fontWeight: '700', color: theme.colors.text },
+    authDesc: { fontSize: 12, color: theme.colors.textMuted, lineHeight: 18 },
+    input: {
+        padding: 14,
+        fontSize: 14,
+        backgroundColor: theme.colors.bgInput,
+        color: theme.colors.text,
+        borderRadius: theme.radiusSm,
+        borderWidth: 1.5,
+        borderColor: theme.colors.border,
+    },
+    authActions: { flexDirection: 'row', gap: 8 },
+    authButton: {
+        flex: 1,
+        padding: 14,
+        borderRadius: theme.radiusSm,
+        backgroundColor: theme.colors.accent,
+        alignItems: 'center',
+    },
+    authButtonGhost: {
+        backgroundColor: theme.colors.bgInput,
+        borderWidth: 1.5,
+        borderColor: theme.colors.border,
+    },
+    authButtonText: { fontSize: 14, fontWeight: '700', color: '#fff' },
+    authButtonGhostText: { fontSize: 14, fontWeight: '700', color: theme.colors.text },
+    authHint: { fontSize: 12, color: theme.colors.textMuted },
+    connectedBox: {
+        paddingTop: 4,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        gap: 12,
+    },
+    connectedText: { flex: 1, fontSize: 12, color: theme.colors.success },
+    logoutBtn: { paddingVertical: 10, paddingHorizontal: 12 },
+    logoutBtnText: { color: theme.colors.accentLight, fontSize: 13, fontWeight: '600' },
+    syncCard: {
+        padding: 16,
+        backgroundColor: theme.colors.bgCard,
+        borderRadius: theme.radius,
+        borderWidth: 1,
+        borderColor: theme.colors.border,
+        marginBottom: 18,
+        gap: 10,
+    },
+    syncTitle: { fontSize: 16, fontWeight: '700', color: theme.colors.text },
+    syncMeta: { fontSize: 12, color: theme.colors.textMuted, lineHeight: 18 },
+    syncHint: { fontSize: 12, color: theme.colors.textMuted, lineHeight: 18 },
+    portalBtn: {
+        paddingVertical: 12,
+        alignItems: 'center',
+    },
+    portalBtnText: {
+        color: theme.colors.accentLight,
+        fontSize: 13,
+        fontWeight: '600',
+        textDecorationLine: 'underline',
+    },
     features: { marginBottom: 20 },
     featureRow: {
         flexDirection: 'row', alignItems: 'center', paddingVertical: 10, gap: 12,

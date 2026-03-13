@@ -7,85 +7,235 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
-      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap"
+      href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=IBM+Plex+Sans+JP:wght@400;500;600;700&display=swap"
       rel="stylesheet"
     />
     <style>
       :root {
-        --bg: #f6f8fc;
-        --bg-soft: #eef3ff;
-        --paper: rgba(255, 255, 255, 0.84);
-        --paper-strong: rgba(255, 255, 255, 0.96);
-        --line: rgba(59, 130, 246, 0.12);
-        --line-strong: rgba(59, 130, 246, 0.18);
-        --ink: #152033;
-        --muted: #5f6b85;
-        --brand: #3b82f6;
-        --brand-2: #2563eb;
-        --accent: #6366f1;
-        --danger: #b42336;
-        --ok: #0f9d74;
-        --space-1: 0.5rem;
-        --space-2: 0.75rem;
-        --space-3: 1rem;
-        --space-4: 1.5rem;
-        --text-sm: 0.88rem;
-        --text-base: 1rem;
-        --text-lg: 1.08rem;
-        --radius-md: 12px;
-        --radius-lg: 20px;
-        --shadow-soft: 0 20px 40px rgba(35, 28, 20, 0.09);
-        --shadow-card: 0 12px 24px rgba(36, 30, 20, 0.08);
+        --bg: #0f0f1a;
+        --bg-2: #131325;
+        --card: rgba(26, 26, 46, 0.9);
+        --card-strong: rgba(22, 22, 42, 0.98);
+        --input: rgba(18, 18, 34, 0.92);
+        --line: rgba(255, 255, 255, 0.08);
+        --line-strong: rgba(124, 92, 252, 0.32);
+        --text: #e8e6f0;
+        --text-dim: #b4b0c6;
+        --text-muted: #7c7895;
+        --accent: #7c5cfc;
+        --accent-light: #a892ff;
+        --accent-glow: rgba(124, 92, 252, 0.24);
+        --accent-soft: rgba(124, 92, 252, 0.12);
+        --success: #22c55e;
+        --warning: #f59e0b;
+        --danger: #ff4d6a;
+        --radius-lg: 24px;
+        --radius-md: 16px;
+        --radius-sm: 12px;
+        --control-min-h: 48px;
+        --shadow-card: 0 24px 60px rgba(0, 0, 0, 0.35);
+        --shadow-glow: 0 0 0 1px rgba(124, 92, 252, 0.18), 0 18px 50px rgba(124, 92, 252, 0.16);
       }
 
       * {
         box-sizing: border-box;
       }
 
+      html {
+        color-scheme: dark;
+      }
+
       body {
         margin: 0;
-        font-family: "Inter", sans-serif;
-        color: var(--ink);
         min-height: 100vh;
+        font-family: "IBM Plex Sans JP", "Hiragino Sans", sans-serif;
+        color: var(--text);
         background:
-          radial-gradient(1100px 720px at 100% -15%, rgba(99, 102, 241, 0.2), transparent 60%),
-          radial-gradient(920px 540px at -10% 10%, rgba(59, 130, 246, 0.18), transparent 60%),
-          linear-gradient(160deg, var(--bg) 0%, var(--bg-soft) 100%);
+          radial-gradient(circle at top left, rgba(124, 92, 252, 0.2), transparent 28%),
+          radial-gradient(circle at 100% 0%, rgba(59, 130, 246, 0.16), transparent 24%),
+          radial-gradient(circle at 50% 120%, rgba(168, 146, 255, 0.12), transparent 30%),
+          linear-gradient(180deg, #0c0d16 0%, #111321 48%, #0f0f1a 100%);
+      }
+
+      body::before {
+        content: "";
+        position: fixed;
+        inset: 0;
+        pointer-events: none;
+        background-image:
+          linear-gradient(rgba(255, 255, 255, 0.015) 1px, transparent 1px),
+          linear-gradient(90deg, rgba(255, 255, 255, 0.015) 1px, transparent 1px);
+        background-size: 48px 48px;
+        mask-image: linear-gradient(180deg, rgba(0, 0, 0, 0.52), transparent 88%);
       }
 
       .wrap {
-        width: min(1120px, calc(100% - 2rem));
-        margin: 1.6rem auto 2.7rem;
+        width: min(1180px, calc(100% - 1.6rem));
+        margin: 0 auto;
+        padding: 1.2rem 0 2.8rem;
         display: grid;
-        gap: 1.1rem;
+        gap: 1rem;
       }
 
       .hero,
       .panel {
         border: 1px solid var(--line);
         border-radius: var(--radius-lg);
-        background: var(--paper);
-        box-shadow: var(--shadow-soft);
-        backdrop-filter: blur(8px);
+        background: linear-gradient(180deg, rgba(26, 26, 46, 0.96), rgba(18, 18, 34, 0.96));
+        box-shadow: var(--shadow-card);
+        position: relative;
+        overflow: hidden;
+      }
+
+      .hero::before,
+      .panel::before {
+        content: "";
+        position: absolute;
+        inset: 0;
+        pointer-events: none;
+        background: linear-gradient(135deg, rgba(255, 255, 255, 0.04), transparent 36%, transparent 70%, rgba(124, 92, 252, 0.08));
+      }
+
+      .hero {
+        padding: 1.4rem;
+      }
+
+      .hero-grid {
+        position: relative;
+        z-index: 1;
+        display: grid;
+        grid-template-columns: minmax(0, 1.45fr) minmax(280px, 0.9fr);
+        gap: 1rem;
+        align-items: stretch;
+      }
+
+      .hero-copy {
+        display: grid;
+        gap: 0.9rem;
+      }
+
+      .hero-tag {
+        display: inline-flex;
+        width: fit-content;
+        align-items: center;
+        gap: 0.45rem;
+        border-radius: 999px;
+        padding: 0.42rem 0.8rem;
+        background: rgba(124, 92, 252, 0.12);
+        color: var(--accent-light);
+        font-size: 0.78rem;
+        font-weight: 700;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+      }
+
+      .hero h1 {
+        margin: 0;
+        font-family: "Manrope", sans-serif;
+        font-size: clamp(2rem, 4vw, 3.45rem);
+        line-height: 1.02;
+        letter-spacing: -0.05em;
+      }
+
+      .hero h1 strong {
+        color: var(--accent-light);
+        font-weight: 800;
+      }
+
+      .sub {
+        margin: 0;
+        max-width: 60ch;
+        color: var(--text-dim);
+        font-size: 0.98rem;
+        line-height: 1.8;
+      }
+
+      .hero-note {
+        margin: 0;
+        padding: 1rem 1.05rem;
+        border-radius: var(--radius-md);
+        border: 1px solid rgba(255, 255, 255, 0.05);
+        background: rgba(9, 10, 18, 0.54);
+        color: var(--text-dim);
+        line-height: 1.7;
+      }
+
+      .hero-meta {
+        display: grid;
+        gap: 0.85rem;
+        align-content: stretch;
+      }
+
+      .meta-card {
+        border-radius: 20px;
+        border: 1px solid rgba(255, 255, 255, 0.06);
+        background: rgba(12, 13, 25, 0.72);
+        padding: 1rem;
+        box-shadow: var(--shadow-glow);
+        display: grid;
+        gap: 0.35rem;
+      }
+
+      .meta-card small {
+        color: var(--text-muted);
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        font-weight: 700;
+      }
+
+      .meta-card strong {
+        font-family: "Manrope", sans-serif;
+        font-size: 1.05rem;
+      }
+
+      .meta-card p {
+        margin: 0;
+        color: var(--text-dim);
+        font-size: 0.88rem;
+        line-height: 1.6;
+      }
+
+      .status {
+        margin: 0;
+        min-height: 1.4rem;
+        padding: 0.85rem 1rem;
+        border-radius: 14px;
+        background: rgba(18, 18, 34, 0.92);
+        border: 1px solid rgba(255, 255, 255, 0.05);
+        color: var(--text-dim);
+        font-weight: 700;
+      }
+
+      .status:empty {
+        display: none;
+      }
+
+      .status.ok {
+        color: #b5f5c7;
+        border-color: rgba(34, 197, 94, 0.3);
+        background: rgba(34, 197, 94, 0.08);
+      }
+
+      .status.error {
+        color: #ffc3d1;
+        border-color: rgba(255, 77, 106, 0.32);
+        background: rgba(255, 77, 106, 0.08);
+      }
+
+      .status.loading {
+        color: #d7ceff;
+        border-color: rgba(124, 92, 252, 0.34);
+        background: rgba(124, 92, 252, 0.08);
       }
 
       .view-nav {
-        display: flex;
-        flex-wrap: wrap;
-        gap: var(--space-1);
-      }
-
-      .view-nav button {
-        background: rgba(255, 255, 255, 0.72);
-        color: var(--ink);
-        border: 1px solid #c7bba6;
-        box-shadow: none;
-      }
-
-      .view-nav button.active {
-        background: var(--brand);
-        border-color: var(--brand);
-        color: #fff;
+        padding: 0.38rem;
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 0.38rem;
+        position: sticky;
+        top: 0.9rem;
+        z-index: 10;
       }
 
       .screen {
@@ -96,91 +246,46 @@
         display: block;
       }
 
-      .hero {
-        position: relative;
-        overflow: hidden;
-        padding: 1.5rem 1.55rem;
-      }
-
-      .hero::after {
-        content: "";
-        position: absolute;
-        right: -12%;
-        top: -40%;
-        width: 340px;
-        height: 340px;
-        border-radius: 50%;
-        background: radial-gradient(circle at 30% 30%, rgba(99, 102, 241, 0.22), transparent 70%);
-        pointer-events: none;
-      }
-
-      .hero-grid {
-        display: grid;
-        gap: 0.9rem;
-        grid-template-columns: 1fr auto;
-        align-items: center;
-      }
-
-      .hero h1 {
-        margin: 0.22rem 0 0.45rem;
-        font-size: clamp(1.9rem, 4.5vw, 3rem);
-        letter-spacing: -0.04em;
-        line-height: 1.05;
-      }
-
-      .hero-meta {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 0.45rem;
-      }
-
-      .pill {
-        border: 1px solid rgba(59, 130, 246, 0.16);
-        background: rgba(255, 255, 255, 0.72);
-        border-radius: 999px;
-        font-size: 0.78rem;
-        color: #335082;
-        padding: 0.3rem 0.62rem;
-        font-weight: 600;
-      }
-
-      .kicker {
-        margin: 0;
-        text-transform: uppercase;
-        letter-spacing: 0.1em;
-        color: var(--muted);
-        font-size: 0.78rem;
-      }
-
-      .sub {
-        margin: 0;
-        color: var(--muted);
-        max-width: 62ch;
-      }
-
       .grid {
         display: grid;
-        gap: 1.05rem;
+        gap: 1rem;
         grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
       }
 
       .panel {
-        padding: 1.05rem;
+        padding: 1rem;
         display: grid;
-        gap: 0.78rem;
+        gap: 0.9rem;
       }
 
-      .panel h2 {
+      .panel h2,
+      .panel h3 {
         margin: 0;
-        font-size: 1.05rem;
-        letter-spacing: 0.01em;
+        font-family: "Manrope", sans-serif;
+      }
+
+      .eyebrow {
+        margin: 0;
+        color: var(--text-muted);
+        font-size: 0.78rem;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        font-weight: 700;
+      }
+
+      .section-lead {
+        margin: 0;
+        color: var(--text-dim);
+        line-height: 1.7;
+        font-size: 0.92rem;
       }
 
       label {
         display: grid;
-        gap: 0.34rem;
+        gap: 0.38rem;
         font-size: 0.9rem;
         font-weight: 700;
+        color: var(--text-dim);
       }
 
       input,
@@ -192,88 +297,120 @@
       input,
       textarea {
         width: 100%;
-        border: 1px solid #cfc3ad;
-        border-radius: 12px;
-        padding: 0.62rem 0.72rem;
-        background: rgba(255, 255, 255, 0.95);
+        min-height: var(--control-min-h);
+        border-radius: var(--radius-sm);
+        border: 1px solid rgba(255, 255, 255, 0.07);
+        background: var(--input);
+        color: var(--text);
+        padding: 0.85rem 0.95rem;
+        transition: border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
+      }
+
+      input::placeholder,
+      textarea::placeholder {
+        color: var(--text-muted);
       }
 
       input:focus,
       textarea:focus {
-        outline: 3px solid rgba(120, 153, 187, 0.32);
-        border-color: #6d90bb;
+        outline: none;
+        border-color: rgba(124, 92, 252, 0.52);
+        box-shadow: 0 0 0 4px rgba(124, 92, 252, 0.16);
+      }
+
+      textarea {
+        resize: vertical;
+        min-height: 10rem;
       }
 
       button {
+        min-height: var(--control-min-h);
         border: 1px solid transparent;
-        border-radius: 12px;
-        padding: 0.64rem 0.88rem;
-        background: var(--brand);
-        color: #fff;
+        border-radius: var(--radius-sm);
+        padding: 0.85rem 1rem;
+        background: linear-gradient(135deg, var(--accent), #5b38eb);
+        color: white;
+        font-weight: 800;
         cursor: pointer;
-        font-weight: 700;
-        transition: transform 150ms ease, background 150ms ease, box-shadow 150ms ease;
-        box-shadow: 0 10px 20px rgba(59, 130, 246, 0.22);
+        box-shadow: 0 16px 32px rgba(91, 56, 235, 0.22);
+        transition: transform 160ms ease, box-shadow 160ms ease, border-color 160ms ease, opacity 160ms ease;
       }
 
       button:hover {
-        background: var(--brand-2);
         transform: translateY(-1px);
+        box-shadow: 0 18px 36px rgba(91, 56, 235, 0.28);
       }
 
       button:active {
-        transform: translateY(0);
-      }
-
-      button[aria-busy="true"] {
-        opacity: 0.7;
-        cursor: progress;
+        transform: translateY(0) scale(0.99);
       }
 
       button:focus-visible {
-        outline: 3px solid rgba(120, 153, 187, 0.32);
-        outline-offset: 2px;
+        outline: none;
+        border-color: rgba(255, 255, 255, 0.24);
+        box-shadow: 0 0 0 4px rgba(124, 92, 252, 0.14);
       }
 
-      button.ghost {
-        background: rgba(255, 255, 255, 0.72);
-        color: var(--ink);
-        border-color: #c7bba6;
+      button[aria-busy="true"],
+      button:disabled {
+        opacity: 0.72;
+        cursor: progress;
+        transform: none;
+      }
+
+      button.ghost,
+      .view-nav button {
+        background: rgba(255, 255, 255, 0.03);
+        border-color: rgba(255, 255, 255, 0.06);
+        color: var(--text);
         box-shadow: none;
       }
 
-      button.ghost:hover {
-        background: rgba(255, 255, 255, 0.98);
+      button.ghost:hover,
+      .view-nav button:hover {
+        border-color: rgba(124, 92, 252, 0.28);
+        background: rgba(124, 92, 252, 0.08);
+      }
+
+      .view-nav button.active {
+        background: rgba(124, 92, 252, 0.2);
+        border-color: rgba(124, 92, 252, 0.5);
+        color: var(--accent-light);
       }
 
       .row {
         display: flex;
         flex-wrap: wrap;
-        gap: 0.5rem;
+        gap: 0.65rem;
       }
 
       .secret-row {
         display: grid;
         grid-template-columns: minmax(0, 1fr) auto;
-        gap: 0.45rem;
+        gap: 0.55rem;
       }
 
       .secret-toggle {
-        min-width: 3.6rem;
-        padding: 0.54rem 0.62rem;
-        font-size: 0.78rem;
+        min-width: 4rem;
+      }
+
+      .hint {
+        margin: 0;
+        color: var(--text-dim);
+        line-height: 1.7;
+        font-size: 0.88rem;
       }
 
       .strength-box {
         display: grid;
-        gap: 0.26rem;
+        gap: 0.32rem;
       }
 
       .strength-bar {
         width: 100%;
         height: 0.42rem;
         border-radius: 999px;
-        background: #e7ddcc;
+        background: rgba(255, 255, 255, 0.08);
         overflow: hidden;
       }
 
@@ -282,170 +419,96 @@
         height: 100%;
         width: 0%;
         border-radius: 999px;
-        background: #968360;
-        transition: width 160ms ease, background-color 160ms ease;
+        background: var(--accent);
       }
 
       .strength-text {
         margin: 0;
-        font-size: 0.78rem;
-        color: var(--muted);
+        font-size: 0.8rem;
+        color: var(--text-muted);
       }
 
       .strength-box.is-very-weak .strength-fill {
-        background: #b42336;
+        background: var(--danger);
       }
 
       .strength-box.is-weak .strength-fill {
-        background: #ca8a04;
+        background: var(--warning);
       }
 
       .strength-box.is-fair .strength-fill {
-        background: #3f8f6f;
+        background: #3b82f6;
       }
 
       .strength-box.is-strong .strength-fill {
-        background: #1f7a82;
+        background: #8b5cf6;
       }
 
       .strength-box.is-very-strong .strength-fill {
-        background: #155e75;
+        background: var(--success);
       }
 
-      .status {
-        margin: 0.1rem 0 0;
-        min-height: 1.35rem;
-        color: var(--muted);
-        background: rgba(255, 255, 255, 0.78);
-        border: 1px solid rgba(202, 189, 167, 0.75);
-        border-radius: 12px;
-        padding: 0.56rem 0.8rem;
-        font-size: 0.9rem;
-        font-weight: 600;
-      }
-
-      .status.ok {
-        color: var(--ok);
-        border-color: rgba(14, 124, 104, 0.32);
-      }
-
-      .status.error {
-        color: var(--danger);
-        border-color: rgba(179, 58, 53, 0.35);
-      }
-
-      .status.loading {
-        color: var(--brand);
-        border-color: rgba(30, 58, 95, 0.35);
-      }
-
-      .status:empty {
-        display: none;
-      }
-
-      .mono {
-        font-family: ui-monospace, Menlo, monospace;
-        white-space: pre-wrap;
-        background: #fcfaf5;
-        border: 1px dashed #d5cab3;
-        border-radius: 12px;
-        padding: 0.75rem;
-      }
-
-      .hint {
-        margin: 0;
-        font-size: 0.83rem;
-        color: var(--muted);
-      }
-
-      .two-col {
+      .feature-grid,
+      .summary-grid {
         display: grid;
-        gap: 0.82rem;
-        grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+        gap: 0.8rem;
+        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
       }
 
-      .hero-note {
-        margin: 0.9rem 0 0;
-        padding: 0.85rem 1rem;
-        max-width: 40rem;
-        border-radius: 16px;
-        background: rgba(255, 255, 255, 0.72);
-        border: 1px solid rgba(59, 130, 246, 0.12);
-        color: var(--muted);
-        line-height: 1.6;
+      .feature-card,
+      .summary-card {
+        border-radius: var(--radius-md);
+        border: 1px solid rgba(255, 255, 255, 0.06);
+        background: rgba(15, 16, 28, 0.86);
+        padding: 0.95rem;
       }
 
-      .feature-grid {
-        display: grid;
-        gap: 0.78rem;
-        grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-      }
-
-      .feature-card {
-        border: 1px solid var(--line);
-        border-radius: 16px;
-        padding: 0.9rem;
-        background: rgba(255, 255, 255, 0.75);
+      .feature-card h3,
+      .summary-value {
+        font-family: "Manrope", sans-serif;
       }
 
       .feature-card h3 {
-        margin: 0 0 0.38rem;
-        font-size: 0.95rem;
+        margin: 0 0 0.35rem;
+        font-size: 1rem;
       }
 
       .feature-card p {
         margin: 0;
-        color: var(--muted);
-        font-size: 0.84rem;
-        line-height: 1.55;
+        color: var(--text-dim);
+        line-height: 1.65;
+        font-size: 0.88rem;
       }
 
-      .account-panel {
-        gap: 0.85rem;
+      .summary-label {
+        margin: 0;
+        color: var(--text-muted);
+        font-size: 0.75rem;
+        font-weight: 700;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+
+      .summary-value {
+        margin: 0.28rem 0 0;
+        font-size: 1.05rem;
+        font-weight: 800;
+        word-break: break-word;
+      }
+
+      .summary-value.plan-active {
+        color: #9ff0be;
+      }
+
+      .summary-value.plan-inactive {
+        color: #ff9db0;
       }
 
       .panel-head {
         display: flex;
         justify-content: space-between;
-        align-items: center;
+        align-items: flex-start;
         gap: 0.8rem;
-      }
-
-      .summary-grid {
-        display: grid;
-        gap: 0.74rem;
-        grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-      }
-
-      .summary-card {
-        border: 1px solid var(--line-strong);
-        background: var(--paper-strong);
-        border-radius: 14px;
-        padding: 0.66rem 0.72rem;
-        box-shadow: var(--shadow-card);
-      }
-
-      .summary-label {
-        margin: 0;
-        color: var(--muted);
-        font-size: 0.76rem;
-        letter-spacing: 0.05em;
-        text-transform: uppercase;
-      }
-
-      .summary-value {
-        margin: 0.24rem 0 0;
-        font-size: 1rem;
-        font-weight: 700;
-        word-break: break-word;
-      }
-
-      .summary-value.plan-active {
-        color: var(--ok);
-      }
-
-      .summary-value.plan-inactive {
-        color: var(--danger);
       }
 
       .entitlement-list {
@@ -453,91 +516,130 @@
         padding: 0;
         list-style: none;
         display: grid;
-        gap: 0.55rem;
+        gap: 0.6rem;
       }
 
       .entitlement-item {
-        border: 1px solid #ccbfa8;
-        border-radius: 12px;
-        background: rgba(255, 255, 255, 0.9);
-        padding: 0.62rem 0.72rem;
+        border-radius: var(--radius-md);
+        border: 1px solid rgba(255, 255, 255, 0.06);
+        background: rgba(10, 11, 20, 0.72);
+        padding: 0.85rem 0.95rem;
         display: grid;
-        gap: 0.32rem;
+        gap: 0.4rem;
       }
 
       .entitlement-head {
         display: flex;
-        flex-wrap: wrap;
         justify-content: space-between;
+        gap: 0.6rem;
+        flex-wrap: wrap;
         align-items: center;
-        gap: 0.35rem;
+      }
+
+      .entitlement-source,
+      .entitlement-meta {
+        margin: 0;
       }
 
       .entitlement-source {
-        margin: 0;
         font-weight: 700;
       }
 
+      .entitlement-meta {
+        color: var(--text-muted);
+        font-size: 0.82rem;
+      }
+
       .entitlement-status {
-        margin: 0;
         border-radius: 999px;
-        padding: 0.15rem 0.55rem;
+        padding: 0.2rem 0.62rem;
         font-size: 0.74rem;
-        font-weight: 700;
+        font-weight: 800;
       }
 
       .entitlement-status.active,
       .entitlement-status.trialing,
       .entitlement-status.grace_period {
-        background: rgba(14, 124, 104, 0.15);
-        color: #0d6a5d;
+        color: #9ff0be;
+        background: rgba(34, 197, 94, 0.14);
       }
 
       .entitlement-status.inactive,
       .entitlement-status.canceled,
       .entitlement-status.expired,
       .entitlement-status.revoked {
-        background: rgba(179, 58, 53, 0.13);
-        color: #96302c;
+        color: #ffb4c2;
+        background: rgba(255, 77, 106, 0.14);
       }
 
-      .entitlement-meta {
+      .two-col {
+        display: grid;
+        gap: 1rem;
+        grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      }
+
+      .mono {
         margin: 0;
-        color: var(--muted);
-        font-size: 0.82rem;
+        padding: 1rem;
+        border-radius: 16px;
+        border: 1px dashed rgba(124, 92, 252, 0.28);
+        background: rgba(10, 11, 20, 0.84);
+        color: #d9d3ff;
+        white-space: pre-wrap;
+        font-family: "IBM Plex Mono", ui-monospace, monospace;
       }
 
       .empty {
-        color: var(--muted);
-        font-size: 0.88rem;
+        color: var(--text-muted);
       }
 
-      details.raw-details summary {
-        cursor: pointer;
-        font-weight: 700;
+      .section-shell {
+        display: grid;
+        gap: 1rem;
       }
 
-      details.raw-details[open] summary {
-        margin-bottom: 0.6rem;
+      .section-highlight {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+        gap: 0.75rem;
       }
 
-      .panel,
-      .hero {
-        animation: riseIn 420ms ease both;
+      .section-chip {
+        border-radius: var(--radius-md);
+        border: 1px solid rgba(255, 255, 255, 0.05);
+        background: rgba(8, 9, 17, 0.72);
+        padding: 0.9rem;
       }
 
-      .grid .panel:nth-child(1) {
-        animation-delay: 60ms;
+      .section-chip strong {
+        display: block;
+        font-size: 0.9rem;
+        margin-bottom: 0.25rem;
       }
 
-      .grid .panel:nth-child(2) {
-        animation-delay: 120ms;
+      .section-chip span {
+        color: var(--text-dim);
+        font-size: 0.82rem;
+        line-height: 1.6;
+      }
+
+      .hero,
+      .panel {
+        animation: riseIn 360ms ease both;
+      }
+
+      .screen .panel:nth-child(1) {
+        animation-delay: 50ms;
+      }
+
+      .screen .panel:nth-child(2) {
+        animation-delay: 100ms;
       }
 
       @keyframes riseIn {
         from {
           opacity: 0;
-          transform: translateY(8px);
+          transform: translateY(10px);
         }
         to {
           opacity: 1;
@@ -546,19 +648,42 @@
       }
 
       @media (prefers-reduced-motion: reduce) {
-        .panel,
-        .hero {
+        .hero,
+        .panel {
           animation: none;
         }
 
-        button {
+        button,
+        input,
+        textarea {
           transition: none;
         }
       }
 
-      @media (max-width: 860px) {
+      @media (max-width: 900px) {
         .hero-grid {
           grid-template-columns: 1fr;
+        }
+
+        .view-nav {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+      }
+
+      @media (max-width: 640px) {
+        .wrap {
+          width: min(100% - 1rem, 100%);
+          padding-top: 0.8rem;
+        }
+
+        .hero,
+        .panel {
+          border-radius: 20px;
+        }
+
+        .panel-head {
+          align-items: stretch;
+          flex-direction: column;
         }
       }
     </style>
@@ -567,16 +692,36 @@
     <main class="wrap">
       <section class="hero">
         <div class="hero-grid">
-          <div>
-            <p class="kicker">PasswordManeger Platform</p>
-            <h1>PasswordManeger Cloud Billing</h1>
-            <p class="sub">ローカルVaultの安全性はそのままに、同期・契約管理・緊急復旧だけを追加する管理画面です。</p>
-            <p class="hero-note">Desktop と Extension と同じ青系のブランドに揃え、課金だけ別サービスに見えないようにしています。料金を支払う理由も「ただの制限解除」ではなく、同期・復旧・契約管理の運用価値として説明します。</p>
+          <div class="hero-copy">
+            <span class="hero-tag">PasswordManeger Cloud Layer</span>
+            <div>
+              <h1>モバイルの質感で統一した <strong>クラウド運用ハブ</strong></h1>
+            </div>
+            <p class="sub">
+              ローカルVaultの安全性はそのままに、同期、契約管理、緊急復旧だけを上に積む補助レイヤーです。
+              Desktop やモバイルと見た目の温度差が出ないよう、同じダークトーンとアクセントでまとめています。
+            </p>
+            <p class="hero-note">
+              ここで扱うのは平文ではなく、あくまで暗号化済みスナップショットと利用権です。
+              つまり「保管庫本体」ではなく、「安全に運ぶための導線」を管理する画面です。
+            </p>
           </div>
           <div class="hero-meta">
-            <span class="pill">Local-first vault</span>
-            <span class="pill">Stripe billing</span>
-            <span class="pill">Emergency recovery</span>
+            <article class="meta-card">
+              <small>Cloud Sync</small>
+              <strong>暗号化Vaultを push / pull</strong>
+              <p>有料ユーザーだけが複数端末の保管庫を同期できます。</p>
+            </article>
+            <article class="meta-card">
+              <small>Billing</small>
+              <strong>Stripe と同じ導線で契約管理</strong>
+              <p>Checkout と Portal をひとつの画面から扱えます。</p>
+            </article>
+            <article class="meta-card">
+              <small>Recovery</small>
+              <strong>緊急復旧の準備を先回り</strong>
+              <p>鍵分割と暗号化データ取得を事故対応導線として残せます。</p>
+            </article>
           </div>
         </div>
       </section>
@@ -593,7 +738,9 @@
       <section class="screen active" data-screen="auth">
         <section class="grid">
           <article class="panel">
+            <p class="eyebrow">Cloud Onboarding</p>
             <h2>新規登録</h2>
+            <p class="section-lead">まずはクラウドアカウントを作成します。支払い前でも登録だけは先にできます。</p>
             <label>
               メール
               <input id="register-email" type="email" autocomplete="email" />
@@ -609,11 +756,23 @@
                 <p class="strength-text">強度: 未入力</p>
               </div>
             </label>
+            <div class="section-highlight">
+              <div class="section-chip">
+                <strong>同期を解放</strong>
+                <span>プレミアム化すると Desktop / 拡張 / モバイルで同じVaultを扱えます。</span>
+              </div>
+              <div class="section-chip">
+                <strong>復旧も準備</strong>
+                <span>課金導線と緊急アクセス導線を分離せず、この画面で確認できます。</span>
+              </div>
+            </div>
             <button id="register-btn" type="button">アカウント作成</button>
           </article>
 
           <article class="panel">
+            <p class="eyebrow">Existing Account</p>
             <h2>ログイン</h2>
+            <p class="section-lead">契約状態や緊急アクセスはログイン後に同じ画面から操作できます。</p>
             <label>
               メール
               <input id="login-email" type="email" autocomplete="email" />
@@ -638,35 +797,45 @@
       </section>
 
       <section class="screen" data-screen="billing">
-        <section class="panel">
-          <h2>課金</h2>
-          <p class="hint">支払い対象はローカル保管庫そのものではなく、複数端末同期・契約管理・緊急復旧導線です。</p>
-          <div class="feature-grid">
-            <article class="feature-card">
-              <h3>同期を有効化</h3>
-              <p>Desktop と拡張機能の間で暗号化Vaultを push / pull できます。</p>
-            </article>
-            <article class="feature-card">
-              <h3>契約を一元管理</h3>
-              <p>Checkout と Billing Portal で支払い開始、更新、解約を同じ導線で完結できます。</p>
-            </article>
-            <article class="feature-card">
-              <h3>緊急復旧を準備</h3>
-              <p>鍵分割や暗号化スナップショットの導線をまとめ、事故時の復旧手順を明確化します。</p>
-            </article>
-          </div>
-          <div class="row">
-            <button id="checkout-btn" type="button">課金を開始</button>
-            <button id="portal-btn" type="button" class="ghost">契約管理を開く</button>
-            <button id="emergency-btn" type="button" class="ghost">緊急アクセス（暗号化データ取得）</button>
-          </div>
+        <section class="section-shell">
+          <article class="panel">
+            <p class="eyebrow">Premium Access</p>
+            <h2>課金</h2>
+            <p class="section-lead">
+              支払い対象はローカル保管庫そのものではなく、暗号化同期、契約管理、緊急復旧導線です。
+              つまり「運用面の安全性と継続性」に対する課金です。
+            </p>
+            <div class="feature-grid">
+              <article class="feature-card">
+                <h3>同期を有効化</h3>
+                <p>Desktop、拡張機能、モバイル間で暗号化Vaultを安全に push / pull できます。</p>
+              </article>
+              <article class="feature-card">
+                <h3>契約を一元管理</h3>
+                <p>Checkout と Billing Portal を同じブランド体験のまま往復できます。</p>
+              </article>
+              <article class="feature-card">
+                <h3>復旧準備を残す</h3>
+                <p>鍵分割や緊急アクセス用の暗号化データ取得導線を、支払い後も整理して扱えます。</p>
+              </article>
+            </div>
+            <div class="row">
+              <button id="checkout-btn" type="button">課金を開始</button>
+              <button id="portal-btn" type="button" class="ghost">契約管理を開く</button>
+              <button id="emergency-btn" type="button" class="ghost">緊急アクセス（暗号化データ取得）</button>
+            </div>
+            <p class="hint">ログイン前は課金開始・契約管理・緊急アクセスを操作できません。まず認証タブで接続してください。</p>
+          </article>
         </section>
       </section>
 
       <section class="screen" data-screen="account">
         <section class="panel account-panel">
           <div class="panel-head">
-            <h2>アカウント状態</h2>
+            <div>
+              <p class="eyebrow">Entitlements</p>
+              <h2>アカウント状態</h2>
+            </div>
             <button id="refresh-account-btn" type="button" class="ghost">状態を更新</button>
           </div>
 
@@ -691,6 +860,7 @@
 
           <div>
             <h3>利用権ソース</h3>
+            <p class="hint">Stripe、App Store、Google Play、手動付与の違いをサーバー側で正規化して表示します。</p>
             <ul id="entitlement-list" class="entitlement-list">
               <li class="empty">未ログイン</li>
             </ul>
@@ -700,12 +870,12 @@
 
       <section class="screen" data-screen="recovery">
         <section class="panel">
+          <p class="eyebrow">Emergency Recovery</p>
           <h2>緊急復旧オプション（鍵分割）</h2>
-          <p class="hint">
-            復旧キーをブラウザ内で分割し、複数人・複数デバイスに配布できます。サーバーには送信しません。
-          </p>
+          <p class="hint">復旧キーをブラウザ内で分割し、複数人・複数デバイスに分散できます。サーバーには送信しません。</p>
           <div class="two-col">
-            <article>
+            <article class="panel">
+              <h3>鍵を分割する</h3>
               <label>
                 復旧キー（未入力なら自動生成）
                 <input id="recovery-secret-input" type="text" placeholder="例: PM-RECOVERY-..." />
@@ -727,7 +897,8 @@
               </div>
               <textarea id="shares-output" rows="10" placeholder="ここに分割結果が表示されます"></textarea>
             </article>
-            <article>
+            <article class="panel">
+              <h3>シェアから復元する</h3>
               <label>
                 復元に使うシェア（1行に1つ）
                 <textarea id="shares-input" rows="10" placeholder="PM-SHARE-1:..."></textarea>

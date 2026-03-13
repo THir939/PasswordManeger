@@ -10,6 +10,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { theme } from '../theme';
 import { api } from '../services/api';
+import { getTextInputAutofillProps } from '../services/text-input-autofill';
 import {
     isBiometricAvailable, biometricUnlock, isBiometricEnabled,
     saveMasterPassword, setBiometricEnabled
@@ -122,6 +123,7 @@ export default function UnlockScreen({ onComplete }) {
                             autoCapitalize="none"
                             returnKeyType="go"
                             onSubmitEditing={handleUnlock}
+                            {...getTextInputAutofillProps('currentPassword')}
                         />
                         <TouchableOpacity style={styles.toggleBtn} onPress={() => setShowPw(!showPw)}>
                             <Text style={styles.toggleText}>{showPw ? '🔒' : '👁'}</Text>

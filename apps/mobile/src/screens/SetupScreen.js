@@ -10,6 +10,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { theme } from '../theme';
 import { api } from '../services/api';
+import { getTextInputAutofillProps } from '../services/text-input-autofill';
 import {
     isBiometricAvailable, saveMasterPassword, setBiometricEnabled
 } from '../services/auth';
@@ -97,6 +98,7 @@ export default function SetupScreen({ onComplete }) {
                             placeholder="マスターパスワード"
                             placeholderTextColor={theme.colors.textMuted}
                             autoCapitalize="none"
+                            {...getTextInputAutofillProps('newPassword')}
                         />
                         <TouchableOpacity style={styles.toggleBtn} onPress={() => setShowPw(!showPw)}>
                             <Text style={styles.toggleText}>{showPw ? '🔒' : '👁'}</Text>
@@ -123,6 +125,7 @@ export default function SetupScreen({ onComplete }) {
                         placeholder="もう一度入力"
                         placeholderTextColor={theme.colors.textMuted}
                         autoCapitalize="none"
+                        autoComplete="off"
                     />
 
                     <TouchableOpacity

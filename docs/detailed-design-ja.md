@@ -136,6 +136,20 @@ MCP（Model Context Protocol）サーバーを追加し、AIがVault操作や同
 3. 緊急アクセス（暗号化スナップショット取得）
 4. 緊急復旧オプション（鍵分割の作成/復元）
 
+### 3-4. Mobile
+
+責務:
+1. 端末内ローカルVaultの作成 / 解錠 / 編集
+2. 生体認証による解錠補助（Face ID / 指紋など）
+3. パスワード生成 / TOTP / セキュリティ診断
+4. クラウドアカウント接続と暗号化Vaultの push / pull
+5. 課金状態確認と購入導線（ネイティブIAP + Web契約管理への接続）
+6. OS AutoFill ベータ準備（関連ドメイン設定、候補解決、入力欄ヒント）
+
+非責務:
+1. OSレベルの自動入力はベータ準備まで実装済みだが、実機の本番有効化確認は未完了
+2. ブラウザDOMへの自動入力は拡張機能担当
+
 ---
 
 ## 4. データ設計
@@ -144,7 +158,7 @@ MCP（Model Context Protocol）サーバーを追加し、AIがVault操作や同
 
 1. `vault.meta`: 作成/更新日時
 2. `vault.settings`: 自動ロック、クリップボードクリア、生成設定
-3. `vault.items[]`: `login | card | identity | note`
+3. `vault.items[]`: `login | card | identity | note | passkey`
 
 ### 4-2. サーバー保存（暗号化）
 
@@ -224,6 +238,8 @@ MCP（Model Context Protocol）サーバーを追加し、AIがVault操作や同
 4. `POST /api/billing/webhook`
 5. `GET /api/entitlements/status`
 6. `POST /api/entitlements/ingest`（サーバー間連携）
+7. `POST /api/billing/verify-receipt/ios`
+8. `POST /api/billing/verify-receipt/android`
 
 ### 同期
 1. `GET /api/vault/snapshot`
@@ -393,7 +409,7 @@ Webhookで扱うイベント:
 - 実装: `server/src/server.js` の `paidRequired()`
 - `GET/PUT /api/vault/snapshot` は無料ユーザーだと `402 Payment Required` を返します
 
-5. クライアント（Desktop/拡張/将来モバイル）は「購入経路」ではなく **`/api/entitlements/status` を見て動く**
+5. クライアント（Desktop/拡張/モバイル）は「購入経路」ではなく **`/api/entitlements/status` を見て動く**
 - これにより、購入経路が増えてもクライアントの分岐が増えにくくなります
 
 ### 9-8. 将来「購入経路を増やす」時の最小手順
@@ -616,7 +632,7 @@ Webは「Vault編集」ではなく、次に絞ります。
 
 ### 16-1. Vault（復号後の形）
 
-復号後のVaultは大きく次の形です（Desktop/拡張で共通）。
+復号後のVaultは大きく次の形です（Desktop / 拡張 / モバイルで共通）。
 
 ```json
 {
@@ -640,11 +656,11 @@ Webは「Vault編集」ではなく、次に絞ります。
 }
 ```
 
-### 16-2. Item（ログイン/カード/個人情報/ノート）
+### 16-2. Item（ログイン/パスキー/カード/個人情報/ノート）
 
 共通フィールド:
 1. `id`（UUID）
-2. `type`（`login|card|identity|note`）
+2. `type`（`login|passkey|card|identity|note`）
 3. `title`（必須）
 4. `tags[]`（最大20）
 5. `favorite`（お気に入り）
@@ -673,9 +689,20 @@ Webは「Vault編集」ではなく、次に絞ります。
 1. `notes`
 2. `url`（任意）
 
+パスキー（`type=passkey`）追加フィールド:
+1. `passkey.rpId`
+2. `passkey.credentialId`
+3. `passkey.userName`
+4. `passkey.userDisplayName`
+5. `passkey.userHandle`
+6. `passkey.transports[]`
+7. `passkey.signCount`
+8. `passkey.lastUsedAt / lastSeenAt`
+
 注意:
 1. 各フィールドは上限文字数で切り詰めます（巨大データの混入を防ぐため）
 2. `url` は `https://` が無い場合に自動補完します
+3. モバイルUIでは Passkey のタイトルを空欄にすると、`rpId` とユーザー情報から自動生成します
 
 ### 16-3. Vault Envelope（暗号化して保存する形）
 
@@ -737,7 +764,7 @@ Webは「Vault編集」ではなく、次に絞ります。
 
 ## 17. API仕様（HTTPの入出力を具体化）
 
-「API」は、Desktop/拡張/将来モバイルがサーバーと通信するための約束（入力/出力）です。
+「API」は、Desktop / 拡張 / モバイルがサーバーと通信するための約束（入力/出力）です。
 
 ### 17-1. 認証
 
@@ -957,29 +984,39 @@ push時に `test:full` を回すと何が嬉しいか:
 ### 22-1. 現状の制限
 
 1. 同期がスナップショット（差分マージ無し）なので、同時編集の競合解決UIがない
-2. 生体認証（Touch ID / Windows Hello）統合が未実装
-3. Passkeyのフル管理が未実装
-4. モバイルアプリ（iOS/Android）は未実装
+2. Desktop側のVault解錠そのものに対する Touch ID / Windows Hello 統合はまだ未完了
+3. Passkeyは「メタデータ管理」と「拡張での保護フロー」までは実装済みだが、OSやブラウザ標準認証器を完全に置き換える段階ではない
+4. モバイルアプリは実装済みで、ローカルVaultも native 実行時は端末内で完結するようになったが、OS AutoFill の本体拡張（iOS Credential Provider / Android AutofillService）の本番有効化確認とストア本番課金検証は未完了
 
-### 22-2. モバイルをどう実装するか（方針案）
+### 22-2. モバイルの現状
 
-現時点では未実装ですが、選択肢は主に次です。
+現在のモバイル実装（React Native / Expo ベース）:
+1. 端末内ローカル暗号化Vaultの作成 / 解錠 / 編集
+2. 生体認証による解錠補助
+3. パスワード生成 / TOTP / セキュリティ診断
+4. クラウドアカウント接続、課金状態確認、暗号化Vaultの push / pull
+5. Passkeyメタデータの閲覧 / 保存
+6. OS AutoFill ベータ準備
+7. `app.config.js` / `eas.json` によるネイティブビルド準備
+8. `MobileVaultCore` + pure JS暗号により、native 実行時は `localhost` ブリッジに依存しない
 
-1. ネイティブ（Swift/Kotlin）
-- メリット: OSの自動入力や鍵管理に最適。セキュリティ面の自由度が高い
-- デメリット: 2つのコードベース（iOS/Android）で学習コストが高い
+採用理由:
+1. Desktop / Extension / Server と JavaScript 資産を共有しやすい
+2. 初期リリースで「Vault体験」を早く揃えやすい
+3. 共通Vaultコアに切り出すことで、Nodeラッパーと端末内保存の両方を同じ仕様で維持しやすい
+4. 将来のネイティブブリッジ追加（AutoFillやOS連携）に段階的に進みやすい
 
-2. React Native
-- メリット: JavaScript資産を活かしやすい。UIも比較的速く作れる
-- デメリット: OSの自動入力連携は結局ネイティブ実装が必要になりがち
+デメリット:
+1. OS自動入力や深い認証器連携は、最終的にネイティブ実装が必要になりやすい
+2. pure JS暗号は移植性が高い反面、ネイティブ暗号APIより速度面で不利になりうる
+3. IAPやSecure Enclave周辺は、実機検証とストア審査前提の作業が残る
 
-3. Flutter
-- メリット: UIが揃いやすい。1コードでiOS/Android
-- デメリット: 既存JS資産の再利用は弱い。暗号やOS連携の橋渡しが必要
+### 22-3. モバイルの次の優先実装
 
-結論（現段階の方針）:
-1. まずは Desktop + 拡張 + Web（課金/復旧）で商用リリースに必要な中核を固める
-2. モバイルは、OS自動入力（iOS Autofill / Android Autofill）を最優先に設計し、選択肢を確定する
+1. iOS / Android 実機での OS AutoFill 有効化確認
+2. Android AutofillService / iOS Credential Provider のネイティブ連携本体実装
+3. ストア本番商品と本番レシート検証での購入試験
+4. 競合解決を含む同期UXの改善
 
 ---
 

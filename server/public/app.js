@@ -191,8 +191,21 @@ function bindScreenNavigation() {
 
 function syncAuthButtons() {
   const isAuthenticated = Boolean(state.token);
+  const isPaid = Boolean(state.account?.billing?.isPaid);
   if (buttons.logout) {
     buttons.logout.hidden = !isAuthenticated;
+  }
+  if (buttons.refreshAccount) {
+    buttons.refreshAccount.disabled = !isAuthenticated;
+  }
+  if (buttons.checkout) {
+    buttons.checkout.disabled = !isAuthenticated || isPaid;
+  }
+  if (buttons.portal) {
+    buttons.portal.disabled = !isAuthenticated;
+  }
+  if (buttons.emergency) {
+    buttons.emergency.disabled = !isAuthenticated;
   }
 }
 
@@ -253,6 +266,7 @@ function renderLoggedOutAccount() {
   summaryPaidEl.textContent = "いいえ";
   summaryPeriodEl.textContent = "-";
   entitlementListEl.innerHTML = '<li class="empty">未ログイン</li>';
+  syncAuthButtons();
 }
 
 function renderEntitlementList(entitlements = []) {
@@ -301,6 +315,7 @@ function renderAccount(payload) {
   summaryPeriodEl.textContent = formatDateTime(billing.currentPeriodEnd || user.currentPeriodEnd);
 
   renderEntitlementList(Array.isArray(billing.entitlements) ? billing.entitlements : []);
+  syncAuthButtons();
 }
 
 async function api(path, options = {}) {

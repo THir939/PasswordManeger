@@ -37,11 +37,13 @@ export const theme = {
         card: '💳',
         identity: '👤',
         note: '📝',
+        passkey: '🗝️',
     },
     typeColors: {
         login: '#3b82f6',
         card: '#f59e0b',
         identity: '#22c55e',
         note: '#a855f7',
+        passkey: '#7c5cfc',
     },
 };

@@ -1,0 +1,44 @@
+- main [ref=e2]:
+  - generic [ref=e4]:
+    - generic [ref=e5]:
+      - paragraph [ref=e6]: PasswordManeger Platform
+      - heading "PasswordManeger Cloud Billing" [level=1] [ref=e7]
+      - paragraph [ref=e8]: ローカルVaultの安全性はそのままに、同期・契約管理・緊急復旧だけを追加する管理画面です。
+      - paragraph [ref=e9]: Desktop と Extension と同じ青系のブランドに揃え、課金だけ別サービスに見えないようにしています。料金を支払う理由も「ただの制限解除」ではなく、同期・復旧・契約管理の運用価値として説明します。
+    - generic [ref=e10]:
+      - generic [ref=e11]: Local-first vault
+      - generic [ref=e12]: Stripe billing
+      - generic [ref=e13]: Emergency recovery
+  - status [ref=e48]: アカウント情報を更新しました。
+  - navigation "画面切り替え" [ref=e14]:
+    - button "認証" [ref=e15] [cursor=pointer]
+    - button "課金" [ref=e16] [cursor=pointer]
+    - button "契約状態" [ref=e17] [cursor=pointer]
+    - button "緊急復旧" [active] [pressed] [ref=e18] [cursor=pointer]
+  - generic [ref=e73]:
+    - heading "緊急復旧オプション（鍵分割）" [level=2] [ref=e74]
+    - paragraph [ref=e75]: 復旧キーをブラウザ内で分割し、複数人・複数デバイスに配布できます。サーバーには送信しません。
+    - generic [ref=e76]:
+      - article [ref=e77]:
+        - generic [ref=e78]:
+          - text: 復旧キー（未入力なら自動生成）
+          - textbox "復旧キー（未入力なら自動生成）" [ref=e79]:
+            - /placeholder: "例: PM-RECOVERY-..."
+        - button "キー生成" [ref=e81] [cursor=pointer]
+        - generic [ref=e82]:
+          - text: 分割数（N）
+          - spinbutton "分割数（N）" [ref=e83]: "5"
+        - generic [ref=e84]:
+          - text: 復元に必要な数（K）
+          - spinbutton "復元に必要な数（K）" [ref=e85]: "3"
+        - generic [ref=e86]:
+          - button "鍵を分割" [ref=e87] [cursor=pointer]
+          - button "分割結果を保存" [ref=e88] [cursor=pointer]
+        - textbox "ここに分割結果が表示されます" [ref=e89]
+      - article [ref=e90]:
+        - generic [ref=e91]:
+          - text: 復元に使うシェア（1行に1つ）
+          - textbox "復元に使うシェア（1行に1つ）" [ref=e92]:
+            - /placeholder: PM-SHARE-1:...
+        - button "シェアから復元" [ref=e94] [cursor=pointer]
+        - generic [ref=e95]: 未復元

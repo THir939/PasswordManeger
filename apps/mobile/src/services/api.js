@@ -1,15 +1,18 @@
 /**
  * API Service — MobileVaultService HTTPサーバーとの通信層
  */
+import { Platform } from "react-native";
+
 const DEFAULT_BASE = 'http://localhost:3200';
 
 let baseUrl = DEFAULT_BASE;
+let localApiPromise = null;
 
 export function setApiBase(url) {
     baseUrl = url;
 }
 
-export async function callApi(action, payload = {}) {
+async function callBridgeApi(action, payload = {}) {
     const res = await fetch(`${baseUrl}/api/action`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -18,6 +21,26 @@ export async function callApi(action, payload = {}) {
     const data = await res.json();
     if (!data.ok) throw new Error(data.error || 'Unknown error');
     return data;
+}
+
+async function callDeviceLocalApi(action, payload = {}) {
+    if (!localApiPromise) {
+        localApiPromise = import('./mobile-local-api.js').then((mod) => mod.callLocalApi);
+    }
+
+    const callLocalApi = await localApiPromise;
+    return {
+        ok: true,
+        ...(await callLocalApi(action, payload))
+    };
+}
+
+export async function callApi(action, payload = {}) {
+    if (Platform.OS !== 'web') {
+        return callDeviceLocalApi(action, payload);
+    }
+
+    return callBridgeApi(action, payload);
 }
 
 // ===== Vault Actions =====
@@ -39,4 +62,7 @@ export const api = {
     changeMasterPassword: (oldPassword, newPassword) =>
         callApi('changeMasterPassword', { oldPassword, newPassword }),
     getTags: () => callApi('getTags'),
+    listAutofillItems: (domain) => callApi('listAutofillItems', { domain }),
+    exportVaultEnvelope: () => callApi('exportVaultEnvelope'),
+    importVaultEnvelope: (envelope) => callApi('importVaultEnvelope', { envelope }),
 };

@@ -1,0 +1,52 @@
+- main [ref=e2]:
+  - generic [ref=e4]:
+    - generic [ref=e5]:
+      - generic [ref=e6]: PasswordManeger Cloud Layer
+      - heading "モバイルの質感で統一した クラウド運用ハブ" [level=1] [ref=e8]:
+        - text: モバイルの質感で統一した
+        - strong [ref=e9]: クラウド運用ハブ
+      - paragraph [ref=e10]: ローカルVaultの安全性はそのままに、同期、契約管理、緊急復旧だけを上に積む補助レイヤーです。 Desktop やモバイルと見た目の温度差が出ないよう、同じダークトーンとアクセントでまとめています。
+      - paragraph [ref=e11]: ここで扱うのは平文ではなく、あくまで暗号化済みスナップショットと利用権です。 つまり「保管庫本体」ではなく、「安全に運ぶための導線」を管理する画面です。
+    - generic [ref=e12]:
+      - article [ref=e13]:
+        - generic [ref=e14]: Cloud Sync
+        - strong [ref=e15]: 暗号化Vaultを push / pull
+        - paragraph [ref=e16]: 有料ユーザーだけが複数端末の保管庫を同期できます。
+      - article [ref=e17]:
+        - generic [ref=e18]: Billing
+        - strong [ref=e19]: Stripe と同じ導線で契約管理
+        - paragraph [ref=e20]: Checkout と Portal をひとつの画面から扱えます。
+      - article [ref=e21]:
+        - generic [ref=e22]: Recovery
+        - strong [ref=e23]: 緊急復旧の準備を先回り
+        - paragraph [ref=e24]: 鍵分割と暗号化データ取得を事故対応導線として残せます。
+  - status [ref=e68]: アカウント情報を更新しました。
+  - navigation "画面切り替え" [ref=e25]:
+    - button "認証" [ref=e26] [cursor=pointer]
+    - button "課金" [ref=e27] [cursor=pointer]
+    - button "契約状態" [pressed] [ref=e28] [cursor=pointer]
+    - button "緊急復旧" [ref=e29] [cursor=pointer]
+  - generic [ref=e70]:
+    - generic [ref=e71]:
+      - generic [ref=e72]:
+        - paragraph [ref=e73]: Entitlements
+        - heading "アカウント状態" [level=2] [ref=e74]
+      - button "状態を更新" [ref=e75] [cursor=pointer]
+    - generic [ref=e76]:
+      - article [ref=e77]:
+        - paragraph [ref=e78]: メール
+        - paragraph [ref=e79]: redesign-1773401107@example.com
+      - article [ref=e80]:
+        - paragraph [ref=e81]: プラン状態
+        - paragraph [ref=e82]: inactive
+      - article [ref=e83]:
+        - paragraph [ref=e84]: 有料アクセス
+        - paragraph [ref=e85]: いいえ
+      - article [ref=e86]:
+        - paragraph [ref=e87]: 次回期限
+        - paragraph [ref=e88]: "-"
+    - generic [ref=e89]:
+      - heading "利用権ソース" [level=3] [ref=e90]
+      - paragraph [ref=e91]: Stripe、App Store、Google Play、手動付与の違いをサーバー側で正規化して表示します。
+      - list [ref=e92]:
+        - listitem [ref=e93]: 有効な利用権がありません。

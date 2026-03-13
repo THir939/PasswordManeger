@@ -1,0 +1,2 @@
+[   23962ms] [ERROR] Failed to load resource: the server responded with a status of 422 (Unprocessable Entity) @ http://localhost:56898/api/auth/register:0
+[  105392ms] [ERROR] Failed to load resource: the server responded with a status of 422 (Unprocessable Entity) @ http://localhost:56898/api/auth/register:0

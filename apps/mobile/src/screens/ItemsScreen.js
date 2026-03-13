@@ -15,10 +15,24 @@ import { api } from '../services/api';
 const TYPES = [
     { value: 'all', label: '全種別' },
     { value: 'login', label: '🔑 ログイン' },
+    { value: 'passkey', label: '🗝️ パスキー' },
     { value: 'card', label: '💳 カード' },
     { value: 'identity', label: '👤 個人情報' },
     { value: 'note', label: '📝 ノート' },
 ];
+
+function itemSubtitle(item) {
+    if (item.type === 'passkey') {
+        return item.passkey?.rpId || item.passkey?.userName || item.url || '';
+    }
+    if (item.type === 'identity') {
+        return item.email || item.fullName || item.username || '';
+    }
+    if (item.type === 'card') {
+        return item.cardHolder || item.cardExpiry || '';
+    }
+    return item.username || item.url || item.notes?.slice(0, 40) || '';
+}
 
 export default function ItemsScreen({ navigation }) {
     const [items, setItems] = useState([]);
@@ -75,7 +89,7 @@ export default function ItemsScreen({ navigation }) {
             <View style={styles.info}>
                 <Text style={styles.title} numberOfLines={1}>{item.title}</Text>
                 <Text style={styles.sub} numberOfLines={1}>
-                    {item.username || item.url || item.notes?.slice(0, 40) || ''}
+                    {itemSubtitle(item)}
                 </Text>
             </View>
             {item.favorite && <Text style={styles.fav}>★</Text>}

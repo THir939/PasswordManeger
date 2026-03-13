@@ -1,0 +1,63 @@
+- main [ref=e2]:
+  - generic [ref=e4]:
+    - generic [ref=e5]:
+      - generic [ref=e6]: PasswordManeger Cloud Layer
+      - heading "モバイルの質感で統一した クラウド運用ハブ" [level=1] [ref=e8]:
+        - text: モバイルの質感で統一した
+        - strong [ref=e9]: クラウド運用ハブ
+      - paragraph [ref=e10]: ローカルVaultの安全性はそのままに、同期、契約管理、緊急復旧だけを上に積む補助レイヤーです。 Desktop やモバイルと見た目の温度差が出ないよう、同じダークトーンとアクセントでまとめています。
+      - paragraph [ref=e11]: ここで扱うのは平文ではなく、あくまで暗号化済みスナップショットと利用権です。 つまり「保管庫本体」ではなく、「安全に運ぶための導線」を管理する画面です。
+    - generic [ref=e12]:
+      - article [ref=e13]:
+        - generic [ref=e14]: Cloud Sync
+        - strong [ref=e15]: 暗号化Vaultを push / pull
+        - paragraph [ref=e16]: 有料ユーザーだけが複数端末の保管庫を同期できます。
+      - article [ref=e17]:
+        - generic [ref=e18]: Billing
+        - strong [ref=e19]: Stripe と同じ導線で契約管理
+        - paragraph [ref=e20]: Checkout と Portal をひとつの画面から扱えます。
+      - article [ref=e21]:
+        - generic [ref=e22]: Recovery
+        - strong [ref=e23]: 緊急復旧の準備を先回り
+        - paragraph [ref=e24]: 鍵分割と暗号化データ取得を事故対応導線として残せます。
+  - navigation "画面切り替え" [ref=e25]:
+    - button "認証" [pressed] [ref=e26] [cursor=pointer]
+    - button "課金" [ref=e27] [cursor=pointer]
+    - button "契約状態" [ref=e28] [cursor=pointer]
+    - button "緊急復旧" [ref=e29] [cursor=pointer]
+  - generic [ref=e31]:
+    - article [ref=e32]:
+      - paragraph [ref=e33]: Cloud Onboarding
+      - heading "新規登録" [level=2] [ref=e34]
+      - paragraph [ref=e35]: まずはクラウドアカウントを作成します。支払い前でも登録だけは先にできます。
+      - generic [ref=e36]:
+        - text: メール
+        - textbox "メール" [ref=e37]
+      - generic [ref=e38]:
+        - text: パスワード（10文字以上）
+        - generic [ref=e39]:
+          - 'textbox "パスワード（10文字以上） パスワードを表示 強度: 未入力" [ref=e40]'
+          - button "パスワードを表示" [ref=e41] [cursor=pointer]: 表示
+        - paragraph [ref=e44]: "強度: 未入力"
+      - generic [ref=e45]:
+        - generic [ref=e46]:
+          - strong [ref=e47]: 同期を解放
+          - text: プレミアム化すると Desktop / 拡張 / モバイルで同じVaultを扱えます。
+        - generic [ref=e48]:
+          - strong [ref=e49]: 復旧も準備
+          - text: 課金導線と緊急アクセス導線を分離せず、この画面で確認できます。
+      - button "アカウント作成" [ref=e50] [cursor=pointer]
+    - article [ref=e51]:
+      - paragraph [ref=e52]: Existing Account
+      - heading "ログイン" [level=2] [ref=e53]
+      - paragraph [ref=e54]: 契約状態や緊急アクセスはログイン後に同じ画面から操作できます。
+      - generic [ref=e55]:
+        - text: メール
+        - textbox "メール" [ref=e56]
+      - generic [ref=e57]:
+        - text: パスワード
+        - generic [ref=e58]:
+          - 'textbox "パスワード パスワードを表示 強度: 未入力" [ref=e59]'
+          - button "パスワードを表示" [ref=e60] [cursor=pointer]: 表示
+        - paragraph [ref=e63]: "強度: 未入力"
+      - button "ログイン" [ref=e65] [cursor=pointer]

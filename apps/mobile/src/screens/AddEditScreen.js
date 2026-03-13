@@ -1,6 +1,6 @@
 /**
  * AddEditScreen — アイテム追加/編集
- * 全4種別（ログイン、カード、個人情報、ノート）対応
+ * 全5種別（ログイン、パスキー、カード、個人情報、ノート）対応
  */
 import React, { useState, useEffect } from 'react';
 import {
@@ -9,9 +9,11 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { theme } from '../theme';
 import { api } from '../services/api';
+import { getTextInputAutofillProps } from '../services/text-input-autofill';
 
 const TYPES = [
     { value: 'login', label: '🔑 ログイン' },
+    { value: 'passkey', label: '🗝️ パスキー' },
     { value: 'card', label: '💳 クレジットカード' },
     { value: 'identity', label: '👤 個人情報' },
     { value: 'note', label: '📝 セキュアノート' },
@@ -28,6 +30,12 @@ export default function AddEditScreen({ route, navigation }) {
     const [showPw, setShowPw] = useState(false);
     const [url, setUrl] = useState(editItem?.url || '');
     const [otpSecret, setOtpSecret] = useState(editItem?.otpSecret || '');
+    const [passkeyRpId, setPasskeyRpId] = useState(editItem?.passkey?.rpId || '');
+    const [passkeyCredentialId, setPasskeyCredentialId] = useState(editItem?.passkey?.credentialId || '');
+    const [passkeyUserName, setPasskeyUserName] = useState(editItem?.passkey?.userName || '');
+    const [passkeyDisplayName, setPasskeyDisplayName] = useState(editItem?.passkey?.userDisplayName || '');
+    const [passkeyUserHandle, setPasskeyUserHandle] = useState(editItem?.passkey?.userHandle || '');
+    const [passkeyTransports, setPasskeyTransports] = useState((editItem?.passkey?.transports || []).join(', '));
     const [fullName, setFullName] = useState(editItem?.fullName || '');
     const [email, setEmail] = useState(editItem?.email || '');
     const [phone, setPhone] = useState(editItem?.phone || '');
@@ -64,13 +72,25 @@ export default function AddEditScreen({ route, navigation }) {
     };
 
     const handleSave = async () => {
-        if (!title.trim()) { Alert.alert('エラー', 'タイトルを入力してください。'); return; }
+        if (type !== 'passkey' && !title.trim()) { Alert.alert('エラー', 'タイトルを入力してください。'); return; }
+        if (type === 'passkey' && (!passkeyRpId.trim() || !passkeyCredentialId.trim())) {
+            Alert.alert('エラー', 'パスキーには RP ID と Credential ID が必要です。');
+            return;
+        }
         setSaving(true);
         try {
             await api.saveItem({
                 id: editItem?.id, type, title, username, password, url, otpSecret,
                 fullName, email, phone, address, cardHolder, cardNumber, cardExpiry, cardCvc,
                 tags, notes, favorite,
+                passkey: {
+                    rpId: passkeyRpId,
+                    credentialId: passkeyCredentialId,
+                    userName: passkeyUserName || username,
+                    userDisplayName: passkeyDisplayName,
+                    userHandle: passkeyUserHandle,
+                    transports: passkeyTransports,
+                }
             });
             Alert.alert('✓', isEdit ? '更新しました！' : '保存しました！');
             if (navigation.canGoBack()) navigation.goBack();
@@ -104,10 +124,20 @@ export default function AddEditScreen({ route, navigation }) {
                     ))}
                 </View>
 
-                <InputField label="タイトル *" value={title} onChangeText={setTitle} placeholder="例: GitHub" />
+                <InputField
+                    label={type === 'passkey' ? 'タイトル（空欄なら自動生成）' : 'タイトル *'}
+                    value={title}
+                    onChangeText={setTitle}
+                    placeholder={type === 'passkey' ? '例: Alice (github.com)' : '例: GitHub'}
+                />
 
                 {['login', 'identity', 'note'].includes(type) && (
-                    <InputField label="ユーザー名 / メール" value={username} onChangeText={setUsername} />
+                    <InputField
+                        label="ユーザー名 / メール"
+                        value={username}
+                        onChangeText={setUsername}
+                        {...getTextInputAutofillProps(type === 'identity' ? 'email' : 'username')}
+                    />
                 )}
 
                 {type === 'login' && (
@@ -117,6 +147,7 @@ export default function AddEditScreen({ route, navigation }) {
                             <TextInput style={[styles.input, { flex: 1 }]} secureTextEntry={!showPw} value={password}
                                 onChangeText={(v) => { setPassword(v); checkStrength(v); }}
                                 placeholderTextColor={theme.colors.textMuted}
+                                {...getTextInputAutofillProps('currentPassword')}
                             />
                             <TouchableOpacity style={styles.pwBtn} onPress={() => setShowPw(!showPw)}>
                                 <Text style={{ fontSize: 16 }}>{showPw ? '🔒' : '👁'}</Text>
@@ -135,24 +166,36 @@ export default function AddEditScreen({ route, navigation }) {
                                 </Text>
                             </View>
                         )}
-                        <InputField label="URL" value={url} onChangeText={setUrl} placeholder="https://example.com" keyboardType="url" />
+                        <InputField label="URL" value={url} onChangeText={setUrl} placeholder="https://example.com" keyboardType="url" {...getTextInputAutofillProps('url')} />
                         <InputField label="TOTP シークレット" value={otpSecret} onChangeText={setOtpSecret} placeholder="Base32 または otpauth://" />
+                    </>
+                )}
+
+                {type === 'passkey' && (
+                    <>
+                        <InputField label="RP ID *" value={passkeyRpId} onChangeText={setPasskeyRpId} placeholder="github.com" />
+                        <InputField label="Credential ID *" value={passkeyCredentialId} onChangeText={setPasskeyCredentialId} placeholder="Base64url / 文字列" />
+                        <InputField label="ユーザー名" value={passkeyUserName} onChangeText={setPasskeyUserName} placeholder="alice@example.com" {...getTextInputAutofillProps('email')} />
+                        <InputField label="表示名" value={passkeyDisplayName} onChangeText={setPasskeyDisplayName} placeholder="Alice" />
+                        <InputField label="User Handle" value={passkeyUserHandle} onChangeText={setPasskeyUserHandle} placeholder="Base64url / 文字列" />
+                        <InputField label="Transport (カンマ区切り)" value={passkeyTransports} onChangeText={setPasskeyTransports} placeholder="internal, usb" />
+                        <InputField label="URL" value={url} onChangeText={setUrl} placeholder="https://github.com" keyboardType="url" {...getTextInputAutofillProps('url')} />
                     </>
                 )}
 
                 {type === 'identity' && (
                     <>
-                        <InputField label="氏名" value={fullName} onChangeText={setFullName} />
-                        <InputField label="メール" value={email} onChangeText={setEmail} keyboardType="email-address" />
-                        <InputField label="電話" value={phone} onChangeText={setPhone} keyboardType="phone-pad" />
+                        <InputField label="氏名" value={fullName} onChangeText={setFullName} {...getTextInputAutofillProps('name')} />
+                        <InputField label="メール" value={email} onChangeText={setEmail} keyboardType="email-address" {...getTextInputAutofillProps('email')} />
+                        <InputField label="電話" value={phone} onChangeText={setPhone} keyboardType="phone-pad" {...getTextInputAutofillProps('telephone')} />
                         <InputField label="住所" value={address} onChangeText={setAddress} multiline />
                     </>
                 )}
 
                 {type === 'card' && (
                     <>
-                        <InputField label="名義人" value={cardHolder} onChangeText={setCardHolder} />
-                        <InputField label="カード番号" value={cardNumber} onChangeText={setCardNumber} keyboardType="number-pad" />
+                        <InputField label="名義人" value={cardHolder} onChangeText={setCardHolder} {...getTextInputAutofillProps('name')} />
+                        <InputField label="カード番号" value={cardNumber} onChangeText={setCardNumber} keyboardType="number-pad" {...getTextInputAutofillProps('creditCardNumber')} />
                         <InputField label="有効期限 (MM/YY)" value={cardExpiry} onChangeText={setCardExpiry} />
                         <InputField label="CVC" value={cardCvc} onChangeText={setCardCvc} keyboardType="number-pad" secureTextEntry />
                     </>
@@ -180,7 +223,7 @@ export default function AddEditScreen({ route, navigation }) {
     );
 }
 
-function InputField({ label, value, onChangeText, placeholder, keyboardType, secureTextEntry, multiline }) {
+function InputField({ label, value, onChangeText, placeholder, keyboardType, secureTextEntry, multiline, ...rest }) {
     return (
         <>
             <Text style={styles.label}>{label}</Text>
@@ -189,6 +232,7 @@ function InputField({ label, value, onChangeText, placeholder, keyboardType, sec
                 value={value} onChangeText={onChangeText} placeholder={placeholder}
                 placeholderTextColor={theme.colors.textMuted} keyboardType={keyboardType}
                 secureTextEntry={secureTextEntry} multiline={multiline} autoCapitalize="none"
+                {...rest}
             />
         </>
     );

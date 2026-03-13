@@ -17,12 +17,24 @@ const PRODUCT_IDS = {
 let serverBaseUrl = '';
 
 export function setIapServerBase(url) {
-    serverBaseUrl = url;
+    serverBaseUrl = String(url || '').trim().replace(/\/+$/, '');
 }
 
 // ===== 初期化 =====
 let initialized = false;
 let purchaseListener = null;
+let purchaseErrorListener = null;
+
+export function clearPurchaseListeners() {
+    if (purchaseListener) {
+        purchaseListener.remove();
+        purchaseListener = null;
+    }
+    if (purchaseErrorListener) {
+        purchaseErrorListener.remove();
+        purchaseErrorListener = null;
+    }
+}
 
 export async function initIap() {
     if (initialized) return;
@@ -35,10 +47,7 @@ export async function initIap() {
 }
 
 export async function endIap() {
-    if (purchaseListener) {
-        purchaseListener.remove();
-        purchaseListener = null;
-    }
+    clearPurchaseListeners();
     try {
         await RNIap.endConnection();
     } catch { }
@@ -89,6 +98,8 @@ export async function purchaseSubscription(productId) {
 
 // ===== 購入リスナーの設定 =====
 export function setupPurchaseListeners(authToken, onSuccess, onError) {
+    clearPurchaseListeners();
+
     // 購入成功
     purchaseListener = RNIap.purchaseUpdatedListener(async (purchase) => {
         try {
@@ -107,7 +118,7 @@ export function setupPurchaseListeners(authToken, onSuccess, onError) {
     });
 
     // 購入エラー
-    RNIap.purchaseErrorListener((err) => {
+    purchaseErrorListener = RNIap.purchaseErrorListener((err) => {
         if (err.code !== 'E_USER_CANCELLED') {
             onError?.(err);
         }
@@ -118,6 +129,9 @@ export function setupPurchaseListeners(authToken, onSuccess, onError) {
 async function verifyReceiptOnServer(purchase, authToken) {
     if (!serverBaseUrl) {
         return { ok: false, error: 'Server URL not configured' };
+    }
+    if (!authToken) {
+        return { ok: false, error: 'Cloud login required' };
     }
 
     const isIos = Platform.OS === 'ios';
@@ -160,7 +174,7 @@ export async function restorePurchases(authToken) {
 
 // ===== サブスクリプション状態の確認 =====
 export async function checkSubscriptionStatus(authToken) {
-    if (!serverBaseUrl) return null;
+    if (!serverBaseUrl || !authToken) return null;
     try {
         const res = await fetch(`${serverBaseUrl}/api/billing/status`, {
             headers: { Authorization: `Bearer ${authToken}` },

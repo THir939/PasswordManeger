@@ -1,93 +1,92 @@
+import { gcm } from "@noble/ciphers/aes.js";
+import { pbkdf2 } from "@noble/hashes/pbkdf2.js";
+import { sha256 } from "@noble/hashes/sha2.js";
+
 const encoder = new TextEncoder();
 const decoder = new TextDecoder();
+const BASE64_ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
 
 export const KDF_ITERATIONS = 310000;
 
 function ensureCrypto() {
-  if (!globalThis.crypto?.subtle || !globalThis.crypto?.getRandomValues) {
-    throw new Error("Web Crypto API is not available.");
+  if (!globalThis.crypto?.getRandomValues) {
+    throw new Error("Secure random generator is not available.");
   }
 }
 
 export function bytesToBase64(bytes) {
-  return btoa(String.fromCharCode(...bytes));
+  if (typeof Buffer !== "undefined") {
+    return Buffer.from(bytes).toString("base64");
+  }
+
+  let result = "";
+  for (let i = 0; i < bytes.length; i += 3) {
+    const a = bytes[i];
+    const b = bytes[i + 1];
+    const c = bytes[i + 2];
+    const chunk = (a << 16) | ((b || 0) << 8) | (c || 0);
+
+    result += BASE64_ALPHABET[(chunk >> 18) & 63];
+    result += BASE64_ALPHABET[(chunk >> 12) & 63];
+    result += typeof b === "number" ? BASE64_ALPHABET[(chunk >> 6) & 63] : "=";
+    result += typeof c === "number" ? BASE64_ALPHABET[chunk & 63] : "=";
+  }
+  return result;
 }
 
 export function base64ToBytes(base64) {
-  const binary = atob(base64);
-  return Uint8Array.from(binary, (char) => char.charCodeAt(0));
+  if (typeof Buffer !== "undefined") {
+    return Uint8Array.from(Buffer.from(base64, "base64"));
+  }
+
+  const clean = String(base64 || "").replace(/[^A-Za-z0-9+/=]/g, "");
+  const output = [];
+
+  for (let i = 0; i < clean.length; i += 4) {
+    const c0 = BASE64_ALPHABET.indexOf(clean[i]);
+    const c1 = BASE64_ALPHABET.indexOf(clean[i + 1]);
+    const c2 = clean[i + 2] === "=" ? -1 : BASE64_ALPHABET.indexOf(clean[i + 2]);
+    const c3 = clean[i + 3] === "=" ? -1 : BASE64_ALPHABET.indexOf(clean[i + 3]);
+    const chunk = (c0 << 18) | (c1 << 12) | ((Math.max(c2, 0) & 63) << 6) | (Math.max(c3, 0) & 63);
+
+    output.push((chunk >> 16) & 255);
+    if (c2 >= 0) output.push((chunk >> 8) & 255);
+    if (c3 >= 0) output.push(chunk & 255);
+  }
+
+  return Uint8Array.from(output);
 }
 
 function randomBytes(length) {
   ensureCrypto();
   const bytes = new Uint8Array(length);
-  crypto.getRandomValues(bytes);
+  globalThis.crypto.getRandomValues(bytes);
   return bytes;
 }
 
 export async function deriveAesKey(masterPassword, saltBytes, iterations = KDF_ITERATIONS) {
   ensureCrypto();
-
-  const passwordKey = await crypto.subtle.importKey(
-    "raw",
-    encoder.encode(masterPassword),
-    { name: "PBKDF2" },
-    false,
-    ["deriveKey"]
-  );
-
-  return crypto.subtle.deriveKey(
-    {
-      name: "PBKDF2",
-      hash: "SHA-256",
-      salt: saltBytes,
-      iterations
-    },
-    passwordKey,
-    {
-      name: "AES-GCM",
-      length: 256
-    },
-    false,
-    ["encrypt", "decrypt"]
-  );
+  return pbkdf2(sha256, encoder.encode(masterPassword), saltBytes, {
+    c: iterations,
+    dkLen: 32
+  });
 }
 
 export async function encryptJson(value, aesKey, ivBytes = randomBytes(12)) {
-  ensureCrypto();
-
   const plaintext = encoder.encode(JSON.stringify(value));
-  const ciphertext = await crypto.subtle.encrypt(
-    {
-      name: "AES-GCM",
-      iv: ivBytes
-    },
-    aesKey,
-    plaintext
-  );
+  const ciphertext = gcm(aesKey, ivBytes).encrypt(plaintext);
 
   return {
     iv: bytesToBase64(ivBytes),
-    ciphertext: bytesToBase64(new Uint8Array(ciphertext))
+    ciphertext: bytesToBase64(ciphertext)
   };
 }
 
 export async function decryptJson(payload, aesKey) {
-  ensureCrypto();
-
   const iv = base64ToBytes(payload.iv);
   const ciphertext = base64ToBytes(payload.ciphertext);
-
-  const plaintextBuffer = await crypto.subtle.decrypt(
-    {
-      name: "AES-GCM",
-      iv
-    },
-    aesKey,
-    ciphertext
-  );
-
-  return JSON.parse(decoder.decode(plaintextBuffer));
+  const plaintext = gcm(aesKey, iv).decrypt(ciphertext);
+  return JSON.parse(decoder.decode(plaintext));
 }
 
 export async function createVaultEnvelope(vaultData, masterPassword, kdfConfig = {}) {

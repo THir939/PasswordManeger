@@ -27,6 +27,28 @@ import {
   nativeWindowHandleToInteger,
   requestWindowsHelloVerification
 } from "../apps/desktop/src/windows-hello.js";
+import {
+  clearCloudSession,
+  fetchCloudBillingStatus,
+  loadCloudSession,
+  loginCloudAccount,
+  pullCloudVaultSnapshot,
+  pushCloudVaultSnapshot,
+  registerCloudAccount,
+  saveCloudSession
+} from "../apps/mobile/src/services/cloud-auth.js";
+import {
+  buildAssociatedDomainEntitlements,
+  getReleaseReadinessSnapshot,
+  parseAssociatedDomains
+} from "../apps/mobile/src/services/autofill-config.js";
+import {
+  loadAutofillSettings,
+  saveAutofillSettings
+} from "../apps/mobile/src/services/autofill.js";
+import { MobileVaultCore } from "../apps/mobile/src/services/mobile-vault-core.js";
+import { startTempServer } from "./e2e-helpers.mjs";
+import { MobileVaultService } from "../apps/mobile/src/mobile-vault-service.js";
 
 async function run(name, testFn) {
   try {
@@ -437,6 +459,355 @@ await run("windows hello helper decodes native window handle", () => {
   const handle = Buffer.alloc(8);
   handle.writeBigUInt64LE(12345n, 0);
   assert.equal(nativeWindowHandleToInteger(handle), 12345);
+});
+
+await run("mobile cloud auth service round-trip", async () => {
+  const storageMap = new Map();
+  const storage = {
+    async getItemAsync(key) {
+      return storageMap.has(key) ? storageMap.get(key) : null;
+    },
+    async setItemAsync(key, value) {
+      storageMap.set(key, String(value));
+    },
+    async deleteItemAsync(key) {
+      storageMap.delete(key);
+    }
+  };
+
+  const server = await startTempServer({ label: "mobile-cloud-auth" });
+
+  try {
+    const baseUrl = `${server.baseUrl}/`;
+    const email = `mobile-cloud-${Date.now()}@example.com`;
+    const password = "MobileCloud12345!";
+
+    const registered = await registerCloudAccount(
+      {
+        baseUrl,
+        email,
+        password
+      },
+      { fetchImpl: fetch }
+    );
+
+    assert.ok(registered.token);
+    assert.equal(registered.user?.email, email);
+
+    const saved = await saveCloudSession(
+      {
+        baseUrl,
+        token: registered.token,
+        email,
+        revision: 3,
+        lastSyncAt: "2026-03-13T00:00:00.000Z"
+      },
+      { storage }
+    );
+
+    assert.equal(saved.baseUrl, server.baseUrl);
+    assert.equal(saved.revision, 3);
+
+    const loaded = await loadCloudSession({ storage });
+    assert.equal(loaded.baseUrl, server.baseUrl);
+    assert.equal(loaded.token, registered.token);
+    assert.equal(loaded.email, email);
+    assert.equal(loaded.revision, 3);
+    assert.equal(loaded.lastSyncAt, "2026-03-13T00:00:00.000Z");
+
+    const billing = await fetchCloudBillingStatus(
+      {
+        baseUrl: loaded.baseUrl,
+        token: loaded.token
+      },
+      { fetchImpl: fetch }
+    );
+    assert.equal(billing.ok, true);
+    assert.equal(billing.isPaid, false);
+
+    const loggedIn = await loginCloudAccount(
+      {
+        baseUrl: loaded.baseUrl,
+        email,
+        password
+      },
+      { fetchImpl: fetch }
+    );
+    assert.ok(loggedIn.token);
+
+    await clearCloudSession({ storage });
+    const cleared = await loadCloudSession({ storage });
+    assert.equal(cleared.baseUrl, "");
+    assert.equal(cleared.token, "");
+    assert.equal(cleared.email, "");
+  } finally {
+    await server.stop();
+  }
+});
+
+await run("mobile autofill config normalizes domains and entitlements", () => {
+  const domains = parseAssociatedDomains("https://example.com/login, accounts.example.com\nexample.com:443");
+  assert.deepEqual(domains, ["example.com", "accounts.example.com"]);
+  assert.deepEqual(buildAssociatedDomainEntitlements(domains), [
+    "webcredentials:example.com",
+    "applinks:example.com",
+    "webcredentials:accounts.example.com",
+    "applinks:accounts.example.com"
+  ]);
+
+  const readiness = getReleaseReadinessSnapshot({
+    EXPO_PUBLIC_PM_MOBILE_ASSOCIATED_DOMAINS: "example.com",
+    EXPO_PUBLIC_PM_CLOUD_BASE_URL: "https://api.example.com"
+  });
+  assert.equal(readiness.readyForNativeBuild, true);
+});
+
+await run("mobile autofill settings round-trip", async () => {
+  const storageMap = new Map();
+  const storage = {
+    async getItemAsync(key) {
+      return storageMap.has(key) ? storageMap.get(key) : null;
+    },
+    async setItemAsync(key, value) {
+      storageMap.set(key, String(value));
+    }
+  };
+
+  const saved = await saveAutofillSettings(
+    {
+      enabled: true,
+      domains: "example.com\naccounts.example.com"
+    },
+    { storage, env: { EXPO_PUBLIC_PM_MOBILE_ASSOCIATED_DOMAINS: "" } }
+  );
+  assert.deepEqual(saved.domains, ["example.com", "accounts.example.com"]);
+
+  const loaded = await loadAutofillSettings(
+    {
+      storage,
+      env: { EXPO_PUBLIC_PM_MOBILE_ASSOCIATED_DOMAINS: "" }
+    }
+  );
+  assert.equal(loaded.enabled, true);
+  assert.deepEqual(loaded.domains, ["example.com", "accounts.example.com"]);
+});
+
+await run("mobile cloud sync push and pull", async () => {
+  const fs = await import("node:fs/promises");
+  const os = await import("node:os");
+  const path = await import("node:path");
+  const ingestToken = "mobile-sync-ingest-token";
+  const server = await startTempServer({
+    label: "mobile-cloud-sync",
+    env: {
+      ENTITLEMENT_INGEST_TOKEN: ingestToken
+    }
+  });
+  const mobileDir = await fs.mkdtemp(path.join(os.tmpdir(), "pm-mobile-sync-"));
+
+  try {
+    const service = new MobileVaultService(mobileDir);
+    await service.handleAction({ action: "setupVault", masterPassword: "MobileSync12345!" });
+    await service.handleAction({
+      action: "saveItem",
+      item: {
+        type: "login",
+        title: "Mobile Sync Account",
+        username: "mobile-sync@example.com",
+        password: "SyncPass!234",
+        url: "https://example.com"
+      }
+    });
+
+    const email = `mobile-sync-${Date.now()}@example.com`;
+    const accountPassword = "CloudAccount12345!";
+    const registered = await registerCloudAccount(
+      {
+        baseUrl: server.baseUrl,
+        email,
+        password: accountPassword
+      },
+      { fetchImpl: fetch }
+    );
+
+    const entitlement = await fetch(`${server.baseUrl}/api/entitlements/ingest`, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-entitlement-token": ingestToken
+      },
+      body: JSON.stringify({
+        email,
+        source: "manual",
+        sourceRef: `mobile_sync_${Date.now()}`,
+        status: "active",
+        feature: "cloud_sync"
+      })
+    }).then((response) => response.json());
+
+    assert.equal(entitlement.ok, true);
+
+    const exported = await service.handleAction({ action: "exportVaultEnvelope" });
+    assert.ok(exported.envelope?.kdf);
+
+    const pushed = await pushCloudVaultSnapshot(
+      {
+        baseUrl: server.baseUrl,
+        token: registered.token,
+        revision: 0,
+        envelope: exported.envelope
+      },
+      { fetchImpl: fetch }
+    );
+    assert.equal(Number(pushed.revision), 1);
+
+    await service.handleAction({ action: "importVaultEnvelope", envelope: pushed.envelope });
+    const stateAfterImport = await service.handleAction({ action: "getState" });
+    assert.equal(stateAfterImport.unlocked, false);
+
+    const pulled = await pullCloudVaultSnapshot(
+      {
+        baseUrl: server.baseUrl,
+        token: registered.token
+      },
+      { fetchImpl: fetch }
+    );
+    assert.equal(Number(pulled.revision), 1);
+    await service.handleAction({ action: "importVaultEnvelope", envelope: pulled.envelope });
+    await service.handleAction({ action: "unlockVault", masterPassword: "MobileSync12345!" });
+    const listed = await service.handleAction({ action: "listItems", filters: {} });
+    assert.equal(listed.items[0].title, "Mobile Sync Account");
+    service.dispose();
+  } finally {
+    await server.stop();
+    await fs.rm(mobileDir, { recursive: true, force: true });
+  }
+});
+
+await run("mobile passkey metadata search and auto title", async () => {
+  const fs = await import("node:fs/promises");
+  const os = await import("node:os");
+  const path = await import("node:path");
+  const mobileDir = await fs.mkdtemp(path.join(os.tmpdir(), "pm-mobile-passkey-"));
+
+  try {
+    const service = new MobileVaultService(mobileDir);
+    await service.handleAction({ action: "setupVault", masterPassword: "MobilePasskey12345!" });
+
+    const saved = await service.handleAction({
+      action: "saveItem",
+      item: {
+        type: "passkey",
+        title: "",
+        passkey: {
+          rpId: "github.com",
+          credentialId: "credential-1234567890",
+          userName: "alice@example.com",
+          userDisplayName: "Alice",
+          userHandle: "alice-handle",
+          transports: "internal, usb"
+        }
+      }
+    });
+
+    assert.equal(saved.item.title, "Alice (github.com)");
+    assert.deepEqual(saved.item.passkey.transports, ["internal", "usb"]);
+
+    const searched = await service.handleAction({
+      action: "listItems",
+      filters: { search: "github.com" }
+    });
+    assert.equal(searched.items.length, 1);
+    assert.equal(searched.items[0].passkey.userHandle, "alice-handle");
+    service.dispose();
+  } finally {
+    await fs.rm(mobileDir, { recursive: true, force: true });
+  }
+});
+
+await run("mobile autofill item lookup returns matching login and passkey", async () => {
+  const fs = await import("node:fs/promises");
+  const os = await import("node:os");
+  const path = await import("node:path");
+  const mobileDir = await fs.mkdtemp(path.join(os.tmpdir(), "pm-mobile-autofill-"));
+
+  try {
+    const service = new MobileVaultService(mobileDir);
+    await service.handleAction({ action: "setupVault", masterPassword: "MobileAutofill12345!" });
+    await service.handleAction({
+      action: "saveItem",
+      item: {
+        type: "login",
+        title: "GitHub Login",
+        username: "alice@example.com",
+        password: "Autofill!234",
+        url: "https://github.com/login"
+      }
+    });
+    await service.handleAction({
+      action: "saveItem",
+      item: {
+        type: "passkey",
+        title: "",
+        passkey: {
+          rpId: "github.com",
+          credentialId: "passkey-gh-1",
+          userName: "alice@example.com"
+        }
+      }
+    });
+
+    const result = await service.handleAction({
+      action: "listAutofillItems",
+      domain: "accounts.github.com"
+    });
+    assert.equal(result.domain, "accounts.github.com");
+    assert.equal(result.items.length, 2);
+    assert.equal(result.items.some((item) => item.type === "login"), true);
+    assert.equal(result.items.some((item) => item.type === "passkey"), true);
+    service.dispose();
+  } finally {
+    await fs.rm(mobileDir, { recursive: true, force: true });
+  }
+});
+
+await run("mobile vault core works with in-memory storage", async () => {
+  let envelope = null;
+  let idCounter = 0;
+  const core = new MobileVaultCore({
+    readEnvelope: async () => envelope,
+    writeEnvelope: async (next) => {
+      envelope = next;
+    },
+    createId: () => `core-test-${++idCounter}`
+  });
+
+  try {
+    await core.handleAction({ action: "setupVault", masterPassword: "CoreMemoryPass123!" });
+    await core.handleAction({
+      action: "saveItem",
+      item: {
+        type: "login",
+        title: "Example",
+        username: "alice@example.com",
+        password: "MemoryPass!234",
+        url: "https://example.com"
+      }
+    });
+
+    const listed = await core.handleAction({
+      action: "listItems",
+      filters: { search: "example.com" }
+    });
+    assert.equal(listed.items.length, 1);
+
+    await core.handleAction({ action: "lockVault" });
+    await core.handleAction({ action: "unlockVault", masterPassword: "CoreMemoryPass123!" });
+    const state = await core.handleAction({ action: "getState" });
+    assert.equal(state.itemCount, 1);
+  } finally {
+    core.dispose();
+  }
 });
 
 await run("desktop renderer setup flow", async () => {

@@ -11,6 +11,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import { theme } from '../theme';
 import { api } from '../services/api';
+import { loadAutofillSettings, saveAutofillSettings } from '../services/autofill';
+import { getTextInputAutofillProps } from '../services/text-input-autofill';
 import {
     isBiometricAvailable, isBiometricEnabled, setBiometricEnabled,
     saveMasterPassword, clearMasterPassword
@@ -27,10 +29,13 @@ export default function SettingsScreen({ onLock }) {
     const [showOld, setShowOld] = useState(false);
     const [showNew, setShowNew] = useState(false);
     const [strength, setStrength] = useState(null);
+    const [autofillEnabled, setAutofillEnabled] = useState(true);
+    const [autofillDomains, setAutofillDomains] = useState('');
 
     useFocusEffect(useCallback(() => {
         loadSettings();
         checkBio();
+        loadAutofill();
     }, []));
 
     const loadSettings = async () => {
@@ -47,6 +52,14 @@ export default function SettingsScreen({ onLock }) {
         setBioType(bio.type);
         const enabled = await isBiometricEnabled();
         setBioEnabled(enabled);
+    };
+
+    const loadAutofill = async () => {
+        try {
+            const data = await loadAutofillSettings();
+            setAutofillEnabled(data.enabled);
+            setAutofillDomains(data.domains.join('\n'));
+        } catch { }
     };
 
     const handleSaveSettings = async () => {
@@ -110,6 +123,20 @@ export default function SettingsScreen({ onLock }) {
         }
     };
 
+    const handleSaveAutofill = async () => {
+        try {
+            const saved = await saveAutofillSettings({
+                enabled: autofillEnabled,
+                domains: autofillDomains
+            });
+            setAutofillEnabled(saved.enabled);
+            setAutofillDomains(saved.domains.join('\n'));
+            Alert.alert('✓', 'OS AutoFill 用の設定を保存しました。次のネイティブビルドから associated domains に反映できます。');
+        } catch (err) {
+            Alert.alert('エラー', err.message);
+        }
+    };
+
     const checkStrength = async (pw) => {
         setNewPw(pw);
         if (pw.length >= 4) {
@@ -158,12 +185,39 @@ export default function SettingsScreen({ onLock }) {
                     </>
                 )}
 
+                <Text style={styles.section}>OS AutoFill（ベータ）</Text>
+                <View style={styles.row}>
+                    <View style={{ flex: 1 }}>
+                        <Text style={styles.rowLabel}>OS 自動入力を準備する</Text>
+                        <Text style={styles.rowDesc}>関連ドメインと候補解決に使う設定を保存します。</Text>
+                    </View>
+                    <Switch value={autofillEnabled} onValueChange={setAutofillEnabled} trackColor={{ true: theme.colors.accent }} thumbColor="#fff" />
+                </View>
+                <Text style={styles.label}>関連ドメイン（1行1つ、またはカンマ区切り）</Text>
+                <TextInput
+                    style={[styles.input, { minHeight: 96, textAlignVertical: 'top' }]}
+                    value={autofillDomains}
+                    onChangeText={setAutofillDomains}
+                    placeholder={'example.com\naccounts.example.com'}
+                    placeholderTextColor={theme.colors.textMuted}
+                    multiline
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                />
+                <Text style={styles.rowDesc}>
+                    iOS の `webcredentials:` / `applinks:` に使う候補です。保存後、`expo prebuild` または EAS Build でネイティブ設定へ反映します。
+                </Text>
+                <TouchableOpacity style={styles.saveBtn} onPress={handleSaveAutofill}>
+                    <Text style={styles.saveBtnText}>OS AutoFill 設定を保存</Text>
+                </TouchableOpacity>
+
                 {/* Master Password */}
                 <Text style={styles.section}>マスターパスワード変更</Text>
                 <Text style={styles.label}>現在のパスワード</Text>
                 <View style={styles.pwRow}>
                     <TextInput style={[styles.input, { flex: 1 }]} secureTextEntry={!showOld} value={oldPw}
-                        onChangeText={setOldPw} placeholderTextColor={theme.colors.textMuted} autoCapitalize="none" />
+                        onChangeText={setOldPw} placeholderTextColor={theme.colors.textMuted} autoCapitalize="none"
+                        {...getTextInputAutofillProps('currentPassword')} />
                     <TouchableOpacity style={styles.pwBtn} onPress={() => setShowOld(!showOld)}>
                         <Text style={{ fontSize: 16 }}>{showOld ? '🔒' : '👁'}</Text>
                     </TouchableOpacity>
@@ -171,7 +225,8 @@ export default function SettingsScreen({ onLock }) {
                 <Text style={styles.label}>新しいパスワード (10文字以上)</Text>
                 <View style={styles.pwRow}>
                     <TextInput style={[styles.input, { flex: 1 }]} secureTextEntry={!showNew} value={newPw}
-                        onChangeText={checkStrength} placeholderTextColor={theme.colors.textMuted} autoCapitalize="none" />
+                        onChangeText={checkStrength} placeholderTextColor={theme.colors.textMuted} autoCapitalize="none"
+                        {...getTextInputAutofillProps('newPassword')} />
                     <TouchableOpacity style={styles.pwBtn} onPress={() => setShowNew(!showNew)}>
                         <Text style={{ fontSize: 16 }}>{showNew ? '🔒' : '👁'}</Text>
                     </TouchableOpacity>
