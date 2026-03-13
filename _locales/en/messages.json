@@ -1,0 +1,8 @@
+{
+  "app_name": {
+    "message": "PasswordManeger"
+  },
+  "app_description": {
+    "message": "Encrypted password manager extension with autofill and security audit."
+  }
+}

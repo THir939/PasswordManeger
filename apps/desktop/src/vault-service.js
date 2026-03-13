@@ -8,6 +8,12 @@ import { buildSecurityReport } from "@pm/core/security-audit";
 import { parseExternalItems } from "@pm/core/migration";
 import { AuditLogger } from "@pm/core/audit-log";
 import { safeCloudBaseUrl, validateCloudBaseUrl } from "@pm/core/cloud-url";
+import {
+  normalizePasskeyRecord,
+  defaultPasskeyUrl,
+  buildPasskeyTitle,
+  buildPasskeyFingerprint
+} from "@pm/core/passkey";
 
 if (!globalThis.crypto?.subtle || !globalThis.crypto?.getRandomValues) {
   globalThis.crypto = webcrypto;
@@ -82,6 +88,8 @@ function createDefaultVault() {
     settings: {
       autoLockMinutes: 10,
       clipboardClearSeconds: 20,
+      passkeyProxyEnabled: false,
+      passkeyDesktopApprovalEnabled: true,
       generator: {
         length: 20,
         uppercase: true,
@@ -94,15 +102,27 @@ function createDefaultVault() {
   };
 }
 
+function buildPasskeyPayload(input = {}, existing = null) {
+  const current = normalizePasskeyRecord(existing?.passkey || {});
+  const next = normalizePasskeyRecord(input, current);
+  return {
+    ...next,
+    createdAt: current.createdAt || next.createdAt || nowIso(),
+    lastSeenAt: next.lastSeenAt || nowIso(),
+    lastUsedAt: next.lastUsedAt || (next.event === "get" ? nowIso() : current.lastUsedAt || "")
+  };
+}
+
 function normalizeStoredItem(item) {
   const now = nowIso();
+  const passkey = normalizePasskeyRecord(item?.passkey || {});
   return {
     id: item?.id || crypto.randomUUID(),
-    type: ["login", "card", "identity", "note"].includes(item?.type) ? item.type : "login",
+    type: ["login", "card", "identity", "note", "passkey"].includes(item?.type) ? item.type : "login",
     title: String(item?.title || "Untitled").trim().slice(0, 140),
     username: String(item?.username || "").trim().slice(0, 200),
     password: String(item?.password || "").slice(0, 500),
-    url: normalizeUrl(item?.url || ""),
+    url: normalizeUrl(item?.url || defaultPasskeyUrl(passkey)),
     notes: String(item?.notes || "").trim().slice(0, 4000),
     otpSecret: String(item?.otpSecret || "").trim().slice(0, 300),
     fullName: String(item?.fullName || "").trim().slice(0, 200),
@@ -115,6 +135,7 @@ function normalizeStoredItem(item) {
     cardCvc: String(item?.cardCvc || "").trim().slice(0, 10),
     tags: sanitizeTags(item?.tags || []),
     favorite: Boolean(item?.favorite),
+    passkey,
     passwordUpdatedAt: item?.passwordUpdatedAt || null,
     createdAt: item?.createdAt || now,
     updatedAt: item?.updatedAt || now,
@@ -136,6 +157,8 @@ function normalizeVault(vault) {
     settings: {
       autoLockMinutes: Number(incoming.settings?.autoLockMinutes) || fallback.settings.autoLockMinutes,
       clipboardClearSeconds: Number(incoming.settings?.clipboardClearSeconds) || fallback.settings.clipboardClearSeconds,
+      passkeyProxyEnabled: Boolean(incoming.settings?.passkeyProxyEnabled),
+      passkeyDesktopApprovalEnabled: incoming.settings?.passkeyDesktopApprovalEnabled ?? fallback.settings.passkeyDesktopApprovalEnabled,
       generator: {
         ...fallback.settings.generator,
         ...(incoming.settings?.generator || {})
@@ -146,20 +169,21 @@ function normalizeVault(vault) {
 }
 
 function normalizeItem(input, existing = null) {
-  const type = ["login", "card", "identity", "note"].includes(input.type) ? input.type : "login";
+  const type = ["login", "card", "identity", "note", "passkey"].includes(input.type) ? input.type : "login";
   const now = nowIso();
   const base = existing || {
     id: crypto.randomUUID(),
     createdAt: now
   };
+  const passkey = buildPasskeyPayload(input.passkey || {}, base);
 
   const normalized = {
     id: base.id,
     type,
-    title: String(input.title || "").trim().slice(0, 140),
-    username: String(input.username || "").trim().slice(0, 200),
+    title: String(input.title || (type === "passkey" ? buildPasskeyTitle(passkey) : "")).trim().slice(0, 140),
+    username: String(input.username || passkey.userName || "").trim().slice(0, 200),
     password: String(input.password || "").slice(0, 500),
-    url: normalizeUrl(input.url),
+    url: normalizeUrl(input.url || defaultPasskeyUrl(passkey)),
     notes: String(input.notes || "").trim().slice(0, 4000),
     otpSecret: String(input.otpSecret || "").trim().slice(0, 300),
     fullName: String(input.fullName || "").trim().slice(0, 200),
@@ -172,6 +196,7 @@ function normalizeItem(input, existing = null) {
     cardCvc: String(input.cardCvc || "").trim().slice(0, 10),
     tags: sanitizeTags(input.tags),
     favorite: Boolean(input.favorite),
+    passkey,
     passwordUpdatedAt: input.password !== undefined && input.password !== base.password ? now : base.passwordUpdatedAt,
     createdAt: base.createdAt,
     updatedAt: now,
@@ -184,6 +209,14 @@ function normalizeItem(input, existing = null) {
 
   if (normalized.type === "login" && !normalized.password) {
     throw new Error("ログイン項目にはパスワードが必要です。");
+  }
+
+  if (normalized.type === "passkey") {
+    if (!normalized.passkey.rpId || !normalized.passkey.credentialId) {
+      throw new Error("Passkey項目には RP ID と Credential ID が必要です。");
+    }
+    normalized.password = "";
+    normalized.otpSecret = "";
   }
 
   return normalized;
@@ -201,11 +234,15 @@ function searchItems(items, query) {
 
   return items.filter((item) => {
     const tags = (item.tags || []).join(" ").toLowerCase();
+    const passkey = item.passkey || {};
     return (
       String(item.title || "").toLowerCase().includes(q) ||
       String(item.username || "").toLowerCase().includes(q) ||
       String(item.url || "").toLowerCase().includes(q) ||
       String(item.notes || "").toLowerCase().includes(q) ||
+      String(passkey.rpId || "").toLowerCase().includes(q) ||
+      String(passkey.userDisplayName || "").toLowerCase().includes(q) ||
+      String(passkey.credentialId || "").toLowerCase().includes(q) ||
       tags.includes(q)
     );
   });
@@ -270,6 +307,10 @@ function buildDedupFingerprint(item) {
 
   if (type === "login") {
     return [type, title, username, url, password].join("|");
+  }
+
+  if (type === "passkey") {
+    return [type, buildPasskeyFingerprint(item.passkey || {})].join("|");
   }
 
   return [type, title, String(item.notes || "").trim().toLowerCase()].join("|");

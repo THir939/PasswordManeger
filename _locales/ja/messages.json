@@ -1,0 +1,8 @@
+{
+  "app_name": {
+    "message": "PasswordManeger"
+  },
+  "app_description": {
+    "message": "自動入力とセキュリティ監査機能を備えた、暗号化パスワードマネージャー拡張機能。"
+  }
+}

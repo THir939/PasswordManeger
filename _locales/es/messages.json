@@ -1,0 +1,8 @@
+{
+  "app_name": {
+    "message": "PasswordManeger"
+  },
+  "app_description": {
+    "message": "Gestor de contraseñas cifrado con autocompletado y auditoría de seguridad."
+  }
+}

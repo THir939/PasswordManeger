@@ -43,3 +43,11 @@ export {
     extractDomain,
     buildAutofillRisk
 } from "./autofill-risk.js";
+
+export {
+    normalizePasskeyRecord,
+    defaultPasskeyUrl,
+    buildPasskeyTitle,
+    buildPasskeyFingerprint,
+    shortenCredentialId
+} from "./passkey.js";

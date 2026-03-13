@@ -4,6 +4,26 @@ function isVisible(element) {
   return style.visibility !== "hidden" && style.display !== "none" && rect.width > 0 && rect.height > 0;
 }
 
+function injectPasskeyBridge() {
+  if (window.__PM_PASSKEY_BRIDGE_TAG__) {
+    return;
+  }
+
+  const root = document.documentElement || document.head || document.body;
+  if (!root) {
+    document.addEventListener("DOMContentLoaded", injectPasskeyBridge, { once: true });
+    return;
+  }
+
+  const script = document.createElement("script");
+  script.src = chrome.runtime.getURL("src/injected/passkey-bridge.js");
+  script.async = false;
+  script.dataset.pmPasskeyBridge = "1";
+  script.addEventListener("load", () => script.remove());
+  root.appendChild(script);
+  window.__PM_PASSKEY_BRIDGE_TAG__ = true;
+}
+
 function getFieldSignature(field) {
   const attributes = [
     field.name,
@@ -220,6 +240,24 @@ function rememberLastFill(mode) {
     filledAt: Date.now()
   };
 }
+
+injectPasskeyBridge();
+
+window.addEventListener("message", (event) => {
+  if (event.source !== window) {
+    return;
+  }
+
+  const eventType = event.data?.type;
+  if (eventType !== "PM_PASSKEY_EVENT" && eventType !== "PM_PASSKEY_REQUEST") {
+    return;
+  }
+
+  chrome.runtime.sendMessage({
+    type: eventType,
+    payload: event.data.payload || {}
+  });
+});
 
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (message?.type !== "PM_FILL") {

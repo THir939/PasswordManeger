@@ -5,18 +5,27 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>PasswordManeger</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+JP:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="./popup.css" />
 </head>
 
-<body>
+<body class="i18n-pending">
   <div class="app">
     <p id="status" class="status" role="status" aria-live="polite"></p>
 
     <!-- ===== Setup View ===== -->
     <div id="setup-view" class="auth-screen hidden">
+      <p class="auth-eyebrow">ブラウザ保管庫</p>
       <div class="auth-logo">🔒</div>
       <h2>Vault作成</h2>
-      <p>マスターパスワードを作成します。忘れると復元できないため安全に保管してください。</p>
+      <p>このブラウザだけで使う保管庫を作成します。ログイン情報はローカルで暗号化して保存されます。</p>
+      <div class="auth-pill-row">
+        <span class="auth-pill">自動入力</span>
+        <span class="auth-pill">保存候補検出</span>
+        <span class="auth-pill">ローカル暗号化</span>
+      </div>
       <form id="setup-form" class="auth-form">
         <label>
           マスターパスワード (10文字以上)
@@ -38,15 +47,20 @@
               data-target="setup-confirm">表示</button>
           </div>
         </label>
+        <div class="auth-form-note">
+          <strong>注意</strong>
+          <span>マスターパスワードを忘れると、拡張内のデータは復元できません。</span>
+        </div>
         <button type="submit" class="btn-primary">Vaultを作成して開く</button>
       </form>
     </div>
 
     <!-- ===== Unlock View ===== -->
     <div id="unlock-view" class="auth-screen hidden">
+      <p class="auth-eyebrow">ローカル解錠</p>
       <div class="auth-logo">🔓</div>
       <h2>Vault解錠</h2>
-      <p>マスターパスワードを入力して解錠してください。</p>
+      <p>解錠すると、このサイトで使える候補をすぐに表示して自動入力できます。</p>
       <form id="unlock-form" class="auth-form">
         <label>
           マスターパスワード
@@ -56,6 +70,10 @@
               data-target="unlock-password">表示</button>
           </div>
         </label>
+        <div class="auth-form-note">
+          <strong>ヒント</strong>
+          <span>解錠後はこのサイト向け候補が自動で並びます。</span>
+        </div>
         <button type="submit" class="btn-primary">解錠する</button>
       </form>
     </div>
@@ -64,7 +82,7 @@
     <div id="main-view" class="main-layout hidden">
 
       <!-- Sidebar -->
-      <nav class="sidebar" id="tabbar" role="tablist" aria-label="機能リボン">
+      <nav class="sidebar" id="tabbar" role="tablist" aria-label="主要ナビゲーション">
         <div class="sidebar-header">
           <div class="sidebar-logo">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
@@ -76,20 +94,17 @@
           <span class="sidebar-title">PasswordManeger</span>
         </div>
 
-        <div class="sidebar-section">
-          <div class="sidebar-section-label">ライブラリ</div>
-
-          <button class="sidebar-btn tab" data-tab="pinned" role="tab" aria-selected="false">
+        <div class="sidebar-primary">
+          <button class="sidebar-btn tab nav-primary" data-tab="autofill" role="tab" aria-selected="true">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
               stroke-linejoin="round">
-              <path
-                d="M12 2L15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2z">
-              </path>
+              <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
             </svg>
-            <span>ピン留め</span>
+            <span>現在のサイト</span>
+            <span id="autofill-tab-badge" class="nav-badge hidden" aria-hidden="true"></span>
           </button>
 
-          <button class="sidebar-btn tab active" data-tab="all-items" role="tab" aria-selected="true">
+          <button class="sidebar-btn tab nav-primary" data-tab="all-items" role="tab" aria-selected="false">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
               stroke-linejoin="round">
               <line x1="8" y1="6" x2="21" y2="6"></line>
@@ -99,70 +114,10 @@
               <line x1="3" y1="12" x2="3.01" y2="12"></line>
               <line x1="3" y1="18" x2="3.01" y2="18"></line>
             </svg>
-            <span>すべて</span>
+            <span>保管庫</span>
           </button>
 
-          <button class="sidebar-btn tab" data-tab="logins" role="tab" aria-selected="false">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-              stroke-linejoin="round">
-              <path
-                d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4">
-              </path>
-            </svg>
-            <span>ログイン</span>
-          </button>
-
-          <button class="sidebar-btn tab" data-tab="cards" role="tab" aria-selected="false">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-              stroke-linejoin="round">
-              <rect x="1" y="4" width="22" height="16" rx="2" ry="2"></rect>
-              <line x1="1" y1="10" x2="23" y2="10"></line>
-            </svg>
-            <span>カード</span>
-          </button>
-
-          <button class="sidebar-btn tab" data-tab="identities" role="tab" aria-selected="false">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-              stroke-linejoin="round">
-              <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
-              <circle cx="12" cy="7" r="4"></circle>
-            </svg>
-            <span>個人情報</span>
-          </button>
-
-          <button class="sidebar-btn tab" data-tab="notes" role="tab" aria-selected="false">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-              stroke-linejoin="round">
-              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
-              <polyline points="14 2 14 8 20 8"></polyline>
-              <line x1="16" y1="13" x2="8" y2="13"></line>
-              <line x1="16" y1="17" x2="8" y2="17"></line>
-            </svg>
-            <span>メモ</span>
-          </button>
-        </div>
-
-        <div class="sidebar-divider"></div>
-
-        <div class="sidebar-user" id="sidebar-user">
-          <div class="sidebar-avatar" id="sidebar-avatar">U</div>
-          <span class="sidebar-username" id="sidebar-username">ユーザー</span>
-        </div>
-
-        <div class="sidebar-divider"></div>
-
-        <div class="sidebar-section">
-          <div class="sidebar-section-label">ツール</div>
-
-          <button class="sidebar-btn tab" data-tab="autofill" role="tab" aria-selected="false">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-              stroke-linejoin="round">
-              <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
-            </svg>
-            <span>自動入力</span>
-          </button>
-
-          <button class="sidebar-btn tab" data-tab="generator" role="tab" aria-selected="false">
+          <button class="sidebar-btn tab nav-primary" data-tab="generator" role="tab" aria-selected="false">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
               stroke-linejoin="round">
               <rect x="2" y="6" width="20" height="12" rx="2"></rect>
@@ -170,41 +125,18 @@
               <path d="M17 12h.01"></path>
               <path d="M7 12h.01"></path>
             </svg>
-            <span>パスワード生成器</span>
+            <span>生成</span>
           </button>
 
-          <button class="sidebar-btn tab" data-tab="security" role="tab" aria-selected="false">
+          <button class="sidebar-btn tab nav-primary" data-tab="security" role="tab" aria-selected="false">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
               stroke-linejoin="round">
               <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
             </svg>
-            <span>セキュリティ</span>
+            <span>安全性</span>
           </button>
 
-          <button class="sidebar-btn tab" data-tab="subscriptions" role="tab" aria-selected="false">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-              stroke-linejoin="round">
-              <line x1="12" y1="1" x2="12" y2="23"></line>
-              <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path>
-            </svg>
-            <span>サブスク管理</span>
-          </button>
-
-          <button class="sidebar-btn tab" data-tab="migrate" role="tab" aria-selected="false">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-              stroke-linejoin="round">
-              <polyline points="16 16 12 12 8 16"></polyline>
-              <line x1="12" y1="12" x2="12" y2="21"></line>
-              <path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3"></path>
-            </svg>
-            <span>クラウド同期</span>
-          </button>
-        </div>
-
-        <div class="sidebar-bottom">
-          <div class="sidebar-divider"></div>
-
-          <button class="sidebar-btn tab" data-tab="settings" role="tab" aria-selected="false">
+          <button class="sidebar-btn tab nav-primary" data-tab="settings" role="tab" aria-selected="false">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
               stroke-linejoin="round">
               <circle cx="12" cy="12" r="3"></circle>
@@ -226,7 +158,7 @@
               <circle cx="11" cy="11" r="8"></circle>
               <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
             </svg>
-            <input id="search-input" type="search" placeholder="検索..." autocomplete="off" />
+            <input id="search-input" type="search" placeholder="保管庫を検索" autocomplete="off" />
           </div>
           <div class="topbar-actions">
             <button id="lock-btn" class="icon-btn" title="ロック">
@@ -256,10 +188,75 @@
           </div>
         </header>
 
+        <div class="utility-rail" aria-label="クイック切替">
+          <button type="button" class="utility-chip" data-tab-shortcut="pinned">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
+            </svg>
+            <span>お気に入り</span>
+          </button>
+          <button type="button" class="utility-chip" data-tab-shortcut="logins">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M10 13a5 5 0 1 0 0-10 5 5 0 0 0 0 10z"></path>
+              <path d="M2 21a8 8 0 0 1 16 0"></path>
+              <path d="M19 8l3 3-3 3"></path>
+              <path d="M14 11h8"></path>
+            </svg>
+            <span>ログイン</span>
+          </button>
+          <button type="button" class="utility-chip" data-tab-shortcut="passkeys">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <circle cx="8" cy="15" r="4"></circle>
+              <path d="M12 15h9"></path>
+              <path d="M18 15v4"></path>
+              <path d="M21 15v2"></path>
+            </svg>
+            <span>パスキー</span>
+          </button>
+          <button type="button" class="utility-chip" data-tab-shortcut="cards">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <rect x="2" y="5" width="20" height="14" rx="2"></rect>
+              <path d="M2 10h20"></path>
+            </svg>
+            <span>カード</span>
+          </button>
+          <button type="button" class="utility-chip" data-tab-shortcut="identities">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <rect x="3" y="4" width="18" height="16" rx="2"></rect>
+              <circle cx="9" cy="10" r="2"></circle>
+              <path d="M15 8h3"></path>
+              <path d="M15 12h3"></path>
+              <path d="M7 16h10"></path>
+            </svg>
+            <span>個人情報</span>
+          </button>
+          <button type="button" class="utility-chip" data-tab-shortcut="notes">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16l4-3 4 3 4-3 4 3V8z"></path>
+              <path d="M14 2v6h6"></path>
+            </svg>
+            <span>メモ</span>
+          </button>
+          <button type="button" class="utility-chip" data-tab-shortcut="subscriptions">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M12 1v22"></path>
+              <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path>
+            </svg>
+            <span>サブスク</span>
+          </button>
+          <button type="button" class="utility-chip" data-tab-shortcut="migrate">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M21 12a9 9 0 1 1-3-6.7"></path>
+              <path d="M21 3v6h-6"></path>
+            </svg>
+            <span>同期</span>
+          </button>
+        </div>
+
         <div class="filter-tabs" id="sort-tabs">
-          <button class="filter-tab" data-sort="popular">人気</button>
-          <button class="filter-tab" data-sort="recent">最近使用</button>
-          <button class="filter-tab active" data-sort="az">A-Z</button>
+          <button class="filter-tab" data-sort="popular">おすすめ</button>
+          <button class="filter-tab" data-sort="recent">最近</button>
+          <button class="filter-tab active" data-sort="az">名前順</button>
         </div>
 
         <div class="views-container">
@@ -277,6 +274,7 @@
                 <div class="inline">
                   <select id="item-type">
                     <option value="login">ログイン</option>
+                    <option value="passkey">パスキー</option>
                     <option value="card">クレジットカード</option>
                     <option value="identity">個人情報</option>
                     <option value="note">セキュアノート</option>
@@ -288,7 +286,20 @@
 
                 <input id="item-title" type="text" placeholder="タイトル (例: Google, 楽天カード)" required autocomplete="off" />
 
+                <div class="type-passkey hidden passkey-note">
+                  <strong>パスキー管理</strong>
+                  <span>この画面ではパスキーのメタデータを保存・同期できます。ブラウザの生体認証そのものを置き換える段階ではありません。</span>
+                </div>
+
                 <!-- Login Type Fields -->
+                <div class="type-login type-passkey hidden">
+                  <div class="inline passkey-inline-actions">
+                    <input id="item-username" type="text" placeholder="ユーザー名 / Email" autocomplete="off" />
+                    <button id="alias-btn" class="ghost" type="button">📧 エイリアス</button>
+                  </div>
+                  <input id="item-url" type="url" placeholder="URL (例: https://example.com)" autocomplete="off" />
+                </div>
+
                 <div class="type-login">
                   <div class="secret-row">
                     <input id="item-password" type="password" placeholder="パスワード" autocomplete="off" />
@@ -300,14 +311,22 @@
                     <p class="strength-text">強度: 未入力</p>
                   </div>
                   <div class="inline">
-                    <input id="item-url" type="url" placeholder="URL (例: https://example.com)" autocomplete="off" />
                     <button id="generate-btn" class="ghost" type="button">自動生成</button>
                   </div>
-                  <div class="inline">
-                    <input id="item-username" type="text" placeholder="ユーザー名 / Email" autocomplete="off" />
-                    <button id="alias-btn" class="ghost" type="button">📧 エイリアス</button>
-                  </div>
                   <input id="item-otp" type="text" placeholder="TOTPシークレットキー (任意)" autocomplete="off" />
+                </div>
+
+                <div class="type-passkey hidden grid-passkey">
+                  <input id="item-passkey-rpid" type="text" placeholder="RP ID (例: github.com)" maxlength="255" autocomplete="off" />
+                  <textarea id="item-passkey-credential-id" rows="2" placeholder="Credential ID (Base64url)" maxlength="1400"></textarea>
+                  <input id="item-passkey-display-name" type="text" placeholder="表示名 (例: Taro Yamada)" maxlength="200" autocomplete="off" />
+                  <input id="item-passkey-user-handle" type="text" placeholder="User Handle (Base64url)" maxlength="1400" autocomplete="off" />
+                  <select id="item-passkey-attachment">
+                    <option value="">認証器タイプ未指定</option>
+                    <option value="platform">platform</option>
+                    <option value="cross-platform">cross-platform</option>
+                  </select>
+                  <input id="item-passkey-transports" type="text" placeholder="Transports (internal, usb, nfc)" maxlength="120" autocomplete="off" />
                 </div>
 
                 <!-- Card Type Fields -->
@@ -366,6 +385,7 @@
             <select id="filter-type" class="hidden">
               <option value="all">全種別</option>
               <option value="login">ログイン</option>
+              <option value="passkey">パスキー</option>
               <option value="card">カード</option>
               <option value="identity">個人情報</option>
               <option value="note">ノート</option>
@@ -382,9 +402,54 @@
           <!-- Autofill Tab -->
           <div id="tab-panel-autofill" class="tab-panel hidden" role="tabpanel" aria-label="自動入力"
             data-tab-panel="autofill">
+            <section class="quick-context-card">
+              <div class="quick-context-lead">
+                <div class="quick-context-icon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                    stroke-linejoin="round">
+                    <path d="M13 2 3 14h8l-1 8 11-12h-8l1-8z"></path>
+                  </svg>
+                </div>
+                <div class="quick-context-copy">
+                  <p class="panel-eyebrow">このサイト</p>
+                  <h3>すぐ使える候補</h3>
+                  <div class="quick-context-pills">
+                    <p id="page-host" class="small quick-context-host"></p>
+                    <p id="site-match-summary" class="small quick-context-summary"></p>
+                  </div>
+                </div>
+              </div>
+              <button type="button" class="ghost quick-open-vault-btn" data-tab-shortcut="all-items">保管庫を見る</button>
+            </section>
+
+            <section id="pending-capture-panel" class="panel-soft hidden">
+              <div class="section-header-row">
+                <div>
+                  <h3>保存候補</h3>
+                  <p class="small">送信直後に見つかった候補です。確認して保存します。</p>
+                </div>
+                <span id="pending-capture-count" class="items-count"></span>
+              </div>
+              <ul id="pending-capture-list" class="stack-list"></ul>
+            </section>
+
+            <section id="passkey-approval-panel" class="panel-soft hidden">
+              <div class="section-header-row">
+                <h3>パスキー承認待ち</h3>
+                <span id="passkey-approval-count" class="items-count"></span>
+              </div>
+              <p class="small">要求元を確認してから承認します。</p>
+              <div id="passkey-approval-list" class="approval-list"></div>
+            </section>
+
             <section class="panel-soft">
-              <h3>このサイトで使える項目</h3>
-              <p id="page-host" class="small"></p>
+              <div class="section-header-row">
+                <div>
+                  <h3>入力できる項目</h3>
+                  <p class="small">このサイトに合う項目を上に出しています。</p>
+                </div>
+                <button type="button" class="ghost small-action-btn" data-tab-shortcut="generator">新しいパスワード</button>
+              </div>
               <ul id="autofill-list" class="stack-list"></ul>
             </section>
           </div>
@@ -428,31 +493,31 @@
               </div>
 
               <div class="dashboard-hero card-surface glass-effect gradient-border">
-                <div class="dashboard-hero-title">今月のサブスク合計</div>
+                <div id="subscriptions-hero-title" class="dashboard-hero-title">今月のサブスク合計</div>
                 <div id="sub-monthly-total" class="dashboard-hero-amount">¥0</div>
-                <div class="dashboard-hero-sub">年額換算: <span id="sub-yearly-total"
+                <div class="dashboard-hero-sub"><span id="subscriptions-yearly-label">年額換算</span>: <span id="sub-yearly-total"
                     class="dashboard-hero-yearly">¥0</span></div>
               </div>
 
               <div class="dashboard-stats">
                 <div class="stat-box card-surface glass-effect">
-                  <div class="stat-label">登録サービス</div>
+                  <div id="subscriptions-services-label" class="stat-label">登録サービス</div>
                   <div id="sub-count" class="stat-value">0</div>
                 </div>
                 <div class="stat-box card-surface glass-effect dashboard-action-box">
-                  <div class="stat-label">データ同期</div>
+                  <div id="subscriptions-sync-label" class="stat-label">データ同期</div>
                   <button id="refresh-subs" class="btn-ghost-small dashboard-refresh-btn" type="button">
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
                       stroke-linecap="round" stroke-linejoin="round" style="margin-right:4px;">
                       <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.59-9.21l5.25 5.25" />
                     </svg>
-                    <span>最新化</span>
+                    <span id="subscriptions-refresh-label">最新化</span>
                   </button>
                 </div>
               </div>
 
               <div class="dashboard-list-header">
-                <h3>登録サービス一覧</h3>
+                <h3 id="subscriptions-list-title">登録サービス一覧</h3>
               </div>
               <ul id="sub-list" class="dashboard-list stack-list"></ul>
             </section>
@@ -465,8 +530,7 @@
               <h3>☁️ クラウド同期（有料）</h3>
               <p class="small">課金ユーザーはサーバー同期が使えます。</p>
               <form id="cloud-auth-form" class="grid-form">
-                <input id="cloud-base-url" type="url" placeholder="APIベースURL (http://localhost:8787)"
-                  value="http://localhost:8787" />
+                <input id="cloud-base-url" type="hidden" value="http://localhost:8787" />
                 <input id="cloud-email" type="email" placeholder="メールアドレス" autocomplete="email" />
                 <div class="secret-row">
                   <input id="cloud-password" type="password" placeholder="パスワード" autocomplete="current-password" />
@@ -483,6 +547,17 @@
                   <button id="cloud-logout-btn" class="ghost" type="button">ログアウト</button>
                 </div>
               </form>
+              <details class="advanced-settings-accordion">
+                <summary>詳細設定</summary>
+                <div class="advanced-settings-content">
+                  <label>
+                    APIベースURL
+                    <input id="cloud-base-url-setting" type="url" placeholder="http://localhost:8787"
+                      value="http://localhost:8787" />
+                    <p class="small">通常は変更不要です。自己ホストや開発用サーバーを使うときだけ設定します。</p>
+                  </label>
+                </div>
+              </details>
               <div class="actions actions-3">
                 <button id="cloud-pull-btn" class="ghost" type="button">同期📥</button>
                 <button id="cloud-push-btn" class="ghost" type="button">送信📤</button>
@@ -522,6 +597,10 @@
               <h3>⚙️ 一般設定</h3>
               <form id="settings-form" class="grid-form">
                 <label>
+                  表示言語
+                  <select id="setting-language"></select>
+                </label>
+                <label>
                   自動ロック (分)
                   <input id="setting-autolock" type="number" min="1" max="120" />
                 </label>
@@ -529,6 +608,34 @@
                   クリップボード自動クリア (秒)
                   <input id="setting-clipboard" type="number" min="0" max="120" />
                 </label>
+                <div class="alert-box alert-danger">
+                  <div class="alert-header">
+                    <span class="alert-icon" aria-hidden="true">⚠️</span>
+                    <strong>高度な保護: パスキー管理をこの拡張に任せる (試験運用中)</strong>
+                  </div>
+                  <label class="checkbox setting-checkbox">
+                    <input id="setting-passkey-proxy" type="checkbox" />
+                    パスキーの登録とログインを、この拡張の保護モードで処理する
+                  </label>
+                  <p class="small setting-help">
+                    オンにすると、ブラウザ標準のパスキー画面の代わりに、この拡張が安全な保存と応答を担当します。まだ試験運用中なので、重要サイトで常用する前に確認をおすすめします。
+                  </p>
+                  <p id="setting-passkey-proxy-status" class="small setting-help status-note"></p>
+                </div>
+                <div class="alert-box alert-info">
+                  <div class="alert-header info">
+                    <span class="alert-icon" aria-hidden="true">🖥️</span>
+                    <strong>推奨: 重要なパスキー操作の前に Desktop app で本人確認する</strong>
+                  </div>
+                  <label class="checkbox setting-checkbox">
+                    <input id="setting-passkey-desktop-approval" type="checkbox" />
+                    パスキーの登録やログイン前に、Desktop app 側で本人確認する
+                  </label>
+                  <p class="small setting-help">
+                    Desktop app が起動中なら、拡張ポップアップではなく Desktop 側で承認します。macOS では Touch ID、Windows では Windows Hello や PIN を優先し、使えない環境では Desktop 確認ダイアログへ自動で切り替えます。
+                  </p>
+                  <p id="setting-passkey-desktop-status" class="small setting-help status-note"></p>
+                </div>
                 <button type="submit" class="btn-primary">保存</button>
               </form>
             </section>
@@ -572,7 +679,7 @@
 
                 <section class="panel-soft">
                   <h3>🪦 デジタル遺言（デッドマンズ・スイッチ）</h3>
-                  <p class="small">一定期間アクセスがない場合、指定した連絡先に通知します。</p>
+                  <p class="small">一定期間アクセスがない場合、このブラウザで通知を出し、連絡先向けのメール作成画面を開きます。自動送信はしません。</p>
                   <form id="deadman-form" class="grid-form">
                     <label class="checkbox">
                       <input id="deadman-enabled" type="checkbox" /> 有効にする

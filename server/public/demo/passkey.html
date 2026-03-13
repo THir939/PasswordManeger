@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="ja">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>WebAuthn Proxy Demo</title>
+  <link rel="stylesheet" href="/demo/demo.css" />
+</head>
+
+<body>
+  <main class="demo-shell">
+    <section class="demo-card">
+      <p class="demo-eyebrow">WebAuthn proxy demo</p>
+      <h1>本物の Passkey 認証フロー検証</h1>
+      <p>
+        `navigator.credentials.create/get` を実際に呼び出し、拡張のソフトウェア認証器が応答できるかを確認します。
+      </p>
+
+      <div class="demo-actions">
+        <button id="register-passkey" type="button">1. Passkey を登録する</button>
+        <button id="authenticate-passkey" type="button">2. Passkey で認証する</button>
+      </div>
+
+      <pre id="passkey-log" class="demo-log">待機中</pre>
+    </section>
+  </main>
+
+  <script>
+    const log = document.querySelector("#passkey-log");
+    let lastCredential = null;
+
+    function toBase64Url(value) {
+      const bytes = value instanceof ArrayBuffer
+        ? new Uint8Array(value)
+        : ArrayBuffer.isView(value)
+          ? new Uint8Array(value.buffer, value.byteOffset, value.byteLength)
+          : new Uint8Array();
+      let binary = "";
+      for (const byte of bytes) {
+        binary += String.fromCharCode(byte);
+      }
+      return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
+    }
+
+    function challengeBytes(label) {
+      return new TextEncoder().encode(`${label}-${Date.now()}`);
+    }
+
+    function writeResult(title, payload) {
+      log.textContent = `${title}\n${JSON.stringify(payload, null, 2)}`;
+    }
+
+    document.querySelector("#register-passkey").addEventListener("click", async () => {
+      try {
+        const credential = await navigator.credentials.create({
+          publicKey: {
+            challenge: challengeBytes("register"),
+            rp: {
+              id: location.hostname,
+              name: "PasswordManeger Demo"
+            },
+            user: {
+              id: challengeBytes("user-handle"),
+              name: "proxy-user@example.com",
+              displayName: "Proxy Demo User"
+            },
+            pubKeyCredParams: [
+              { type: "public-key", alg: -7 }
+            ],
+            authenticatorSelection: {
+              residentKey: "preferred",
+              userVerification: "preferred"
+            },
+            timeout: 60000
+          }
+        });
+
+        lastCredential = credential;
+        writeResult("create 成功", {
+          id: credential.id,
+          rawId: toBase64Url(credential.rawId),
+          type: credential.type,
+          authenticatorAttachment: credential.authenticatorAttachment || ""
+        });
+      } catch (error) {
+        writeResult("create 失敗", { message: error.message, name: error.name });
+      }
+    });
+
+    document.querySelector("#authenticate-passkey").addEventListener("click", async () => {
+      try {
+        const publicKey = {
+          challenge: challengeBytes("authenticate"),
+          rpId: location.hostname,
+          timeout: 60000,
+          userVerification: "preferred"
+        };
+
+        if (lastCredential?.rawId) {
+          publicKey.allowCredentials = [
+            {
+              type: "public-key",
+              id: lastCredential.rawId
+            }
+          ];
+        }
+
+        const assertion = await navigator.credentials.get({ publicKey });
+        writeResult("get 成功", {
+          id: assertion.id,
+          rawId: toBase64Url(assertion.rawId),
+          type: assertion.type,
+          authenticatorAttachment: assertion.authenticatorAttachment || ""
+        });
+      } catch (error) {
+        writeResult("get 失敗", { message: error.message, name: error.name });
+      }
+    });
+  </script>
+</body>
+
+</html>

@@ -1,0 +1,33 @@
+- main [ref=e2]:
+  - generic [ref=e4]:
+    - generic [ref=e5]:
+      - paragraph [ref=e6]: PasswordManeger Platform
+      - heading "PasswordManeger Cloud Billing" [level=1] [ref=e7]
+      - paragraph [ref=e8]: ローカルVaultの安全性はそのままに、同期・契約管理・緊急復旧だけを追加する管理画面です。
+      - paragraph [ref=e9]: Desktop と Extension と同じ青系のブランドに揃え、課金だけ別サービスに見えないようにしています。料金を支払う理由も「ただの制限解除」ではなく、同期・復旧・契約管理の運用価値として説明します。
+    - generic [ref=e10]:
+      - generic [ref=e11]: Local-first vault
+      - generic [ref=e12]: Stripe billing
+      - generic [ref=e13]: Emergency recovery
+  - navigation "画面切り替え" [ref=e14]:
+    - button "認証" [ref=e15] [cursor=pointer]
+    - button "課金" [active] [pressed] [ref=e16] [cursor=pointer]
+    - button "契約状態" [ref=e17] [cursor=pointer]
+    - button "緊急復旧" [ref=e18] [cursor=pointer]
+  - generic [ref=e47]:
+    - heading "課金" [level=2] [ref=e48]
+    - paragraph [ref=e49]: 支払い対象はローカル保管庫そのものではなく、複数端末同期・契約管理・緊急復旧導線です。
+    - generic [ref=e50]:
+      - article [ref=e51]:
+        - heading "同期を有効化" [level=3] [ref=e52]
+        - paragraph [ref=e53]: Desktop と拡張機能の間で暗号化Vaultを push / pull できます。
+      - article [ref=e54]:
+        - heading "契約を一元管理" [level=3] [ref=e55]
+        - paragraph [ref=e56]: Checkout と Billing Portal で支払い開始、更新、解約を同じ導線で完結できます。
+      - article [ref=e57]:
+        - heading "緊急復旧を準備" [level=3] [ref=e58]
+        - paragraph [ref=e59]: 鍵分割や暗号化スナップショットの導線をまとめ、事故時の復旧手順を明確化します。
+    - generic [ref=e60]:
+      - button "課金を開始" [ref=e61] [cursor=pointer]
+      - button "契約管理を開く" [ref=e62] [cursor=pointer]
+      - button "緊急アクセス（暗号化データ取得）" [ref=e63] [cursor=pointer]

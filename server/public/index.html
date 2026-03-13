@@ -7,24 +7,24 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
-      href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,800&family=IBM+Plex+Sans:wght@400;500;700&display=swap"
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap"
       rel="stylesheet"
     />
     <style>
       :root {
-        --bg: #f5f2ea;
-        --bg-soft: #ece5d8;
-        --paper: rgba(255, 255, 255, 0.86);
-        --paper-strong: rgba(255, 255, 255, 0.94);
-        --line: #d8cfbe;
-        --line-strong: #cabda7;
-        --ink: #191817;
-        --muted: #635a4c;
-        --brand: #1e3a5f;
-        --brand-2: #395f8f;
-        --accent: #c76828;
-        --danger: #b33a35;
-        --ok: #0e7c68;
+        --bg: #f6f8fc;
+        --bg-soft: #eef3ff;
+        --paper: rgba(255, 255, 255, 0.84);
+        --paper-strong: rgba(255, 255, 255, 0.96);
+        --line: rgba(59, 130, 246, 0.12);
+        --line-strong: rgba(59, 130, 246, 0.18);
+        --ink: #152033;
+        --muted: #5f6b85;
+        --brand: #3b82f6;
+        --brand-2: #2563eb;
+        --accent: #6366f1;
+        --danger: #b42336;
+        --ok: #0f9d74;
         --space-1: 0.5rem;
         --space-2: 0.75rem;
         --space-3: 1rem;
@@ -44,12 +44,12 @@
 
       body {
         margin: 0;
-        font-family: "IBM Plex Sans", sans-serif;
+        font-family: "Inter", sans-serif;
         color: var(--ink);
         min-height: 100vh;
         background:
-          radial-gradient(1200px 700px at 100% -15%, rgba(83, 127, 179, 0.28), transparent 58%),
-          radial-gradient(900px 500px at -10% 10%, rgba(200, 102, 45, 0.15), transparent 60%),
+          radial-gradient(1100px 720px at 100% -15%, rgba(99, 102, 241, 0.2), transparent 60%),
+          radial-gradient(920px 540px at -10% 10%, rgba(59, 130, 246, 0.18), transparent 60%),
           linear-gradient(160deg, var(--bg) 0%, var(--bg-soft) 100%);
       }
 
@@ -110,7 +110,7 @@
         width: 340px;
         height: 340px;
         border-radius: 50%;
-        background: radial-gradient(circle at 30% 30%, rgba(31, 97, 163, 0.25), transparent 70%);
+        background: radial-gradient(circle at 30% 30%, rgba(99, 102, 241, 0.22), transparent 70%);
         pointer-events: none;
       }
 
@@ -123,9 +123,9 @@
 
       .hero h1 {
         margin: 0.22rem 0 0.45rem;
-        font-family: "Fraunces", serif;
         font-size: clamp(1.9rem, 4.5vw, 3rem);
-        letter-spacing: 0.01em;
+        letter-spacing: -0.04em;
+        line-height: 1.05;
       }
 
       .hero-meta {
@@ -135,11 +135,11 @@
       }
 
       .pill {
-        border: 1px solid rgba(31, 58, 95, 0.2);
-        background: rgba(255, 255, 255, 0.67);
+        border: 1px solid rgba(59, 130, 246, 0.16);
+        background: rgba(255, 255, 255, 0.72);
         border-radius: 999px;
         font-size: 0.78rem;
-        color: #334765;
+        color: #335082;
         padding: 0.3rem 0.62rem;
         font-weight: 600;
       }
@@ -213,7 +213,7 @@
         cursor: pointer;
         font-weight: 700;
         transition: transform 150ms ease, background 150ms ease, box-shadow 150ms ease;
-        box-shadow: 0 6px 14px rgba(30, 58, 95, 0.28);
+        box-shadow: 0 10px 20px rgba(59, 130, 246, 0.22);
       }
 
       button:hover {
@@ -362,6 +362,42 @@
         display: grid;
         gap: 0.82rem;
         grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      }
+
+      .hero-note {
+        margin: 0.9rem 0 0;
+        padding: 0.85rem 1rem;
+        max-width: 40rem;
+        border-radius: 16px;
+        background: rgba(255, 255, 255, 0.72);
+        border: 1px solid rgba(59, 130, 246, 0.12);
+        color: var(--muted);
+        line-height: 1.6;
+      }
+
+      .feature-grid {
+        display: grid;
+        gap: 0.78rem;
+        grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      }
+
+      .feature-card {
+        border: 1px solid var(--line);
+        border-radius: 16px;
+        padding: 0.9rem;
+        background: rgba(255, 255, 255, 0.75);
+      }
+
+      .feature-card h3 {
+        margin: 0 0 0.38rem;
+        font-size: 0.95rem;
+      }
+
+      .feature-card p {
+        margin: 0;
+        color: var(--muted);
+        font-size: 0.84rem;
+        line-height: 1.55;
       }
 
       .account-panel {
@@ -532,14 +568,15 @@
       <section class="hero">
         <div class="hero-grid">
           <div>
-            <p class="kicker">Commercial Edition</p>
+            <p class="kicker">PasswordManeger Platform</p>
             <h1>PasswordManeger Cloud Billing</h1>
-            <p class="sub">サーバー同期は有料プランのみ有効です。ここで登録・課金・契約管理を行います。</p>
+            <p class="sub">ローカルVaultの安全性はそのままに、同期・契約管理・緊急復旧だけを追加する管理画面です。</p>
+            <p class="hero-note">Desktop と Extension と同じ青系のブランドに揃え、課金だけ別サービスに見えないようにしています。料金を支払う理由も「ただの制限解除」ではなく、同期・復旧・契約管理の運用価値として説明します。</p>
           </div>
           <div class="hero-meta">
-            <span class="pill">Entitlement Unified</span>
-            <span class="pill">Stripe Connected</span>
-            <span class="pill">Emergency Recovery</span>
+            <span class="pill">Local-first vault</span>
+            <span class="pill">Stripe billing</span>
+            <span class="pill">Emergency recovery</span>
           </div>
         </div>
       </section>
@@ -594,7 +631,7 @@
             </label>
             <div class="row">
               <button id="login-btn" type="button">ログイン</button>
-              <button id="logout-btn" type="button" class="ghost">ログアウト</button>
+              <button id="logout-btn" type="button" class="ghost" hidden>ログアウト</button>
             </div>
           </article>
         </section>
@@ -603,7 +640,21 @@
       <section class="screen" data-screen="billing">
         <section class="panel">
           <h2>課金</h2>
-          <p class="hint">Stripe Checkoutでサブスク開始し、同期APIの利用権を有効化します。</p>
+          <p class="hint">支払い対象はローカル保管庫そのものではなく、複数端末同期・契約管理・緊急復旧導線です。</p>
+          <div class="feature-grid">
+            <article class="feature-card">
+              <h3>同期を有効化</h3>
+              <p>Desktop と拡張機能の間で暗号化Vaultを push / pull できます。</p>
+            </article>
+            <article class="feature-card">
+              <h3>契約を一元管理</h3>
+              <p>Checkout と Billing Portal で支払い開始、更新、解約を同じ導線で完結できます。</p>
+            </article>
+            <article class="feature-card">
+              <h3>緊急復旧を準備</h3>
+              <p>鍵分割や暗号化スナップショットの導線をまとめ、事故時の復旧手順を明確化します。</p>
+            </article>
+          </div>
           <div class="row">
             <button id="checkout-btn" type="button">課金を開始</button>
             <button id="portal-btn" type="button" class="ghost">契約管理を開く</button>
@@ -644,11 +695,6 @@
               <li class="empty">未ログイン</li>
             </ul>
           </div>
-
-          <details class="raw-details">
-            <summary>生データ（JSON）</summary>
-            <pre id="account-box" class="mono">未ログイン</pre>
-          </details>
         </section>
       </section>
 

@@ -1,7 +1,6 @@
 import { passwordStrength } from "./password-strength.js";
 
 const statusEl = document.querySelector("#status");
-const accountBox = document.querySelector("#account-box");
 const entitlementListEl = document.querySelector("#entitlement-list");
 const summaryEmailEl = document.querySelector("#summary-email");
 const summaryPlanEl = document.querySelector("#summary-plan");
@@ -190,6 +189,13 @@ function bindScreenNavigation() {
   });
 }
 
+function syncAuthButtons() {
+  const isAuthenticated = Boolean(state.token);
+  if (buttons.logout) {
+    buttons.logout.hidden = !isAuthenticated;
+  }
+}
+
 function saveToken(token) {
   state.token = token || "";
   if (state.token) {
@@ -199,6 +205,7 @@ function saveToken(token) {
     sessionStorage.removeItem("pm_cloud_token");
     localStorage.removeItem("pm_cloud_token");
   }
+  syncAuthButtons();
 }
 
 function formatDateTime(value) {
@@ -239,7 +246,6 @@ function sourceLabel(source) {
 
 function renderLoggedOutAccount() {
   state.account = null;
-  accountBox.textContent = "未ログイン";
   summaryEmailEl.textContent = "未ログイン";
   summaryPlanEl.textContent = "inactive";
   summaryPlanEl.classList.remove("plan-active");
@@ -267,7 +273,6 @@ function renderEntitlementList(entitlements = []) {
             <p class="entitlement-source">${escapeHtml(source)} / ${escapeHtml(feature)}</p>
             <span class="entitlement-status ${escapeHtml(status)}">${escapeHtml(status)}</span>
           </div>
-          <p class="entitlement-meta">sourceRef: ${escapeHtml(entitlement.sourceRef || "-")}</p>
           <p class="entitlement-meta">expires: ${escapeHtml(expires)}</p>
         </li>
       `;
@@ -296,7 +301,6 @@ function renderAccount(payload) {
   summaryPeriodEl.textContent = formatDateTime(billing.currentPeriodEnd || user.currentPeriodEnd);
 
   renderEntitlementList(Array.isArray(billing.entitlements) ? billing.entitlements : []);
-  accountBox.textContent = JSON.stringify(payload, null, 2);
 }
 
 async function api(path, options = {}) {
@@ -642,6 +646,7 @@ function recoverFromShares() {
 
 bindPasswordAssistUi();
 bindScreenNavigation();
+syncAuthButtons();
 
 buttons.register.addEventListener("click", () => {
   register().catch((error) => setStatus(error.message, true));

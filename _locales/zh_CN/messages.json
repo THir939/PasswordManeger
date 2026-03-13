@@ -1,0 +1,8 @@
+{
+  "app_name": {
+    "message": "PasswordManeger"
+  },
+  "app_description": {
+    "message": "具有自动填充和安全审计功能的加密密码管理器扩展。"
+  }
+}

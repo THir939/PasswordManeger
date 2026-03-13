@@ -1,0 +1,8 @@
+{
+  "app_name": {
+    "message": "PasswordManeger"
+  },
+  "app_description": {
+    "message": "자동 완성 및 보안 감사가 포함된 암호화된 비밀번호 관리자 확장 프로그램입니다."
+  }
+}

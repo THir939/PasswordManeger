@@ -4,12 +4,12 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>PasswordManeger Options</title>
+  <title>PasswordManeger</title>
   <link rel="stylesheet" href="./options.css" />
-  <script src="./options.js" defer></script>
+  <script type="module" src="./options.js" defer></script>
 </head>
 
-<body>
+<body class="i18n-pending">
   <div class="app-container">
     <header class="top-header">
       <div class="logo-box">
@@ -20,44 +20,50 @@
         </svg>
       </div>
       <div class="header-text">
-        <p class="kicker">PasswordManeger Extension</p>
-        <h1>設定ガイド & ドキュメント</h1>
+        <p class="kicker" data-i18n="options.kicker">PasswordManeger Extension</p>
+        <h1 data-i18n="options.title">設定ガイド & ドキュメント</h1>
+      </div>
+      <div class="header-actions">
+        <label class="language-picker">
+          <span data-i18n="language.label">表示言語</span>
+          <select id="options-language"></select>
+        </label>
       </div>
     </header>
 
     <nav class="ribbon-nav">
-      <button class="ribbon-tab active" data-target="tab-overview">概要 / 構成</button>
-      <button class="ribbon-tab" data-target="tab-features">できること</button>
-      <button class="ribbon-tab" data-target="tab-usage">使い方 (最短)</button>
-      <button class="ribbon-tab" data-target="tab-warnings">注意点 (大事)</button>
-      <button class="ribbon-tab" data-target="tab-trouble">困ったとき</button>
+      <button class="ribbon-tab active" data-target="tab-overview" data-i18n="options.tab.overview">概要 / 構成</button>
+      <button class="ribbon-tab" data-target="tab-features" data-i18n="options.tab.features">できること</button>
+      <button class="ribbon-tab" data-target="tab-usage" data-i18n="options.tab.usage">使い方 (最短)</button>
+      <button class="ribbon-tab" data-target="tab-warnings" data-i18n="options.tab.warnings">注意点 (大事)</button>
+      <button class="ribbon-tab" data-target="tab-trouble" data-i18n="options.tab.trouble">困ったとき</button>
     </nav>
 
     <main class="content-area">
       <!-- 概要 -->
       <section id="tab-overview" class="tab-panel active">
         <div class="glass-card">
-          <h2>拡張機能単体でもパワフルに動作</h2>
-          <p class="sub">
+          <h2 data-i18n="options.overview.title">拡張機能単体でもパワフルに動作</h2>
+          <p class="sub" data-i18n-html="options.overview.subHtml">
             拡張機能だけでも「ローカル保管 + 自動入力 + 診断」までフル活用できます。<br>
             必要に応じて、有料プランでクラウド同期（複数端末連携）も追加可能です。
           </p>
           <div class="hero-meta">
-            <span class="pill">ローカル暗号化 (AES-256-GCM)</span>
-            <span class="pill">リスクベース自動入力</span>
-            <span class="pill">フォーム学習</span>
-            <span class="pill">移行プレビュー</span>
+            <span class="pill" data-i18n="options.overview.pillLocal">ローカル暗号化 (AES-256-GCM)</span>
+            <span class="pill" data-i18n="options.overview.pillRisk">リスクベース自動入力</span>
+            <span class="pill" data-i18n="options.overview.pillLearning">フォーム学習</span>
+            <span class="pill" data-i18n="options.overview.pillMigration">移行プレビュー</span>
           </div>
 
           <div class="divider"></div>
 
-          <h3>拡張機能だけでも使える？</h3>
-          <p class="hint">
+          <h3 data-i18n="options.overview.canUseTitle">拡張機能だけでも使える？</h3>
+          <p class="hint" data-i18n="options.overview.canUseHint">
             使えます。拡張機能は単体で完結します（ローカルVault運用）。ただし「複数端末の同期」だけは、サーバー（有料）を前提にしています。
           </p>
           <ul class="feature-list">
-            <li><strong>拡張機能だけでできる:</strong> 保存 / 自動入力 / バックアップ / 移行 / セキュリティ診断</li>
-            <li><strong>サーバーが必要:</strong> 課金 / クラウド同期 / 緊急アクセス（暗号化データ回収）</li>
+            <li data-i18n-html="options.overview.localOnly"><strong>拡張機能だけでできる:</strong> 保存 / 自動入力 / バックアップ / 移行 / セキュリティ診断</li>
+            <li data-i18n-html="options.overview.serverRequired"><strong>サーバーが必要:</strong> 課金 / クラウド同期 / 緊急アクセス（暗号化データ回収）</li>
           </ul>
         </div>
       </section>
@@ -65,17 +71,17 @@
       <!-- できること -->
       <section id="tab-features" class="tab-panel">
         <div class="glass-card">
-          <h2>この拡張機能でできること</h2>
+          <h2 data-i18n="options.features.title">この拡張機能でできること</h2>
           <ul class="feature-list rich">
-            <li>ローカル暗号化されたVaultに、ログイン / カード / 個人情報 / ノートを安全に保存</li>
-            <li>現在開いているアクティブサイト向けの候補を自動表示してワンクリック自動入力</li>
-            <li>リスクベース自動入力（怪しいドメインやHTTPSではない場合は警告またはブロック）</li>
-            <li>サイト別フォーム学習（自動入力の失敗を手動修正すると学習し、次回から成功率が上がります。誤学習のリセットも可能）</li>
-            <li>フォーム送信内容から新規ログインを検出し、保存候補としてポップアップで提案</li>
-            <li>ローカルセキュリティ診断 + 改善優先度（使い回し、弱いパスワードなど）つきコーチ付き</li>
-            <li>他サービスからの移行（1Password / Bitwarden / LastPass / 汎用CSV/JSON対応）と差分プレビュー機能</li>
-            <li>暗号化JSONバックアップによる手動エクスポート / インポート</li>
-            <li>クラウド同期（有料）: サーバーに最新の暗号化状態をスナップショットとして保存し、シームレスに複数端末と同期</li>
+            <li data-i18n="options.features.item1">ローカル暗号化されたVaultに、ログイン / カード / 個人情報 / ノートを安全に保存</li>
+            <li data-i18n="options.features.item2">現在開いているアクティブサイト向けの候補を自動表示してワンクリック自動入力</li>
+            <li data-i18n="options.features.item3">リスクベース自動入力（怪しいドメインやHTTPSではない場合は警告またはブロック）</li>
+            <li data-i18n="options.features.item4">サイト別フォーム学習（自動入力の失敗を手動修正すると学習し、次回から成功率が上がります。誤学習のリセットも可能）</li>
+            <li data-i18n="options.features.item5">フォーム送信内容から新規ログインを検出し、保存候補としてポップアップで提案</li>
+            <li data-i18n="options.features.item6">ローカルセキュリティ診断 + 改善優先度（使い回し、弱いパスワードなど）つきコーチ付き</li>
+            <li data-i18n="options.features.item7">他サービスからの移行（1Password / Bitwarden / LastPass / 汎用CSV/JSON対応）と差分プレビュー機能</li>
+            <li data-i18n="options.features.item8">暗号化JSONバックアップによる手動エクスポート / インポート</li>
+            <li data-i18n="options.features.item9">クラウド同期（有料）: サーバーに最新の暗号化状態をスナップショットとして保存し、シームレスに複数端末と同期</li>
           </ul>
         </div>
       </section>
@@ -83,20 +89,20 @@
       <!-- 使い方 -->
       <section id="tab-usage" class="tab-panel">
         <div class="glass-card">
-          <h2>使い方（最短スタートガイド）</h2>
+          <h2 data-i18n="options.usage.title">使い方（最短スタートガイド）</h2>
           <ol class="step-list">
             <li>
               <div class="step-num">1</div>
-              <div class="step-text"><strong>Vaultを作成</strong><br>ツールバーの拡張機能アイコンをクリックし、マスターパスワードを設定してVault（金庫）を作成します。
+              <div class="step-text"><strong data-i18n="options.usage.step1Title">Vaultを作成</strong><br><span data-i18n="options.usage.step1Body">ツールバーの拡張機能アイコンをクリックし、マスターパスワードを設定してVault（金庫）を作成します。</span>
               </div>
             </li>
             <li>
               <div class="step-num">2</div>
-              <div class="step-text"><strong>ログイン項目を保存</strong><br>「+ アイテム追加」からログイン情報（URL、ユーザー、パスワード）を登録します。</div>
+              <div class="step-text"><strong data-i18n="options.usage.step2Title">ログイン項目を保存</strong><br><span data-i18n="options.usage.step2Body">「+ アイテム追加」からログイン情報（URL、ユーザー、パスワード）を登録します。</span></div>
             </li>
             <li>
               <div class="step-num">3</div>
-              <div class="step-text"><strong>ページで自動入力</strong><br>保存したURLのログインページを開き、拡張機能の「このサイト向け候補」から自動入力を実行します。</div>
+              <div class="step-text"><strong data-i18n="options.usage.step3Title">ページで自動入力</strong><br><span data-i18n="options.usage.step3Body">保存したURLのログインページを開き、拡張機能の「このサイト向け候補」から自動入力を実行します。</span></div>
             </li>
           </ol>
         </div>
@@ -105,12 +111,12 @@
       <!-- 注意点 -->
       <section id="tab-warnings" class="tab-panel">
         <div class="glass-card danger-card">
-          <h2>⚠️ 注意点（必ずお読みください）</h2>
+          <h2 data-i18n="options.warnings.title">⚠️ 注意点（必ずお読みください）</h2>
           <ul class="feature-list">
-            <li><strong>マスターパスワードの紛失:</strong> 忘れるとデータを復元・復号することは一切できません。必ず安全な場所に記憶・記録してください。</li>
-            <li><strong>クラウド同期の制限:</strong> 「有料ユーザーのみ」利用可能です。サーバー側でStripeの利用権ステータスを毎回検証します。</li>
-            <li><strong>自動入力の精度:</strong> サイトごとのDOM（HTML構造）差分により、自動入力がうまく機能しないことがあります。</li>
-            <li><strong>フォーム学習の限界:</strong> 自動学習が誤る場合があります。違和感があれば設定から「リセット」を行ってください。</li>
+            <li data-i18n-html="options.warnings.item1"><strong>マスターパスワードの紛失:</strong> 忘れるとデータを復元・復号することは一切できません。必ず安全な場所に記憶・記録してください。</li>
+            <li data-i18n-html="options.warnings.item2"><strong>クラウド同期の制限:</strong> 「有料ユーザーのみ」利用可能です。サーバー側でStripeの利用権ステータスを毎回検証します。</li>
+            <li data-i18n-html="options.warnings.item3"><strong>自動入力の精度:</strong> サイトごとのDOM（HTML構造）差分により、自動入力がうまく機能しないことがあります。</li>
+            <li data-i18n-html="options.warnings.item4"><strong>フォーム学習の限界:</strong> 自動学習が誤る場合があります。違和感があれば設定から「リセット」を行ってください。</li>
           </ul>
         </div>
       </section>
@@ -118,22 +124,43 @@
       <!-- 困ったとき -->
       <section id="tab-trouble" class="tab-panel">
         <div class="glass-card">
-          <h2>よくあるトラブルシューティング</h2>
+          <h2 data-i18n="options.trouble.title">よくあるトラブルシューティング</h2>
+          <div class="learning-tools">
+            <div>
+              <h3 data-i18n="options.learning.title">フォーム学習のリセット</h3>
+              <p class="hint" data-i18n="options.learning.description">
+                ここでは、拡張機能が覚えた自動入力の学習結果を確認して、不要なものだけ削除できます。
+                「設定からリセットできる」と案内している機能を、実際にこの画面から使えるようにしています。
+              </p>
+            </div>
+            <div class="learning-actions">
+              <button id="learning-refresh-btn" type="button" class="secondary-btn" data-i18n="common.refresh">一覧を更新</button>
+              <button id="learning-reset-all-btn" type="button" class="danger-btn" data-i18n="options.learning.resetAll">全サイトの学習をリセット</button>
+            </div>
+            <p id="learning-status" class="learning-status" role="status" aria-live="polite" data-i18n="options.learning.openAsOptions">
+              拡張機能の Options 画面として開くと、学習一覧を表示できます。
+            </p>
+            <div id="learning-empty" class="learning-empty" data-i18n="options.learning.emptyHelp">
+              学習データはまだありません。自動入力を手動修正してログインすると、ここに履歴が出ます。
+            </div>
+            <ul id="learning-list" class="learning-list" hidden></ul>
+          </div>
+
           <div class="trouble-item">
-            <h4>Q. 候補が出ない（自動入力タブが空になる）</h4>
-            <p>保存したログイン項目に「URL」が正しく入力されているか確認してください。<br>（例: <code>https://example.com/login</code>）</p>
+            <h4 data-i18n="options.trouble.q1title">Q. 候補が出ない（自動入力タブが空になる）</h4>
+            <p data-i18n-html="options.trouble.q1bodyHtml">保存したログイン項目に「URL」が正しく入力されているか確認してください。<br>（例: <code>https://example.com/login</code>）</p>
           </div>
           <div class="trouble-item">
-            <h4>Q. 自動入力先のフィールドがずれる</h4>
-            <p>一度「手動」で正しいフィールドに情報をコピー＆ペースト入力してログインしてください。パスワードマネージャーがそれを学習し、次回から修正されます。</p>
+            <h4 data-i18n="options.trouble.q2title">Q. 自動入力先のフィールドがずれる</h4>
+            <p data-i18n="options.trouble.q2body">一度「手動」で正しいフィールドに情報をコピー＆ペースト入力してログインしてください。パスワードマネージャーがそれを学習し、次回から修正されます。</p>
           </div>
           <div class="trouble-item">
-            <h4>Q. 学習が壊れて何度やっても失敗する</h4>
-            <p>拡張機能設定から「このサイトの学習をリセット」または「全サイトの学習をリセット」を実行してください。</p>
+            <h4 data-i18n="options.trouble.q3title">Q. 学習が壊れて何度やっても失敗する</h4>
+            <p data-i18n="options.trouble.q3body">拡張機能設定から「このサイトの学習をリセット」または「全サイトの学習をリセット」を実行してください。</p>
           </div>
           <div class="trouble-item">
-            <h4>Q. クラウド同期ができない / エラーになる</h4>
-            <p>有料プランが有効か、同期ベースURLが正しいか、クラウドタブで「ログイン完了」状態になっているかを確認してください。</p>
+            <h4 data-i18n="options.trouble.q4title">Q. クラウド同期ができない / エラーになる</h4>
+            <p data-i18n="options.trouble.q4body">有料プランが有効か、同期ベースURLが正しいか、クラウドタブで「ログイン完了」状態になっているかを確認してください。</p>
           </div>
         </div>
       </section>

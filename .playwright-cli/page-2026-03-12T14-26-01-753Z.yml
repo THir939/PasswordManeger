@@ -1,0 +1,44 @@
+- main [ref=e2]:
+  - generic [ref=e4]:
+    - generic [ref=e5]:
+      - paragraph [ref=e6]: PasswordManeger Platform
+      - heading "PasswordManeger Cloud Billing" [level=1] [ref=e7]
+      - paragraph [ref=e8]: ローカルVaultの安全性はそのままに、同期・契約管理・緊急復旧だけを追加する管理画面です。
+      - paragraph [ref=e9]: Desktop と Extension と同じ青系のブランドに揃え、課金だけ別サービスに見えないようにしています。料金を支払う理由も「ただの制限解除」ではなく、同期・復旧・契約管理の運用価値として説明します。
+    - generic [ref=e10]:
+      - generic [ref=e11]: Local-first vault
+      - generic [ref=e12]: Stripe billing
+      - generic [ref=e13]: Emergency recovery
+  - status [ref=e49]: メールまたはパスワードが正しくありません。
+  - navigation "画面切り替え" [ref=e14]:
+    - button "認証" [pressed] [ref=e15] [cursor=pointer]
+    - button "課金" [ref=e16] [cursor=pointer]
+    - button "契約状態" [ref=e17] [cursor=pointer]
+    - button "緊急復旧" [ref=e18] [cursor=pointer]
+  - generic [ref=e20]:
+    - article [ref=e21]:
+      - heading "新規登録" [level=2] [ref=e22]
+      - generic [ref=e23]:
+        - text: メール
+        - textbox "メール" [ref=e24]
+      - generic [ref=e25]:
+        - text: パスワード（10文字以上）
+        - generic [ref=e26]:
+          - 'textbox "パスワード（10文字以上） パスワードを表示 強度: 未入力" [ref=e27]'
+          - button "パスワードを表示" [ref=e28] [cursor=pointer]: 表示
+        - paragraph [ref=e31]: "強度: 未入力"
+      - button "アカウント作成" [ref=e32] [cursor=pointer]
+    - article [ref=e33]:
+      - heading "ログイン" [level=2] [ref=e34]
+      - generic [ref=e35]:
+        - text: メール
+        - textbox "メール" [ref=e36]
+      - generic [ref=e37]:
+        - text: パスワード
+        - generic [ref=e38]:
+          - 'textbox "パスワード パスワードを表示 強度: 弱い (53/100) / 英大文字・英小文字・数字・記号を混ぜると推測されにくくなります。" [ref=e47]': qa-ui@example.comqa-password-12345
+          - button "パスワードを表示" [ref=e40] [cursor=pointer]: 表示
+        - paragraph [ref=e43]: "強度: 弱い (53/100) / 英大文字・英小文字・数字・記号を混ぜると推測されにくくなります。"
+      - generic [ref=e44]:
+        - button "ログイン" [active] [ref=e45] [cursor=pointer]
+        - button "ログアウト" [ref=e46] [cursor=pointer]

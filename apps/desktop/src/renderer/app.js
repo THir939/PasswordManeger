@@ -1,4 +1,5 @@
-import { passwordStrength } from "@pm/core/password";
+import { passwordStrength } from "../../../../packages/core/src/password.js";
+import { shortenCredentialId } from "../../../../packages/core/src/passkey.js";
 
 const bridge = window.pmDesktop || null;
 
@@ -25,6 +26,7 @@ const elements = {
   importInput: document.querySelector("#import-input"),
 
   platformBox: document.querySelector("#platform-box"),
+  desktopBridgeStatus: document.querySelector("#desktop-bridge-status"),
   openExtensionButton: document.querySelector("#open-extension-btn"),
   openBillingButton: document.querySelector("#open-billing-btn"),
   openEmergencyButton: document.querySelector("#open-emergency-btn"),
@@ -61,6 +63,12 @@ const elements = {
   itemPasswordStrength: document.querySelector("#item-password-strength"),
   itemUrl: document.querySelector("#item-url"),
   itemOtp: document.querySelector("#item-otp"),
+  itemPasskeyRpId: document.querySelector("#item-passkey-rpid"),
+  itemPasskeyCredentialId: document.querySelector("#item-passkey-credential-id"),
+  itemPasskeyDisplayName: document.querySelector("#item-passkey-display-name"),
+  itemPasskeyUserHandle: document.querySelector("#item-passkey-user-handle"),
+  itemPasskeyAttachment: document.querySelector("#item-passkey-attachment"),
+  itemPasskeyTransports: document.querySelector("#item-passkey-transports"),
   itemFullName: document.querySelector("#item-fullname"),
   itemEmail: document.querySelector("#item-email"),
   itemPhone: document.querySelector("#item-phone"),
@@ -128,6 +136,9 @@ const state = {
   itemTagList: []
 };
 
+window.__pmDesktopRendererReady = false;
+window.__pmDesktopBootstrapState = "loading";
+
 function setStatus(message = "", isError = false) {
   elements.status.textContent = message;
   const hasMessage = Boolean(message);
@@ -145,12 +156,43 @@ function setView(viewName) {
   if (viewName === "main") elements.mainView.classList.remove("hidden");
 }
 
+function setBootstrapState(value) {
+  window.__pmDesktopRendererReady = true;
+  window.__pmDesktopBootstrapState = value;
+}
+
 function strengthLabel(complexity) {
   if (complexity === "very-strong") return "非常に強い";
   if (complexity === "strong") return "強い";
   if (complexity === "fair") return "標準";
   if (complexity === "weak") return "弱い";
   return "非常に弱い";
+}
+
+function approvalMethodLabel(value) {
+  const method = String(value || "").toLowerCase();
+  if (method === "touchid") return "Touch ID";
+  if (method === "windows-hello" || method === "windows-hello-hwnd") return "Windows Hello";
+  if (method === "desktop-dialog") return "Desktop確認";
+  if (method === "extension-popup") return "拡張ポップアップ";
+  if (method === "mock-approve") return "Desktop自動承認(テスト)";
+  if (method === "mock-reject") return "Desktop自動拒否(テスト)";
+  return method ? method : "";
+}
+
+function paintMutedStatus(element, message, tone = "neutral") {
+  if (!element) {
+    return;
+  }
+  element.textContent = message;
+  element.classList.remove("is-online", "is-offline", "is-warning");
+  if (tone === "online") {
+    element.classList.add("is-online");
+  } else if (tone === "offline") {
+    element.classList.add("is-offline");
+  } else if (tone === "warning") {
+    element.classList.add("is-warning");
+  }
 }
 
 function paintStrength(meterElement, password, minLength = 0) {
@@ -313,6 +355,42 @@ function showEmpty(target, message) {
   target.innerHTML = `<li class="empty">${escapeHtml(message)}</li>`;
 }
 
+function hasActiveItemFilters() {
+  return Boolean(
+    elements.searchInput.value ||
+    elements.filterType.value !== "all" ||
+    elements.onlyFavorite.checked ||
+    state.selectedTagFilters.length ||
+    state.selectedFolder
+  );
+}
+
+function buildVaultEmptyState() {
+  return `
+    <li class="empty empty-state-card">
+      <div class="empty-state-icon" aria-hidden="true">🔐</div>
+      <div class="empty-state-copy">
+        <p class="empty-state-eyebrow">Vault onboarding</p>
+        <h3>まだ保存項目がありません</h3>
+        <p class="empty-state-text">
+          最初のログインを追加するか、1Password / Bitwarden からまとめて移行するとすぐ使い始められます。
+        </p>
+      </div>
+      <div class="empty-state-actions">
+        <button type="button" class="empty-state-btn" data-empty-action="new-login">最初のログインを追加</button>
+        <button type="button" class="empty-state-btn ghost" data-empty-action="new-passkey">Passkeyを手動登録</button>
+        <button type="button" class="empty-state-btn ghost" data-empty-action="import">他サービスから移行</button>
+        <button type="button" class="empty-state-btn ghost" data-empty-action="extension">拡張機能を開く</button>
+      </div>
+      <ul class="empty-state-list">
+        <li>ローカル暗号化: マスターパスワードは端末外へ送信しません。</li>
+        <li>入力支援: 拡張機能を読み込むと保存候補検出と自動入力が使えます。</li>
+        <li>同期は任意: 課金後にクラウド同期を追加できます。</li>
+      </ul>
+    </li>
+  `;
+}
+
 function buildMigrationPreviewText(preview) {
   if (!preview) {
     return "差分プレビュー未実行";
@@ -368,7 +446,7 @@ function currentFilters() {
 
 function updateTypeVisibility() {
   const type = elements.itemType.value;
-  const blocks = elements.itemForm.querySelectorAll(".type-login, .type-card, .type-identity, .type-note");
+  const blocks = elements.itemForm.querySelectorAll(".type-login, .type-card, .type-identity, .type-note, .type-passkey");
 
   blocks.forEach((block) => {
     const allowedTypes = [...block.classList]
@@ -379,6 +457,7 @@ function updateTypeVisibility() {
   });
 
   elements.itemPassword.required = type === "login";
+  elements.itemTitle.required = type !== "passkey";
 }
 
 function clearItemForm() {
@@ -389,6 +468,12 @@ function clearItemForm() {
   elements.itemPassword.value = "";
   elements.itemUrl.value = "";
   elements.itemOtp.value = "";
+  elements.itemPasskeyRpId.value = "";
+  elements.itemPasskeyCredentialId.value = "";
+  elements.itemPasskeyDisplayName.value = "";
+  elements.itemPasskeyUserHandle.value = "";
+  elements.itemPasskeyAttachment.value = "";
+  elements.itemPasskeyTransports.value = "";
   elements.itemFullName.value = "";
   elements.itemEmail.value = "";
   elements.itemPhone.value = "";
@@ -413,9 +498,16 @@ function clearItemForm() {
 
 function itemToMeta(item) {
   const lines = [];
+  const passkey = item.passkey || {};
 
   if (item.username) lines.push(item.username);
   if (item.url) lines.push(item.url);
+  if (item.type === "passkey" && passkey.rpId) lines.push(`RP ID: ${passkey.rpId}`);
+  if (item.type === "passkey" && passkey.credentialId) lines.push(`Credential: ${shortenCredentialId(passkey.credentialId)}`);
+  if (item.type === "passkey" && passkey.proxyProvider === "software") lines.push("方式: 拡張内ソフトウェア認証器");
+  if (item.type === "passkey" && passkey.approvalMethod) lines.push(`承認: ${approvalMethodLabel(passkey.approvalMethod)}`);
+  if (item.type === "passkey" && Number(passkey.signCount || 0) > 0) lines.push(`署名回数: ${passkey.signCount}`);
+  if (item.type === "passkey" && passkey.lastUsedAt) lines.push(`最終利用: ${new Date(passkey.lastUsedAt).toLocaleString()}`);
   if (item.tags?.length) lines.push(`タグ: ${item.tags.join(", ")}`);
   if (item.type === "card" && item.cardNumber) lines.push(`カード末尾: ${item.cardNumber.slice(-4)}`);
   if (item.type === "identity" && item.email) lines.push(item.email);
@@ -434,12 +526,14 @@ function renderItems(items) {
 
   const typeIcons = {
     login: "🔑",
+    passkey: "🗝️",
     card: "💳",
     identity: "👤",
     note: "📝"
   };
   const typeClass = {
     login: "login",
+    passkey: "login",
     card: "card-type",
     identity: "identity",
     note: "note"
@@ -456,21 +550,30 @@ function renderItems(items) {
       const detailLines = itemToMeta(item).split("\n").filter(Boolean);
       const primaryMeta = detailLines[0] || item.type;
       const secondaryMeta = detailLines.slice(1, 3).join(" / ");
+      const typeBadge = item.type === "passkey" ? '<span class="item-kind-badge passkey">Passkey</span>' : "";
+      const mainActionButtons = item.type === "passkey"
+        ? `
+            <button type="button" data-action="copy-user" data-id="${escapeHtml(item.id)}" class="ghost">IDコピー</button>
+            <button type="button" data-action="copy-credential" data-id="${escapeHtml(item.id)}" class="ghost">CID</button>
+          `
+        : `
+            <button type="button" data-action="copy-user" data-id="${escapeHtml(item.id)}" class="ghost">IDコピー</button>
+            <button type="button" data-action="copy-pass" data-id="${escapeHtml(item.id)}" class="ghost">PWコピー</button>
+            ${otpButton}
+          `;
 
       return `
         <li class="card">
           <div class="card-head">
             <div class="card-icon ${cls}">${icon}</div>
             <div class="card-info">
-              <p class="card-title">${escapeHtml(item.title)}${favStar}</p>
+              <p class="card-title">${escapeHtml(item.title)}${favStar}${typeBadge}</p>
               <p class="meta meta-primary">${escapeHtml(primaryMeta)}</p>
               ${secondaryMeta ? `<p class="meta meta-secondary">${escapeHtml(secondaryMeta)}</p>` : ""}
             </div>
           </div>
           <div class="card-actions">
-            <button type="button" data-action="copy-user" data-id="${escapeHtml(item.id)}" class="ghost">IDコピー</button>
-            <button type="button" data-action="copy-pass" data-id="${escapeHtml(item.id)}" class="ghost">PWコピー</button>
-            ${otpButton}
+            ${mainActionButtons}
             <button type="button" data-action="edit" data-id="${escapeHtml(item.id)}" class="ghost">編集</button>
             <button type="button" data-action="delete" data-id="${escapeHtml(item.id)}" class="ghost danger">削除</button>
           </div>
@@ -482,7 +585,15 @@ function renderItems(items) {
 
 async function loadItems() {
   const response = await callService("listItems", { filters: currentFilters() });
-  renderItems(response.items || []);
+  const items = response.items || [];
+
+  if (!items.length && !hasActiveItemFilters()) {
+    state.currentItems = [];
+    elements.itemList.innerHTML = buildVaultEmptyState();
+    return;
+  }
+
+  renderItems(items);
 }
 
 async function loadTags() {
@@ -507,6 +618,7 @@ function buildReportText(report) {
   const lines = [];
   lines.push(`総合スコア: ${report.score} / 100`);
   lines.push(`ログイン件数: ${report.totals.allLogins}`);
+  lines.push(`Passkey件数: ${report.totals.passkeys || 0}`);
   lines.push(`弱いパスワード: ${report.totals.weak}`);
   lines.push(`古いパスワード: ${report.totals.old}`);
   lines.push(`再利用グループ: ${report.totals.reusedGroups}`);
@@ -595,8 +707,24 @@ async function loadPlatformInfo() {
     `OS: ${info.platform}`,
     `拡張機能フォルダ: ${info.extensionPath}`,
     `Webポータル: ${info.webBaseUrl}`,
+    info.desktopPasskeyBridgeUrl ? `Desktop承認URL: ${info.desktopPasskeyBridgeUrl}` : "Desktop承認URL: 起動していません",
+    info.platform === "win32" ? `Windows Hello: ${info.desktopWindowsHelloAvailable ? "利用可能" : (info.desktopWindowsHelloAvailability || "未設定")}` : "",
     "補足: Chrome/Edgeの拡張機能画面からこのフォルダを読み込むと自動入力が使えます。"
-  ].join("\n");
+  ].filter(Boolean).join("\n");
+
+  if (elements.desktopBridgeStatus) {
+    if (!info.desktopPasskeyBridgeActive) {
+      paintMutedStatus(elements.desktopBridgeStatus, "○ Desktop 承認ブリッジは停止しています。", "offline");
+    } else if (info.desktopPasskeyApprovalMode === "touchid") {
+      paintMutedStatus(elements.desktopBridgeStatus, "● Desktop app は Touch ID 承認待ち受け中です。", "online");
+    } else if (info.desktopPasskeyApprovalMode === "windows-hello") {
+      paintMutedStatus(elements.desktopBridgeStatus, "● Desktop app は Windows Hello / PIN 承認待ち受け中です。", "online");
+    } else if (info.desktopPasskeyApprovalMode === "desktop-dialog") {
+      paintMutedStatus(elements.desktopBridgeStatus, "● Desktop app は確認ダイアログ承認待ち受け中です。", "online");
+    } else {
+      paintMutedStatus(elements.desktopBridgeStatus, `● Desktop app は ${approvalMethodLabel(info.desktopPasskeyApprovalMode) || "Desktop承認"} で待ち受け中です。`, "warning");
+    }
+  }
 }
 
 function editItem(item) {
@@ -607,6 +735,12 @@ function editItem(item) {
   elements.itemPassword.value = item.password || "";
   elements.itemUrl.value = item.url || "";
   elements.itemOtp.value = item.otpSecret || "";
+  elements.itemPasskeyRpId.value = item.passkey?.rpId || "";
+  elements.itemPasskeyCredentialId.value = item.passkey?.credentialId || "";
+  elements.itemPasskeyDisplayName.value = item.passkey?.userDisplayName || "";
+  elements.itemPasskeyUserHandle.value = item.passkey?.userHandle || "";
+  elements.itemPasskeyAttachment.value = item.passkey?.authenticatorAttachment || "";
+  elements.itemPasskeyTransports.value = Array.isArray(item.passkey?.transports) ? item.passkey.transports.join(", ") : "";
   elements.itemFullName.value = item.fullName || "";
   elements.itemEmail.value = item.email || "";
   elements.itemPhone.value = item.phone || "";
@@ -667,6 +801,14 @@ function buildItemFromForm() {
     password: elements.itemPassword.value,
     url: elements.itemUrl.value,
     otpSecret: elements.itemOtp.value,
+    passkey: {
+      rpId: elements.itemPasskeyRpId.value,
+      credentialId: elements.itemPasskeyCredentialId.value,
+      userDisplayName: elements.itemPasskeyDisplayName.value,
+      userHandle: elements.itemPasskeyUserHandle.value,
+      authenticatorAttachment: elements.itemPasskeyAttachment.value,
+      transports: elements.itemPasskeyTransports.value.split(",").map((entry) => entry.trim()).filter(Boolean)
+    },
     fullName: elements.itemFullName.value,
     email: elements.itemEmail.value,
     phone: elements.itemPhone.value,
@@ -784,6 +926,7 @@ function bindEvents() {
     try {
       await callService("setupVault", { masterPassword: password });
       setView("main");
+      setBootstrapState("main");
       elements.setupForm.reset();
       refreshPasswordStrengthUi();
       await refreshMainScreen();
@@ -801,6 +944,7 @@ function bindEvents() {
     try {
       await callService("unlockVault", { masterPassword: elements.unlockPassword.value });
       setView("main");
+      setBootstrapState("main");
       elements.unlockForm.reset();
       refreshPasswordStrengthUi();
       await refreshMainScreen();
@@ -814,6 +958,7 @@ function bindEvents() {
   elements.lockButton.addEventListener("click", async () => {
     await callService("lockVault");
     setView("unlock");
+    setBootstrapState("unlock");
     clearItemForm();
     setStatus("Vaultをロックしました。", false);
   });
@@ -843,6 +988,7 @@ function bindEvents() {
       const envelope = JSON.parse(content);
       await callService("importBackup", { envelope });
       setView("unlock");
+      setBootstrapState("unlock");
       setStatus("バックアップを復元しました。解錠してください。", false);
     } catch (error) {
       setStatus(`復元に失敗: ${error.message}`, true);
@@ -949,6 +1095,7 @@ function bindEvents() {
 
       if (response.pulled) {
         setView("unlock");
+        setBootstrapState("unlock");
         setStatus("クラウドデータを取得しました。安全のため再解錠してください。", false);
       } else {
         setStatus("クラウド側に同期データがありません。", false);
@@ -1030,6 +1177,45 @@ function bindEvents() {
       return;
     }
 
+    const emptyAction = target.dataset.emptyAction;
+    if (emptyAction) {
+      try {
+        if (emptyAction === "new-login") {
+          switchTab("add-edit");
+          clearItemForm();
+          elements.itemTitle.focus();
+          setStatus("最初のログイン項目を追加できます。", false);
+          return;
+        }
+
+        if (emptyAction === "new-passkey") {
+          switchTab("add-edit");
+          clearItemForm();
+          elements.itemType.value = "passkey";
+          updateTypeVisibility();
+          elements.itemPasskeyRpId.focus();
+          setStatus("Passkey の RP ID と Credential ID を分かる範囲で保存できます。通常はブラウザ利用時の自動検出が最も簡単です。", false);
+          return;
+        }
+
+        if (emptyAction === "import") {
+          switchTab("migrate");
+          elements.migrationFile.focus();
+          setStatus("移行ファイルを選ぶと差分プレビューできます。", false);
+          return;
+        }
+
+        if (emptyAction === "extension") {
+          await openPath(state.platformInfo?.extensionPath || "");
+          setStatus("拡張機能フォルダを開きました。", false);
+          return;
+        }
+      } catch (error) {
+        setStatus(error.message, true);
+      }
+      return;
+    }
+
     const action = target.dataset.action;
     const id = target.dataset.id;
     if (!action || !id) {
@@ -1045,19 +1231,31 @@ function bindEvents() {
       }
 
       if (action === "delete") {
+        if (item?.type === "passkey") {
+          const confirmed = window.confirm("このPasskeyメタデータを削除します。対応サイトで再登録が必要になる場合があります。続行しますか？");
+          if (!confirmed) {
+            setStatus("Passkey削除を中止しました。", false);
+            return;
+          }
+        }
         await callService("deleteItem", { id });
         await Promise.all([loadItems(), loadSecurityReport()]);
         setStatus("項目を削除しました。", false);
         return;
       }
 
-      if (action === "copy-user" && item?.username) {
-        await copyWithAutoClear(item.username);
+      if (action === "copy-user" && item) {
+        await copyWithAutoClear(item.username || item?.passkey?.userDisplayName || item?.passkey?.credentialId || "");
         return;
       }
 
       if (action === "copy-pass" && item?.password) {
         await copyWithAutoClear(item.password);
+        return;
+      }
+
+      if (action === "copy-credential" && item?.passkey?.credentialId) {
+        await copyWithAutoClear(item.passkey.credentialId);
         return;
       }
 
@@ -1463,6 +1661,7 @@ async function bootstrap() {
 
   if (!bridge) {
     setView("setup");
+    setBootstrapState("bridge-missing");
     setStatus("Desktop連携が見つかりません。ブラウザではなく Desktop アプリとして起動してください。", true);
     return;
   }
@@ -1472,21 +1671,25 @@ async function bootstrap() {
 
     if (!response.initialized) {
       setView("setup");
+      setBootstrapState("setup");
       setStatus("まずVaultを作成してください。", false);
       return;
     }
 
     if (!response.unlocked) {
       setView("unlock");
+      setBootstrapState("unlock");
       setStatus("Vaultはロック中です。", false);
       return;
     }
 
     setView("main");
     await refreshMainScreen();
+    setBootstrapState("main");
     setStatus("Vaultを読み込みました。", false);
   } catch (error) {
     setView("setup");
+    setBootstrapState("error");
     setStatus(error.message, true);
   }
 }

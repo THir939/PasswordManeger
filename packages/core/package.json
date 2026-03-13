@@ -13,7 +13,8 @@
         "./audit-log": "./src/audit-log.js",
         "./cloud-url": "./src/cloud-url.js",
         "./email-alias": "./src/email-alias.js",
-        "./autofill-risk": "./src/autofill-risk.js"
+        "./autofill-risk": "./src/autofill-risk.js",
+        "./passkey": "./src/passkey.js"
     },
     "main": "./src/index.js"
 }

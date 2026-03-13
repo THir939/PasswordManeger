@@ -7,10 +7,26 @@ import { parseExternalItems } from "@pm/core/migration";
 import { buildAutofillRisk } from "@pm/core/autofill-risk";
 import { validateCloudBaseUrl } from "@pm/core/cloud-url";
 import {
+  normalizePasskeyRecord,
+  buildPasskeyFingerprint,
+  shortenCredentialId
+} from "@pm/core/passkey";
+import {
   FEATURE_CLOUD_SYNC,
   mapStripeStatusToEntitlementStatus,
   summarizeFeatureAccess
 } from "../server/src/entitlements.js";
+import {
+  DESKTOP_PASSKEY_BRIDGE_BASE_URL,
+  getDesktopPasskeyBridgeStatus,
+  requestDesktopPasskeyApproval
+} from "../src/lib/desktop-passkey-client.js";
+import { PasskeyApprovalBridge } from "../apps/desktop/src/passkey-approval-bridge.js";
+import {
+  checkWindowsHelloAvailability,
+  nativeWindowHandleToInteger,
+  requestWindowsHelloVerification
+} from "../apps/desktop/src/windows-hello.js";
 
 async function run(name, testFn) {
   try {
@@ -216,6 +232,23 @@ await run("cloud url normalizes https", () => {
   assert.equal(url, "https://example.com");
 });
 
+await run("passkey helpers normalize and fingerprint", () => {
+  const record = normalizePasskeyRecord({
+    rpId: "GitHub.com",
+    credentialId: "credential-1234567890",
+    transports: ["internal", "usb", "ignored"],
+    authenticatorAttachment: "platform"
+  });
+
+  assert.equal(record.rpId, "github.com");
+  assert.deepEqual(record.transports, ["internal", "usb"]);
+  assert.equal(buildPasskeyFingerprint(record), "github.com|credential-1234567890");
+});
+
+await run("passkey helper shortens credential id", () => {
+  assert.equal(shortenCredentialId("12345678901234567890abcdef"), "1234567890…90abcdef");
+});
+
 await run("email alias domain-based generation", async () => {
   const { generateDomainAlias, generateRandomAlias } = await import("@pm/core/email-alias");
   const alias = generateDomainAlias("user@gmail.com", "amazon.co.jp");
@@ -269,6 +302,181 @@ await run("audit log write and query", async () => {
   assert.equal(empty.length, 0);
 
   await fs.rm(tmpDir, { recursive: true, force: true });
+});
+
+await run("desktop passkey bridge status and approval", async () => {
+  const bridge = new PasskeyApprovalBridge({
+    onVerify: async (payload) => ({
+      approved: payload.kind === "create",
+      method: "mock-approve",
+      reason: payload.kind === "create" ? "approved" : "rejected"
+    }),
+    getStatus: () => ({
+      platform: process.platform,
+      approvalMode: "mock-approve",
+      touchIdSupported: false,
+      biometricSupported: false
+    })
+  });
+
+  try {
+    await bridge.start();
+
+    const status = await getDesktopPasskeyBridgeStatus({
+      baseUrl: DESKTOP_PASSKEY_BRIDGE_BASE_URL,
+      fetchImpl: (url, options = {}) => fetch(url, {
+        ...options,
+        headers: {
+          ...(options.headers || {}),
+          Origin: "chrome-extension://test-extension-id"
+        }
+      })
+    });
+    assert.equal(status.available, true);
+    assert.equal(status.approvalMode, "mock-approve");
+
+    const approval = await requestDesktopPasskeyApproval({
+      kind: "create",
+      rpId: "example.com",
+      origin: "https://example.com",
+      title: "Example",
+      userName: "alice"
+    }, {
+      baseUrl: DESKTOP_PASSKEY_BRIDGE_BASE_URL,
+      fetchImpl: (url, options = {}) => fetch(url, {
+        ...options,
+        headers: {
+          ...(options.headers || {}),
+          Origin: "chrome-extension://test-extension-id"
+        }
+      })
+    });
+
+    assert.equal(approval.ok, true);
+    assert.equal(approval.approved, true);
+    assert.equal(approval.method, "mock-approve");
+  } finally {
+    await bridge.stop();
+  }
+});
+
+await run("desktop passkey bridge answers private-network preflight", async () => {
+  const bridge = new PasskeyApprovalBridge();
+
+  try {
+    await bridge.start();
+
+    const http = await import("node:http");
+    const response = await new Promise((resolve, reject) => {
+      const request = http.request(`${DESKTOP_PASSKEY_BRIDGE_BASE_URL}/v1/passkey/verify`, {
+        method: "OPTIONS",
+        headers: {
+          Origin: "chrome-extension://test-extension-id",
+          "Access-Control-Request-Method": "POST",
+          "Access-Control-Request-Headers": "content-type",
+          "Access-Control-Request-Private-Network": "true"
+        }
+      }, (res) => resolve(res));
+      request.once("error", reject);
+      request.end();
+    });
+
+    assert.equal(response.statusCode, 204);
+    assert.equal(response.headers["access-control-allow-origin"], "chrome-extension://test-extension-id");
+    assert.equal(response.headers["access-control-allow-private-network"], "true");
+  } finally {
+    await bridge.stop();
+  }
+});
+
+await run("windows hello helper parses availability and verify payload", async () => {
+  const mockRunner = async (_command, args) => {
+    const action = args[6];
+    if (action === "check") {
+      return {
+        stdout: JSON.stringify({
+          ok: true,
+          available: true,
+          availability: "Available"
+        })
+      };
+    }
+
+    return {
+      stdout: JSON.stringify({
+        ok: true,
+        available: true,
+        availability: "Available",
+        approved: true,
+        result: "Verified",
+        method: "windows-hello-hwnd"
+      })
+    };
+  };
+
+  const availability = await checkWindowsHelloAvailability({
+    platform: "win32",
+    runner: mockRunner
+  });
+  assert.equal(availability.ok, true);
+  assert.equal(availability.available, true);
+  assert.equal(availability.availability, "Available");
+
+  const verification = await requestWindowsHelloVerification({
+    platform: "win32",
+    runner: mockRunner,
+    message: "本人確認",
+    windowHandle: 12345
+  });
+  assert.equal(verification.ok, true);
+  assert.equal(verification.approved, true);
+  assert.equal(verification.method, "windows-hello-hwnd");
+});
+
+await run("windows hello helper decodes native window handle", () => {
+  const handle = Buffer.alloc(8);
+  handle.writeBigUInt64LE(12345n, 0);
+  assert.equal(nativeWindowHandleToInteger(handle), 12345);
+});
+
+await run("desktop renderer setup flow", async () => {
+  const fs = await import("node:fs/promises");
+  const os = await import("node:os");
+  const path = await import("node:path");
+  const { _electron: electron } = await import("playwright");
+  const pageErrors = [];
+  const tempDataDir = await fs.mkdtemp(path.join(os.tmpdir(), "pm-desktop-smoke-data-"));
+  const app = await electron.launch({
+    args: ["apps/desktop"],
+    env: {
+      ...process.env,
+      PM_WEB_BASE_URL: "http://localhost:8787",
+      PM_DATA_DIR: tempDataDir
+    }
+  });
+
+  try {
+    const page = await app.firstWindow();
+    page.on("pageerror", (error) => {
+      pageErrors.push(error.message);
+    });
+
+    await page.waitForFunction(() => window.__pmDesktopBootstrapState === "setup", null, { timeout: 8_000 });
+    await page.fill("#setup-password", "DesktopSmoke12345!");
+    await page.fill("#setup-confirm", "DesktopSmoke12345!");
+    await page.click("#setup-form button[type='submit']");
+    await page.waitForFunction(() => window.__pmDesktopBootstrapState === "main", null, { timeout: 8_000 });
+
+    const bootstrapState = await page.evaluate(() => window.__pmDesktopBootstrapState);
+    const status = await page.textContent("#status");
+
+    assert.equal(pageErrors.length, 0);
+    assert.equal(bootstrapState, "main");
+    assert.equal(Boolean(String(status || "").trim()), true);
+  } finally {
+    await app.close();
+    await fs.rm(tempDataDir, { recursive: true, force: true });
+  }
 });
 
 if (process.exitCode) {

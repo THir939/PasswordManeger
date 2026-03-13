@@ -10,6 +10,27 @@ import { parseExternalItems } from "./lib/migration.js";
 import { buildAutofillRisk, extractDomain } from "./lib/autofill-risk.js";
 import { generateDomainAlias, generateRandomAlias } from "./lib/email-alias.js";
 import { safeCloudBaseUrl, validateCloudBaseUrl } from "./lib/cloud-url.js";
+import {
+  normalizePasskeyRecord,
+  defaultPasskeyUrl,
+  buildPasskeyTitle,
+  buildPasskeyFingerprint
+} from "./lib/passkey.js";
+import {
+  parseProxyRequestDetails,
+  getProxyRpId,
+  getProxyChallenge,
+  getAllowCredentialIds,
+  createSoftwarePasskeyRecord,
+  buildCreateResponseJson,
+  buildGetResponseJson
+} from "./lib/webauthn-proxy.js";
+import {
+  DESKTOP_PASSKEY_BRIDGE_BASE_URL,
+  getDesktopPasskeyBridgeStatus,
+  requestDesktopPasskeyApproval
+} from "./lib/desktop-passkey-client.js";
+import { UI_LANGUAGE_STORAGE_KEY } from "./lib/i18n.js";
 
 const STORAGE_KEY = "pm_encrypted_vault";
 const AUTO_LOCK_ALARM = "pm-auto-lock";
@@ -17,6 +38,7 @@ const CLOUD_AUTH_PUBLIC_KEY = "pm_cloud_auth_public";
 const CLOUD_AUTH_TOKEN_KEY = "pm_cloud_auth_token";
 const FORM_LEARNING_KEY = "pm_form_learning_profiles";
 const AUTOFILL_TRUST_KEY = "pm_autofill_trust";
+const PENDING_CAPTURES_KEY = "pm_pending_captures";
 const DEADMAN_CONFIG_KEY = "pm_deadman_config";
 const DEADMAN_CHECK_ALARM = "pm-deadman-check";
 
@@ -31,7 +53,12 @@ const session = {
   decoyVault: null
 };
 
-const pendingCaptures = [];
+const pendingPasskeyRequests = [];
+const pendingPasskeyApprovals = new Map();
+const proxyState = {
+  attached: false
+};
+const PASSKEY_APPROVAL_NOTIFICATION_PREFIX = "pm-passkey-approval:";
 
 function normalizeHostForCompare(value) {
   return String(value || "").toLowerCase().replace(/^www\./, "").trim();
@@ -39,6 +66,87 @@ function normalizeHostForCompare(value) {
 
 function nowIso() {
   return new Date().toISOString();
+}
+
+function delay(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function syncPendingCaptureBadge(captures = []) {
+  try {
+    const count = Array.isArray(captures) ? captures.length : 0;
+    await chrome.action.setBadgeBackgroundColor({ color: "#111827" });
+    await chrome.action.setBadgeText({
+      text: count > 0 ? String(Math.min(count, 9)) : ""
+    });
+  } catch {
+    // ignore badge update errors
+  }
+}
+
+function safeJsonParse(value, fallback = {}) {
+  try {
+    return typeof value === "string" ? JSON.parse(value) : value && typeof value === "object" ? value : fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+function normalizePasskeyRequestContext(payload = {}) {
+  const details = safeJsonParse(payload.requestDetailsJson, {});
+  return {
+    kind: String(payload.kind || "").trim().toLowerCase(),
+    rpId: getProxyRpId(details) || String(payload.rpId || "").trim().toLowerCase(),
+    challenge: getProxyChallenge(details) || String(payload.challenge || "").trim(),
+    requestDetailsJson: JSON.stringify(details),
+    origin: String(payload.origin || "").trim(),
+    url: String(payload.url || "").trim(),
+    title: String(payload.title || "").trim().slice(0, 140),
+    requestedAt: Date.now()
+  };
+}
+
+function addPendingPasskeyRequest(payload = {}) {
+  const cutoff = Date.now() - 15_000;
+  for (let index = pendingPasskeyRequests.length - 1; index >= 0; index -= 1) {
+    if (pendingPasskeyRequests[index].requestedAt < cutoff) {
+      pendingPasskeyRequests.splice(index, 1);
+    }
+  }
+
+  const request = normalizePasskeyRequestContext(payload);
+  if (!request.kind || !request.rpId || !request.challenge) {
+    return null;
+  }
+
+  pendingPasskeyRequests.unshift(request);
+  pendingPasskeyRequests.splice(30);
+  return request;
+}
+
+function consumePendingPasskeyRequest(kind, rpId, challenge) {
+  const index = pendingPasskeyRequests.findIndex((entry) =>
+    entry.kind === kind && entry.rpId === rpId && entry.challenge === challenge
+  );
+
+  if (index < 0) {
+    return null;
+  }
+
+  const [request] = pendingPasskeyRequests.splice(index, 1);
+  return request;
+}
+
+async function waitForPendingPasskeyRequest(kind, rpId, challenge, timeoutMs = 1200) {
+  const started = Date.now();
+  while (Date.now() - started < timeoutMs) {
+    const match = consumePendingPasskeyRequest(kind, rpId, challenge);
+    if (match) {
+      return match;
+    }
+    await delay(40);
+  }
+  return null;
 }
 
 function getCloudTokenStorage() {
@@ -146,6 +254,39 @@ async function setAutofillTrust(next) {
   });
 }
 
+async function getPendingCaptures() {
+  const result = await chrome.storage.local.get(PENDING_CAPTURES_KEY);
+  const payload = result[PENDING_CAPTURES_KEY];
+  return Array.isArray(payload) ? payload : [];
+}
+
+async function getUiLanguagePreference() {
+  const result = await chrome.storage.local.get(UI_LANGUAGE_STORAGE_KEY);
+  const value = String(result[UI_LANGUAGE_STORAGE_KEY] || "").trim();
+  return value || "auto";
+}
+
+async function setUiLanguagePreference(value = "auto") {
+  const next = String(value || "auto").trim() || "auto";
+  await chrome.storage.local.set({
+    [UI_LANGUAGE_STORAGE_KEY]: next
+  });
+  return next;
+}
+
+async function setPendingCaptures(next) {
+  const captures = Array.isArray(next) ? next.slice(0, 30) : [];
+  await chrome.storage.local.set({
+    [PENDING_CAPTURES_KEY]: captures
+  });
+  await syncPendingCaptureBadge(captures);
+  return captures;
+}
+
+getPendingCaptures()
+  .then((captures) => syncPendingCaptureBadge(captures))
+  .catch(() => {});
+
 async function cloudRequest(cloudState, endpoint, options = {}) {
   const baseUrl = validateCloudBaseUrl(cloudState.baseUrl || "", { allowEmpty: false });
   if (!baseUrl) {
@@ -182,7 +323,10 @@ function createDefaultVault() {
     settings: {
       autoLockMinutes: 10,
       clipboardClearSeconds: 20,
+      displayLanguage: "auto",
       aliasBaseEmail: "",
+      passkeyProxyEnabled: false,
+      passkeyDesktopApprovalEnabled: true,
       generator: {
         length: 20,
         uppercase: true,
@@ -203,13 +347,14 @@ function createDefaultVault() {
 function normalizeStoredItem(item) {
   const now = nowIso();
   const sub = item?.subscription || {};
+  const passkey = normalizePasskeyRecord(item?.passkey || {});
   return {
     id: item?.id || crypto.randomUUID(),
-    type: ["login", "card", "identity", "note"].includes(item?.type) ? item.type : "login",
+    type: ["login", "card", "identity", "note", "passkey"].includes(item?.type) ? item.type : "login",
     title: String(item?.title || "Untitled").trim().slice(0, 140),
     username: String(item?.username || "").trim().slice(0, 200),
     password: String(item?.password || "").slice(0, 500),
-    url: normalizeUrl(item?.url || ""),
+    url: normalizeUrl(item?.url || defaultPasskeyUrl(passkey)),
     notes: String(item?.notes || "").trim().slice(0, 4000),
     otpSecret: String(item?.otpSecret || "").trim().slice(0, 300),
     fullName: String(item?.fullName || "").trim().slice(0, 200),
@@ -229,6 +374,7 @@ function normalizeStoredItem(item) {
       cycle: ["monthly", "yearly", "weekly"].includes(sub.cycle) ? sub.cycle : "monthly",
       nextBillingDate: String(sub.nextBillingDate || "").slice(0, 20)
     },
+    passkey,
     passwordUpdatedAt: item?.passwordUpdatedAt || null,
     createdAt: item?.createdAt || now,
     updatedAt: item?.updatedAt || now,
@@ -250,7 +396,10 @@ function normalizeVault(vault) {
     settings: {
       autoLockMinutes: Number(incoming.settings?.autoLockMinutes) || fallback.settings.autoLockMinutes,
       clipboardClearSeconds: Number(incoming.settings?.clipboardClearSeconds) || fallback.settings.clipboardClearSeconds,
+      displayLanguage: String(incoming.settings?.displayLanguage || fallback.settings.displayLanguage || "auto"),
       aliasBaseEmail: String(incoming.settings?.aliasBaseEmail || "").trim(),
+      passkeyProxyEnabled: Boolean(incoming.settings?.passkeyProxyEnabled),
+      passkeyDesktopApprovalEnabled: incoming.settings?.passkeyDesktopApprovalEnabled ?? fallback.settings.passkeyDesktopApprovalEnabled,
       generator: {
         ...fallback.settings.generator,
         ...(incoming.settings?.generator || {})
@@ -270,6 +419,7 @@ function resetSession() {
   session.isDecoy = false;
   session.decoyKey = null;
   session.decoyVault = null;
+  syncPasskeyProxyState().catch(() => { });
 }
 
 function touchSession() {
@@ -317,21 +467,282 @@ function normalizeUrl(urlValue) {
   return `https://${value}`;
 }
 
+function isPasskeyProxySupported() {
+  return Boolean(
+    chrome.webAuthenticationProxy?.attach &&
+    chrome.webAuthenticationProxy?.detach &&
+    chrome.webAuthenticationProxy?.completeCreateRequest &&
+    chrome.webAuthenticationProxy?.completeGetRequest &&
+    chrome.webAuthenticationProxy?.completeIsUvpaaRequest
+  );
+}
+
+function isPasskeyProxyEnabled() {
+  return Boolean(session.unlocked && session.vault?.settings?.passkeyProxyEnabled && isPasskeyProxySupported());
+}
+
+async function syncPasskeyProxyState() {
+  if (!isPasskeyProxySupported()) {
+    proxyState.attached = false;
+    return;
+  }
+
+  if (isPasskeyProxyEnabled() && !proxyState.attached) {
+    await chrome.webAuthenticationProxy.attach();
+    proxyState.attached = true;
+    return;
+  }
+
+  if (!isPasskeyProxyEnabled() && proxyState.attached) {
+    await chrome.webAuthenticationProxy.detach();
+    proxyState.attached = false;
+  }
+}
+
+async function getFallbackPasskeyContext(rpId) {
+  try {
+    return await withActiveTab(async (tab) => {
+      const url = String(tab.url || "");
+      const origin = url ? new URL(url).origin : `https://${rpId}`;
+      return {
+        origin,
+        url,
+        title: String(tab.title || rpId || "Passkey").slice(0, 140)
+      };
+    });
+  } catch {
+    return {
+      origin: `https://${rpId}`,
+      url: `https://${rpId}`,
+      title: `${rpId} Passkey`
+    };
+  }
+}
+
+async function getProxyRequestContext(kind, options) {
+  const rpId = getProxyRpId(options);
+  const challenge = getProxyChallenge(options);
+  const request = await waitForPendingPasskeyRequest(kind, rpId, challenge);
+  if (request?.origin) {
+    return request;
+  }
+  const fallback = await getFallbackPasskeyContext(rpId);
+  return {
+    kind,
+    rpId,
+    challenge,
+    requestDetailsJson: JSON.stringify(options),
+    requestedAt: Date.now(),
+    ...fallback
+  };
+}
+
+function listSoftwarePasskeyItems(rpId) {
+  ensureUnlocked();
+  return session.vault.items.filter((item) => {
+    if (item.type !== "passkey") {
+      return false;
+    }
+    const passkey = normalizePasskeyRecord(item.passkey || {});
+    return (
+      passkey.proxyProvider === "software" &&
+      passkey.rpId === rpId &&
+      passkey.privateKeyJwk &&
+      passkey.publicKeyJwk &&
+      passkey.credentialPublicKey
+    );
+  });
+}
+
+async function completeCreateProxyError(requestId, name, message) {
+  await chrome.webAuthenticationProxy.completeCreateRequest({
+    requestId,
+    error: { name, message }
+  });
+}
+
+async function completeGetProxyError(requestId, name, message) {
+  await chrome.webAuthenticationProxy.completeGetRequest({
+    requestId,
+    error: { name, message }
+  });
+}
+
+async function handleProxyCreateRequest(details) {
+  if (!session.unlocked) {
+    await completeCreateProxyError(details.requestId, "NotAllowedError", "Vault is locked.");
+    return;
+  }
+
+  const options = parseProxyRequestDetails(details.requestDetailsJson);
+  const rpId = getProxyRpId(options);
+  const challenge = getProxyChallenge(options);
+
+  if (!rpId || !challenge) {
+    await completeCreateProxyError(details.requestId, "NotSupportedError", "RP ID or challenge is missing.");
+    return;
+  }
+
+  const context = await getProxyRequestContext("create", options);
+  const approval = await requestPasskeyApproval({
+    kind: "create",
+    rpId,
+    origin: context.origin,
+    title: context.title,
+    userName: String(options.user?.name || "")
+  });
+  if (!approval.approved) {
+    await completeCreateProxyError(details.requestId, "NotAllowedError", "User denied the passkey creation request.");
+    return;
+  }
+
+  const excludeIds = Array.isArray(options.excludeCredentials)
+    ? options.excludeCredentials.map((entry) => String(entry?.id || "").trim()).filter(Boolean)
+    : [];
+  const duplicate = listSoftwarePasskeyItems(rpId).find((item) => excludeIds.includes(String(item.passkey?.credentialId || "")));
+  if (duplicate) {
+    await completeCreateProxyError(details.requestId, "InvalidStateError", "A matching credential already exists.");
+    return;
+  }
+
+  const record = await createSoftwarePasskeyRecord({
+    rpId,
+    userName: String(options.user?.name || ""),
+    userDisplayName: String(options.user?.displayName || options.user?.name || ""),
+    userHandle: String(options.user?.id || ""),
+    origin: context.origin,
+    title: context.title || buildPasskeyTitle({ rpId, userDisplayName: options.user?.displayName, userName: options.user?.name }),
+    authenticatorAttachment: "platform",
+    residentKey: String(options.authenticatorSelection?.residentKey || options.residentKey || "preferred"),
+    userVerification: String(options.authenticatorSelection?.userVerification || options.userVerification || "preferred"),
+    transports: ["internal"]
+  });
+
+  const item = upsertItem({
+    type: "passkey",
+    title: context.title || buildPasskeyTitle(record),
+    username: record.userName || "",
+    url: context.origin,
+    notes: "",
+    tags: ["passkey", "webauthn-beta"],
+    favorite: false,
+    passkey: {
+      ...record,
+      approvalMethod: approval.method || "",
+      createdAt: nowIso(),
+      lastSeenAt: nowIso()
+    }
+  });
+
+  await persistVault();
+
+  const responseJson = await buildCreateResponseJson(options, context.origin, item.passkey);
+  await chrome.webAuthenticationProxy.completeCreateRequest({
+    requestId: details.requestId,
+    responseJson: JSON.stringify(responseJson)
+  });
+}
+
+async function handleProxyGetRequest(details) {
+  if (!session.unlocked) {
+    await completeGetProxyError(details.requestId, "NotAllowedError", "Vault is locked.");
+    return;
+  }
+
+  const options = parseProxyRequestDetails(details.requestDetailsJson);
+  const rpId = getProxyRpId(options);
+  const challenge = getProxyChallenge(options);
+
+  if (!rpId || !challenge) {
+    await completeGetProxyError(details.requestId, "NotSupportedError", "RP ID or challenge is missing.");
+    return;
+  }
+
+  const context = await getProxyRequestContext("get", options);
+  const approval = await requestPasskeyApproval({
+    kind: "get",
+    rpId,
+    origin: context.origin,
+    title: context.title
+  });
+  if (!approval.approved) {
+    await completeGetProxyError(details.requestId, "NotAllowedError", "User denied the passkey authentication request.");
+    return;
+  }
+
+  const allowCredentialIds = getAllowCredentialIds(options);
+  const candidates = listSoftwarePasskeyItems(rpId).filter((item) =>
+    allowCredentialIds.length === 0 || allowCredentialIds.includes(String(item.passkey?.credentialId || ""))
+  );
+  const selected = candidates[0];
+
+  if (!selected) {
+    await completeGetProxyError(details.requestId, "NotAllowedError", "No matching stored passkey was found.");
+    return;
+  }
+
+  const { responseJson, nextSignCount } = await buildGetResponseJson(options, context.origin, selected.passkey || {});
+
+  upsertItem({
+    ...selected,
+    lastUsedAt: nowIso(),
+    passkey: {
+      ...(selected.passkey || {}),
+      event: "get",
+      approvalMethod: approval.method || "",
+      lastSeenAt: nowIso(),
+      lastUsedAt: nowIso(),
+      signCount: nextSignCount
+    }
+  });
+
+  await persistVault();
+
+  await chrome.webAuthenticationProxy.completeGetRequest({
+    requestId: details.requestId,
+    responseJson: JSON.stringify(responseJson)
+  });
+}
+
+async function handleProxyIsUvpaaRequest(details) {
+  await chrome.webAuthenticationProxy.completeIsUvpaaRequest({
+    requestId: details.requestId,
+    isUvpaa: Boolean(isPasskeyProxyEnabled())
+  });
+}
+
+function buildPasskeyPayload(input = {}, existing = null) {
+  const current = normalizePasskeyRecord(existing?.passkey || {});
+  const next = normalizePasskeyRecord(input, current);
+  return {
+    ...next,
+    createdAt: current.createdAt || next.createdAt || nowIso(),
+    lastSeenAt: next.lastSeenAt || nowIso(),
+    lastUsedAt: next.lastUsedAt || (next.event === "get" ? nowIso() : current.lastUsedAt || "")
+  };
+}
+
+function summarizePasskeyMessage(payload = {}) {
+  const label = payload.userDisplayName || payload.userName || payload.rpId || "Passkey";
+  return `${label} のメタデータをVaultへ保存しました。`;
+}
+
 function normalizeItem(input, existing = null) {
-  const type = ["login", "card", "identity", "note"].includes(input.type) ? input.type : "login";
+  const type = ["login", "card", "identity", "note", "passkey"].includes(input.type) ? input.type : "login";
   const now = nowIso();
   const base = existing || {
     id: crypto.randomUUID(),
     createdAt: now
   };
+  const passkey = buildPasskeyPayload(input.passkey || {}, base);
 
   const normalized = {
     id: base.id,
     type,
-    title: String(input.title || "").trim().slice(0, 140),
-    username: String(input.username || "").trim().slice(0, 200),
+    title: String(input.title || (type === "passkey" ? buildPasskeyTitle(passkey) : "")).trim().slice(0, 140),
+    username: String(input.username || passkey.userName || "").trim().slice(0, 200),
     password: String(input.password || "").slice(0, 500),
-    url: normalizeUrl(input.url),
+    url: normalizeUrl(input.url || defaultPasskeyUrl(passkey)),
     notes: String(input.notes || "").trim().slice(0, 4000),
     otpSecret: String(input.otpSecret || "").trim().slice(0, 300),
     fullName: String(input.fullName || "").trim().slice(0, 200),
@@ -344,6 +755,7 @@ function normalizeItem(input, existing = null) {
     cardCvc: String(input.cardCvc || "").trim().slice(0, 10),
     tags: sanitizeTags(input.tags),
     favorite: Boolean(input.favorite),
+    passkey,
     passwordUpdatedAt: input.password !== undefined && input.password !== base.password ? now : base.passwordUpdatedAt,
     createdAt: base.createdAt,
     updatedAt: now,
@@ -356,6 +768,14 @@ function normalizeItem(input, existing = null) {
 
   if (normalized.type === "login" && !normalized.password) {
     throw new Error("ログイン項目にはパスワードが必要です。");
+  }
+
+  if (normalized.type === "passkey") {
+    if (!normalized.passkey.rpId || !normalized.passkey.credentialId) {
+      throw new Error("Passkey項目には RP ID と Credential ID が必要です。");
+    }
+    normalized.password = "";
+    normalized.otpSecret = "";
   }
 
   return normalized;
@@ -492,6 +912,10 @@ function buildDedupFingerprint(item) {
 
   if (type === "login") {
     return [type, title, username, url, password].join("|");
+  }
+
+  if (type === "passkey") {
+    return [type, buildPasskeyFingerprint(item.passkey || {})].join("|");
   }
 
   return [type, title, String(item.notes || "").trim().toLowerCase()].join("|");
@@ -645,7 +1069,15 @@ async function unlockVault(masterPassword) {
   }
 
   touchSession();
+  const storedUiLanguage = await getUiLanguagePreference();
+  if (storedUiLanguage && session.vault.settings.displayLanguage !== storedUiLanguage) {
+    session.vault.settings.displayLanguage = storedUiLanguage;
+    await persistVault();
+  } else if (!storedUiLanguage) {
+    await setUiLanguagePreference(session.vault.settings.displayLanguage || "auto");
+  }
   await recordDeadmanHeartbeat();
+  await syncPasskeyProxyState();
 
   return {
     itemCount: session.vault.items.length,
@@ -660,6 +1092,7 @@ async function initializeVault(masterPassword, decoyPassword = "") {
   }
 
   const vault = createDefaultVault();
+  vault.settings.displayLanguage = await getUiLanguagePreference();
 
   // ダミーパスワードが設定されている場合、ダミーVaultの暗号化データを作成
   if (decoyPassword && decoyPassword.length >= 6) {
@@ -693,6 +1126,8 @@ async function initializeVault(masterPassword, decoyPassword = "") {
   session.vault = vault;
   session.isDecoy = false;
   touchSession();
+  await setUiLanguagePreference(vault.settings.displayLanguage || "auto");
+  await syncPasskeyProxyState();
 
   return { created: true };
 }
@@ -806,11 +1241,15 @@ function searchItems(items, query) {
 
   return items.filter((item) => {
     const tags = (item.tags || []).join(" ").toLowerCase();
+    const passkey = item.passkey || {};
     return (
       String(item.title || "").toLowerCase().includes(q) ||
       String(item.username || "").toLowerCase().includes(q) ||
       String(item.url || "").toLowerCase().includes(q) ||
       String(item.notes || "").toLowerCase().includes(q) ||
+      String(passkey.rpId || "").toLowerCase().includes(q) ||
+      String(passkey.userDisplayName || "").toLowerCase().includes(q) ||
+      String(passkey.credentialId || "").toLowerCase().includes(q) ||
       tags.includes(q)
     );
   });
@@ -905,9 +1344,9 @@ function buildFillPayload(item) {
   };
 }
 
-function addPendingCapture(payload = {}) {
+async function addPendingCapture(payload = {}) {
   if (!payload.password) {
-    return;
+    return { added: false, capture: null };
   }
 
   const id = crypto.randomUUID();
@@ -920,29 +1359,290 @@ function addPendingCapture(payload = {}) {
     createdAt: nowIso()
   };
 
-  const duplicate = pendingCaptures.some(
+  const captures = await getPendingCaptures();
+  const duplicate = captures.some(
     (item) => item.url === capture.url && item.username === capture.username && item.password === capture.password
   );
 
-  if (!duplicate) {
-    pendingCaptures.unshift(capture);
-    if (pendingCaptures.length > 30) {
-      pendingCaptures.length = 30;
-    }
+  if (duplicate) {
+    return { added: false, capture: null };
   }
+
+  captures.unshift(capture);
+  await setPendingCaptures(captures);
+  return { added: true, capture };
+}
+
+async function notifyUser(title, message) {
+  try {
+    await chrome.notifications.create({
+      type: "basic",
+      iconUrl: "icons/icon-128.png",
+      title,
+      message
+    });
+  } catch {
+    // notification failure should not block vault updates
+  }
+}
+
+function approvalActionLabel(kind) {
+  return kind === "create" ? "Passkey登録" : "Passkeyログイン";
+}
+
+function buildPasskeyApprovalSummary(approval) {
+  return `${approvalActionLabel(approval.kind)} / ${approval.rpId}`;
+}
+
+function isDesktopPasskeyApprovalEnabled() {
+  return Boolean(session.unlocked && session.vault?.settings?.passkeyDesktopApprovalEnabled);
+}
+
+async function getDesktopPasskeyApprovalStatusPayload(timeoutMs = 900) {
+  const status = await getDesktopPasskeyBridgeStatus({
+    baseUrl: DESKTOP_PASSKEY_BRIDGE_BASE_URL,
+    timeoutMs
+  });
+
+  return {
+    enabled: isDesktopPasskeyApprovalEnabled(),
+    baseUrl: DESKTOP_PASSKEY_BRIDGE_BASE_URL,
+    ...status
+  };
+}
+
+async function tryDesktopPasskeyApproval(payload = {}) {
+  if (!isDesktopPasskeyApprovalEnabled()) {
+    return {
+      handled: false,
+      reason: "disabled"
+    };
+  }
+
+  const status = await getDesktopPasskeyApprovalStatusPayload(750);
+  if (!status.available) {
+    return {
+      handled: false,
+      reason: status.reason || "desktop-unavailable",
+      status
+    };
+  }
+
+  const result = await requestDesktopPasskeyApproval(payload, {
+    baseUrl: DESKTOP_PASSKEY_BRIDGE_BASE_URL,
+    timeoutMs: 30_000
+  });
+
+  if (!result.ok) {
+    return {
+      handled: false,
+      reason: result.reason || "desktop-request-failed",
+      status
+    };
+  }
+
+  return {
+    handled: true,
+    approved: Boolean(result.approved),
+    method: result.method || status.approvalMode || "desktop",
+    reason: result.reason || ""
+  };
+}
+
+function listPendingPasskeyApprovals() {
+  return [...pendingPasskeyApprovals.values()]
+    .map((entry) => ({
+      id: entry.id,
+      kind: entry.kind,
+      rpId: entry.rpId,
+      origin: entry.origin,
+      title: entry.title,
+      userName: entry.userName,
+      requestedAt: entry.requestedAt
+    }))
+    .sort((left, right) => right.requestedAt - left.requestedAt);
+}
+
+async function broadcastPasskeyApprovalUpdate() {
+  try {
+    await chrome.runtime.sendMessage({
+      type: "PM_PASSKEY_APPROVALS_UPDATED",
+      approvals: listPendingPasskeyApprovals()
+    });
+  } catch {
+    // no popup listeners is normal
+  }
+}
+
+async function clearPasskeyApproval(approvalId) {
+  const approval = pendingPasskeyApprovals.get(approvalId);
+  if (!approval) {
+    return;
+  }
+  if (approval.timer) {
+    clearTimeout(approval.timer);
+  }
+  pendingPasskeyApprovals.delete(approvalId);
+  try {
+    await chrome.notifications.clear(`${PASSKEY_APPROVAL_NOTIFICATION_PREFIX}${approvalId}`);
+  } catch {
+    // ignore notification clear failures
+  }
+  await broadcastPasskeyApprovalUpdate();
+}
+
+async function resolvePasskeyApproval(approvalId, approved, reason = "") {
+  const approval = pendingPasskeyApprovals.get(approvalId);
+  if (!approval) {
+    return false;
+  }
+
+  await clearPasskeyApproval(approvalId);
+  approval.resolve({
+    approved: Boolean(approved),
+    reason: String(reason || "")
+  });
+  return true;
+}
+
+async function requestPasskeyApproval(payload = {}) {
+  const desktopDecision = await tryDesktopPasskeyApproval(payload);
+  if (desktopDecision.handled) {
+    return {
+      approved: Boolean(desktopDecision.approved),
+      reason: desktopDecision.reason || "",
+      method: desktopDecision.method || "desktop"
+    };
+  }
+
+  const id = crypto.randomUUID();
+  const approval = {
+    id,
+    kind: String(payload.kind || "").trim().toLowerCase(),
+    rpId: String(payload.rpId || "").trim().toLowerCase(),
+    origin: String(payload.origin || "").trim(),
+    title: String(payload.title || payload.rpId || "Passkey").slice(0, 140),
+    userName: String(payload.userName || "").trim().slice(0, 200),
+    requestedAt: Date.now(),
+    resolve: null,
+    timer: null
+  };
+
+  const decisionPromise = new Promise((resolve) => {
+    approval.resolve = resolve;
+  });
+
+  approval.timer = setTimeout(() => {
+    resolvePasskeyApproval(id, false, "timeout").catch(() => { });
+  }, 60_000);
+
+  pendingPasskeyApprovals.set(id, approval);
+
+  try {
+    await chrome.notifications.create(`${PASSKEY_APPROVAL_NOTIFICATION_PREFIX}${id}`, {
+      type: "basic",
+      iconUrl: "icons/icon-128.png",
+      title: `承認が必要です: ${approvalActionLabel(approval.kind)}`,
+      message: `${approval.rpId || approval.origin}\n${approval.userName || "ユーザー名なし"}`,
+      buttons: [
+        { title: "承認" },
+        { title: "拒否" }
+      ],
+      requireInteraction: true
+    });
+  } catch {
+    // popup-only approval is still acceptable
+  }
+
+  await broadcastPasskeyApprovalUpdate();
+  const decision = await decisionPromise;
+  return {
+    ...decision,
+    method: "extension-popup"
+  };
+}
+
+async function saveDetectedPasskey(payload = {}) {
+  ensureUnlocked();
+
+  const existing = session.vault.items.find((item) => {
+    if (item.type !== "passkey") {
+      return false;
+    }
+    const current = normalizePasskeyRecord(item.passkey || {});
+    return current.credentialId === String(payload.credentialId || "").trim() && current.rpId === String(payload.rpId || "").trim().toLowerCase();
+  });
+  const currentRecord = normalizePasskeyRecord(existing?.passkey || {});
+  const record = normalizePasskeyRecord({
+    ...payload,
+    lastSeenAt: nowIso(),
+    lastUsedAt: payload.event === "get" ? nowIso() : ""
+  }, currentRecord);
+
+  if (!record.rpId || !record.credentialId) {
+    throw new Error("Passkey metadata is incomplete.");
+  }
+
+  const item = upsertItem({
+    ...(existing || {}),
+    type: "passkey",
+    title: existing?.title || buildPasskeyTitle(record),
+    username: record.userName || existing?.username || "",
+    url: defaultPasskeyUrl(record),
+    notes: existing?.notes || "",
+    tags: existing?.tags || ["passkey"],
+    favorite: Boolean(existing?.favorite),
+    passkey: {
+      ...(existing?.passkey || {}),
+      ...record,
+      createdAt: existing?.passkey?.createdAt || nowIso()
+    }
+  });
+
+  if (payload.event === "get") {
+    item.lastUsedAt = nowIso();
+  }
+
+  await persistVault();
+
+  return {
+    item,
+    created: !existing
+  };
 }
 
 async function handleAction(message, sender) {
   switch (message?.action) {
     case "getState": {
       const envelope = await getStoredEnvelope();
+      const pendingCaptures = await getPendingCaptures();
       return {
         initialized: Boolean(envelope),
         unlocked: session.unlocked,
         isDecoy: session.isDecoy,
         itemCount: session.vault?.items?.length || 0,
-        pendingCaptureCount: pendingCaptures.length
+        pendingCaptureCount: pendingCaptures.length,
+        pendingPasskeyApprovalCount: pendingPasskeyApprovals.size,
+        uiLanguage: await getUiLanguagePreference(),
+        passkeyProxySupported: isPasskeyProxySupported(),
+        passkeyProxyActive: proxyState.attached,
+        desktopPasskeyBridge: await getDesktopPasskeyApprovalStatusPayload()
       };
+    }
+
+    case "getUiLanguage": {
+      return {
+        uiLanguage: await getUiLanguagePreference()
+      };
+    }
+
+    case "setUiLanguage": {
+      const uiLanguage = await setUiLanguagePreference(message.uiLanguage || "auto");
+      if (session.unlocked && session.vault?.settings) {
+        session.vault.settings.displayLanguage = uiLanguage;
+        await persistVault();
+      }
+      return { uiLanguage };
     }
 
     case "setupVault": {
@@ -1135,6 +1835,7 @@ async function handleAction(message, sender) {
       session.key = unlocked.key;
       session.kdf = updatedEnvelope.kdf;
       touchSession();
+      await syncPasskeyProxyState();
       return { changed: true };
     }
 
@@ -1146,16 +1847,44 @@ async function handleAction(message, sender) {
     case "saveSettings": {
       ensureUnlocked();
       const next = message.settings || {};
+      const nextDisplayLanguage = String(next.displayLanguage ?? session.vault.settings.displayLanguage ?? "auto");
       session.vault.settings = {
         ...session.vault.settings,
         ...next,
+        displayLanguage: nextDisplayLanguage,
+        aliasBaseEmail: String(next.aliasBaseEmail ?? session.vault.settings.aliasBaseEmail ?? "").trim(),
+        passkeyProxyEnabled: next.passkeyProxyEnabled ?? session.vault.settings.passkeyProxyEnabled,
+        passkeyDesktopApprovalEnabled: next.passkeyDesktopApprovalEnabled ?? session.vault.settings.passkeyDesktopApprovalEnabled,
         generator: {
           ...session.vault.settings.generator,
           ...(next.generator || {})
         }
       };
       await persistVault();
+      await setUiLanguagePreference(nextDisplayLanguage);
+      await syncPasskeyProxyState();
       return { settings: session.vault.settings };
+    }
+
+    case "getPendingPasskeyApprovals": {
+      return {
+        approvals: listPendingPasskeyApprovals()
+      };
+    }
+
+    case "getDesktopPasskeyBridgeStatus": {
+      return {
+        desktopPasskeyBridge: await getDesktopPasskeyApprovalStatusPayload()
+      };
+    }
+
+    case "decidePasskeyApproval": {
+      const approvalId = String(message.approvalId || "");
+      const approved = Boolean(message.approved);
+      const updated = await resolvePasskeyApproval(approvalId, approved, approved ? "approved" : "rejected");
+      return {
+        updated
+      };
     }
 
     /* ---------- Email Alias ---------- */
@@ -1212,11 +1941,12 @@ async function handleAction(message, sender) {
 
     case "getPendingCaptures": {
       ensureUnlocked();
-      return { captures: pendingCaptures };
+      return { captures: await getPendingCaptures() };
     }
 
     case "savePendingCapture": {
       ensureUnlocked();
+      const pendingCaptures = await getPendingCaptures();
       const capture = pendingCaptures.find((item) => item.id === message.id);
       if (!capture) {
         throw new Error("保存候補が見つかりません。");
@@ -1234,6 +1964,7 @@ async function handleAction(message, sender) {
 
       const index = pendingCaptures.findIndex((entry) => entry.id === capture.id);
       pendingCaptures.splice(index, 1);
+      await setPendingCaptures(pendingCaptures);
 
       await persistVault();
       return { item };
@@ -1241,9 +1972,11 @@ async function handleAction(message, sender) {
 
     case "discardPendingCapture": {
       ensureUnlocked();
+      const pendingCaptures = await getPendingCaptures();
       const index = pendingCaptures.findIndex((item) => item.id === message.id);
       if (index >= 0) {
         pendingCaptures.splice(index, 1);
+        await setPendingCaptures(pendingCaptures);
       }
       return { discarded: true };
     }
@@ -1521,12 +2254,40 @@ async function handleAction(message, sender) {
 
   if (message?.type === "PM_CAPTURE_LOGIN") {
     if (session.unlocked) {
-      addPendingCapture({
+      const result = await addPendingCapture({
         ...message.payload,
         hostname: extractDomain(message.payload?.url || sender?.url || "")
       });
+      if (result.added && result.capture) {
+        await notifyUser(
+          "ログイン情報を検出しました",
+          `${result.capture.title} を保存候補に追加しました。拡張を開いて保存できます。`
+        );
+      }
     }
     return { accepted: true };
+  }
+
+  if (message?.type === "PM_PASSKEY_REQUEST") {
+    addPendingPasskeyRequest(message.payload || {});
+    return { accepted: true };
+  }
+
+  if (message?.type === "PM_PASSKEY_EVENT") {
+    if (!session.unlocked) {
+      await notifyUser("Passkeyを検知しました", "Vaultがロック中のため、Passkeyメタデータは保存されませんでした。");
+      return { accepted: false, reason: "locked" };
+    }
+
+    const result = await saveDetectedPasskey(message.payload || {});
+    if (result.created) {
+      await notifyUser("Passkeyを保存しました", summarizePasskeyMessage(result.item.passkey));
+    }
+    return {
+      accepted: true,
+      itemId: result.item.id,
+      created: result.created
+    };
   }
 
   throw new Error("Unknown action.");
@@ -1562,12 +2323,65 @@ chrome.alarms.onAlarm.addListener((alarm) => {
   }
 });
 
+if (isPasskeyProxySupported()) {
+  chrome.webAuthenticationProxy.onCreateRequest.addListener((details) => {
+    handleProxyCreateRequest(details).catch(async (error) => {
+      try {
+        await completeCreateProxyError(details.requestId, "UnknownError", error?.message || "Create request failed.");
+      } catch {
+        // ignore proxy completion errors
+      }
+    });
+  });
+
+  chrome.webAuthenticationProxy.onGetRequest.addListener((details) => {
+    handleProxyGetRequest(details).catch(async (error) => {
+      try {
+        await completeGetProxyError(details.requestId, "UnknownError", error?.message || "Get request failed.");
+      } catch {
+        // ignore proxy completion errors
+      }
+    });
+  });
+
+  chrome.webAuthenticationProxy.onIsUvpaaRequest.addListener((details) => {
+    handleProxyIsUvpaaRequest(details).catch(() => { });
+  });
+
+  chrome.webAuthenticationProxy.onRequestCanceled.addListener(() => {
+    pendingPasskeyRequests.length = 0;
+    [...pendingPasskeyApprovals.keys()].forEach((approvalId) => {
+      resolvePasskeyApproval(approvalId, false, "canceled").catch(() => { });
+    });
+  });
+}
+
+chrome.notifications.onButtonClicked.addListener((notificationId, buttonIndex) => {
+  if (!notificationId.startsWith(PASSKEY_APPROVAL_NOTIFICATION_PREFIX)) {
+    return;
+  }
+
+  const approvalId = notificationId.slice(PASSKEY_APPROVAL_NOTIFICATION_PREFIX.length);
+  resolvePasskeyApproval(approvalId, buttonIndex === 0, buttonIndex === 0 ? "approved" : "rejected").catch(() => { });
+});
+
+chrome.notifications.onClosed.addListener((notificationId, byUser) => {
+  if (!byUser || !notificationId.startsWith(PASSKEY_APPROVAL_NOTIFICATION_PREFIX)) {
+    return;
+  }
+
+  const approvalId = notificationId.slice(PASSKEY_APPROVAL_NOTIFICATION_PREFIX.length);
+  resolvePasskeyApproval(approvalId, false, "notification-closed").catch(() => { });
+});
+
 chrome.runtime.onInstalled.addListener(async () => {
   await chrome.alarms.create(AUTO_LOCK_ALARM, { periodInMinutes: 1 });
   await chrome.alarms.create(DEADMAN_CHECK_ALARM, { periodInMinutes: 1440 }); // 24h
+  await syncPasskeyProxyState().catch(() => { });
 });
 
 chrome.runtime.onStartup.addListener(async () => {
   await chrome.alarms.create(AUTO_LOCK_ALARM, { periodInMinutes: 1 });
   await chrome.alarms.create(DEADMAN_CHECK_ALARM, { periodInMinutes: 1440 });
+  await syncPasskeyProxyState().catch(() => { });
 });

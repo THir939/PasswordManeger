@@ -104,6 +104,7 @@ function buildSecurityCoach(loginItems, weakItems, oldItems, reusedGroups, missi
 
 export function buildSecurityReport(items = []) {
   const loginItems = items.filter((item) => item.type === "login");
+  const passkeyItems = items.filter((item) => item.type === "passkey");
   const passwordMap = new Map();
   const weakItems = [];
   const oldItems = [];
@@ -164,6 +165,7 @@ export function buildSecurityReport(items = []) {
     score: baseScore,
     totals: {
       allLogins: total,
+      passkeys: passkeyItems.length,
       weak: weakItems.length,
       old: oldItems.length,
       reusedGroups: reusedGroups.length,

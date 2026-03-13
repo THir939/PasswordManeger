@@ -17,50 +17,84 @@
 
     <!-- ===== Setup View ===== -->
     <section id="setup-view" class="auth-screen">
-      <div class="auth-logo">🔒</div>
-      <h2>Vault作成</h2>
-      <p>マスターパスワードを作成します。忘れると復元できないため安全に保管してください。</p>
-      <form id="setup-form" class="auth-form">
-        <label>
-          マスターパスワード (10文字以上)
-          <div class="secret-row">
-            <input id="setup-password" type="password" minlength="10" required autocomplete="new-password" />
-            <button id="setup-password-toggle" class="ghost small-toggle" type="button"
-              data-target="setup-password">表示</button>
+      <div class="auth-shell">
+        <div class="auth-copy">
+          <p class="auth-eyebrow">Local-first security</p>
+          <div class="auth-logo">🔒</div>
+          <h2>Vaultを作成</h2>
+          <p class="auth-lead">端末内で暗号化された保管庫を作成します。作成後はそのままログイン情報の保存、移行、同期準備まで進められます。</p>
+          <div class="auth-pill-row">
+            <span class="auth-pill">ローカル暗号化</span>
+            <span class="auth-pill">拡張機能連携</span>
+            <span class="auth-pill">クラウド同期は任意</span>
           </div>
-          <div id="setup-password-strength" class="strength-box" aria-live="polite">
-            <div class="strength-bar"><span class="strength-fill"></span></div>
-            <p class="strength-text">強度: 未入力</p>
+          <ul class="auth-checklist">
+            <li>マスターパスワードはサーバーへ送信しません</li>
+            <li>作成後すぐに 1Password / Bitwarden から移行できます</li>
+            <li>ブラウザ拡張を読み込むと保存候補検出と自動入力が使えます</li>
+          </ul>
+          <div class="auth-sidecard">
+            <h3>最初のおすすめ</h3>
+            <p>すでに他サービスを使っている場合は、Vault作成後に「他サービスから移行」を開くと最短で使い始められます。</p>
           </div>
-        </label>
-        <label>
-          確認入力
-          <div class="secret-row">
-            <input id="setup-confirm" type="password" minlength="10" required autocomplete="new-password" />
-            <button id="setup-confirm-toggle" class="ghost small-toggle" type="button"
-              data-target="setup-confirm">表示</button>
+        </div>
+
+        <form id="setup-form" class="auth-form">
+          <label>
+            マスターパスワード (10文字以上)
+            <div class="secret-row">
+              <input id="setup-password" type="password" minlength="10" required autocomplete="new-password" />
+              <button id="setup-password-toggle" class="ghost small-toggle" type="button"
+                data-target="setup-password">表示</button>
+            </div>
+            <div id="setup-password-strength" class="strength-box" aria-live="polite">
+              <div class="strength-bar"><span class="strength-fill"></span></div>
+              <p class="strength-text">強度: 未入力</p>
+            </div>
+          </label>
+          <label>
+            確認入力
+            <div class="secret-row">
+              <input id="setup-confirm" type="password" minlength="10" required autocomplete="new-password" />
+              <button id="setup-confirm-toggle" class="ghost small-toggle" type="button"
+                data-target="setup-confirm">表示</button>
+            </div>
+          </label>
+          <div class="auth-form-note">
+            <strong>注意</strong>
+            <span>このパスワードを忘れると、保存したデータは復元できません。パスワードマネージャーの中核になる鍵です。</span>
           </div>
-        </label>
-        <button type="submit">Vaultを作成して開く</button>
-      </form>
+          <button type="submit">Vaultを作成して開く</button>
+        </form>
+      </div>
     </section>
 
     <!-- ===== Unlock View ===== -->
     <section id="unlock-view" class="auth-screen hidden">
-      <div class="auth-logo">🔒</div>
-      <h2>Vault解錠</h2>
-      <p>マスターパスワードを入力して解錠してください。</p>
-      <form id="unlock-form" class="auth-form">
-        <label>
-          マスターパスワード
-          <div class="secret-row">
-            <input id="unlock-password" type="password" required autocomplete="current-password" />
-            <button id="unlock-password-toggle" class="ghost small-toggle" type="button"
-              data-target="unlock-password">表示</button>
+      <div class="auth-shell auth-shell-compact">
+        <div class="auth-copy">
+          <p class="auth-eyebrow">Return to your vault</p>
+          <div class="auth-logo">🔓</div>
+          <h2>Vault解錠</h2>
+          <p class="auth-lead">マスターパスワードでローカル保管庫を解錠します。クリップボード自動消去やセキュリティ診断は解錠後に利用できます。</p>
+        </div>
+
+        <form id="unlock-form" class="auth-form">
+          <label>
+            マスターパスワード
+            <div class="secret-row">
+              <input id="unlock-password" type="password" required autocomplete="current-password" />
+              <button id="unlock-password-toggle" class="ghost small-toggle" type="button"
+                data-target="unlock-password">表示</button>
+            </div>
+          </label>
+          <div class="auth-form-note">
+            <strong>ヒント</strong>
+            <span>ロック解除後は検索・コピー・移行・同期まで同じ画面で行えます。</span>
           </div>
-        </label>
-        <button type="submit">解錠する</button>
-      </form>
+          <button type="submit">解錠する</button>
+        </form>
+      </div>
     </section>
 
     <!-- ===== Main View ===== -->
@@ -204,6 +238,7 @@
               <select id="filter-type">
                 <option value="all">全種別</option>
                 <option value="login">ログイン</option>
+                <option value="passkey">Passkey</option>
                 <option value="card">カード</option>
                 <option value="identity">個人情報</option>
                 <option value="note">ノート</option>
@@ -241,6 +276,7 @@
                 種別
                 <select id="item-type">
                   <option value="login">ログイン</option>
+                  <option value="passkey">Passkey</option>
                   <option value="card">クレジットカード</option>
                   <option value="identity">個人情報</option>
                   <option value="note">セキュアノート</option>
@@ -251,7 +287,7 @@
                 <input id="item-title" type="text" required maxlength="140" placeholder="例: GitHub" />
               </label>
 
-              <div class="type-login type-note type-identity">
+              <div class="type-login type-note type-identity type-passkey">
                 <label>
                   ユーザー名 / メール
                   <input id="item-username" type="text" maxlength="200" />
@@ -274,17 +310,53 @@
                 </label>
               </div>
 
-              <div class="type-login type-note">
+              <div class="type-login type-note type-passkey">
                 <label>
                   URL
                   <input id="item-url" type="url" maxlength="300" placeholder="https://example.com" />
                 </label>
               </div>
 
+              <div class="type-passkey passkey-note">
+                <strong>Passkey 管理</strong>
+                <span>この画面では Passkey のメタデータを保存・同期できます。ブラウザの生体認証そのものを置き換える段階ではありません。</span>
+              </div>
+
               <div class="type-login">
                 <label>
                   TOTPシークレット（2段階認証）
                   <input id="item-otp" type="text" maxlength="300" placeholder="Base32 または otpauth://" />
+                </label>
+              </div>
+
+              <div class="type-passkey grid-passkey">
+                <label>
+                  RP ID
+                  <input id="item-passkey-rpid" type="text" maxlength="255" placeholder="example.com" />
+                </label>
+                <label>
+                  Credential ID
+                  <textarea id="item-passkey-credential-id" rows="2" maxlength="1400" placeholder="Base64url の Credential ID"></textarea>
+                </label>
+                <label>
+                  表示名
+                  <input id="item-passkey-display-name" type="text" maxlength="200" placeholder="例: Taro Yamada" />
+                </label>
+                <label>
+                  User Handle
+                  <input id="item-passkey-user-handle" type="text" maxlength="1400" placeholder="Base64url の user handle" />
+                </label>
+                <label>
+                  認証器タイプ
+                  <select id="item-passkey-attachment">
+                    <option value="">未指定</option>
+                    <option value="platform">platform</option>
+                    <option value="cross-platform">cross-platform</option>
+                  </select>
+                </label>
+                <label>
+                  Transports
+                  <input id="item-passkey-transports" type="text" maxlength="120" placeholder="internal, usb, nfc" />
                 </label>
               </div>
 
@@ -468,6 +540,8 @@
             <div class="settings-section">
               <h3>拡張機能との連携</h3>
               <p class="muted">自動入力はブラウザ拡張で行います。デスクトップはVault管理の中核です。</p>
+              <p class="muted">Passkey の実験的な代行認証を使う場合も、切り替えはブラウザ拡張の設定画面で行います。</p>
+              <p id="desktop-bridge-status" class="muted">Desktop 承認ブリッジの状態を確認しています…</p>
               <pre id="platform-box" class="mono"></pre>
               <div class="button-row">
                 <button id="open-extension-btn" class="ghost" type="button">拡張機能フォルダを開く</button>

@@ -1,0 +1,8 @@
+{
+  "app_name": {
+    "message": "PasswordManeger"
+  },
+  "app_description": {
+    "message": "Gestionnaire de mots de passe chiffré avec saisie auto et audit."
+  }
+}

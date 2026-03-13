@@ -1,0 +1,8 @@
+{
+  "app_name": {
+    "message": "PasswordManeger"
+  },
+  "app_description": {
+    "message": "Gerenciador de senhas criptografado com preenchimento e auditoria."
+  }
+}

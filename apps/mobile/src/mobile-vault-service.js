@@ -15,6 +15,7 @@ import { generatePassword, passwordStrength } from "@pm/core/password";
 import { generateTotp } from "@pm/core/totp";
 import { buildSecurityReport } from "@pm/core/security-audit";
 import { safeCloudBaseUrl, validateCloudBaseUrl } from "@pm/core/cloud-url";
+import { normalizePasskeyRecord, defaultPasskeyUrl, buildPasskeyTitle } from "@pm/core/passkey";
 
 // Node.js環境でWeb Crypto APIを利用可能にする
 if (!globalThis.crypto?.subtle || !globalThis.crypto?.getRandomValues) {
@@ -64,23 +65,37 @@ function createDefaultVault() {
         settings: {
             autoLockMinutes: 10,
             clipboardClearSeconds: 20,
+            passkeyProxyEnabled: false,
+            passkeyDesktopApprovalEnabled: true,
             generator: { length: 20, uppercase: true, lowercase: true, numbers: true, symbols: true }
         },
         items: []
     };
 }
 
+function buildPasskeyPayload(input = {}, existing = null) {
+    const current = normalizePasskeyRecord(existing?.passkey || {});
+    const next = normalizePasskeyRecord(input, current);
+    return {
+        ...next,
+        createdAt: current.createdAt || next.createdAt || nowIso(),
+        lastSeenAt: next.lastSeenAt || nowIso(),
+        lastUsedAt: next.lastUsedAt || (next.event === "get" ? nowIso() : current.lastUsedAt || "")
+    };
+}
+
 function normalizeItem(input, existing = null) {
-    const type = ["login", "card", "identity", "note"].includes(input.type) ? input.type : "login";
+    const type = ["login", "card", "identity", "note", "passkey"].includes(input.type) ? input.type : "login";
     const now = nowIso();
     const base = existing || { id: randomUUID(), createdAt: now };
+    const passkey = buildPasskeyPayload(input.passkey || {}, base);
 
     const item = {
         id: base.id, type,
-        title: String(input.title || "").trim().slice(0, 140),
-        username: String(input.username || "").trim().slice(0, 200),
+        title: String(input.title || (type === "passkey" ? buildPasskeyTitle(passkey) : "")).trim().slice(0, 140),
+        username: String(input.username || passkey.userName || "").trim().slice(0, 200),
         password: String(input.password || "").slice(0, 500),
-        url: normalizeUrl(input.url),
+        url: normalizeUrl(input.url || defaultPasskeyUrl(passkey)),
         notes: String(input.notes || "").trim().slice(0, 4000),
         otpSecret: String(input.otpSecret || "").trim().slice(0, 300),
         fullName: String(input.fullName || "").trim().slice(0, 200),
@@ -93,6 +108,7 @@ function normalizeItem(input, existing = null) {
         cardCvc: String(input.cardCvc || "").trim().slice(0, 10),
         tags: sanitizeTags(input.tags),
         favorite: Boolean(input.favorite),
+        passkey,
         passwordUpdatedAt: input.password !== undefined && input.password !== base.password ? now : (base.passwordUpdatedAt || null),
         createdAt: base.createdAt, updatedAt: now,
         lastUsedAt: base.lastUsedAt || null
@@ -100,6 +116,9 @@ function normalizeItem(input, existing = null) {
 
     if (!item.title) throw new Error("タイトルは必須です。");
     if (item.type === "login" && !item.password) throw new Error("ログイン項目にはパスワードが必要です。");
+    if (item.type === "passkey" && (!item.passkey.rpId || !item.passkey.credentialId)) {
+        throw new Error("Passkey項目には RP ID と Credential ID が必要です。");
+    }
     return item;
 }
 
@@ -112,9 +131,11 @@ function normalizeVault(vault) {
         settings: {
             autoLockMinutes: Number(inc.settings?.autoLockMinutes) || fb.settings.autoLockMinutes,
             clipboardClearSeconds: Number(inc.settings?.clipboardClearSeconds) || fb.settings.clipboardClearSeconds,
+            passkeyProxyEnabled: Boolean(inc.settings?.passkeyProxyEnabled),
+            passkeyDesktopApprovalEnabled: inc.settings?.passkeyDesktopApprovalEnabled ?? fb.settings.passkeyDesktopApprovalEnabled,
             generator: { ...fb.settings.generator, ...(inc.settings?.generator || {}) }
         },
-        items: Array.isArray(inc.items) ? inc.items : []
+        items: Array.isArray(inc.items) ? inc.items.map((item) => normalizeItem(item, item)) : []
     };
 }
 
