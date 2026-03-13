@@ -36,10 +36,11 @@
 2. 生体認証による解錠補助
 3. パスワード生成 / TOTP / セキュリティ診断
 4. Passkeyメタデータの閲覧 / 保存 / 検索
-5. OS AutoFill ベータ準備（入力欄ヒント、関連ドメイン設定、候補解決API）
+5. OS AutoFill ベータ（入力欄ヒント、関連ドメイン設定、解錠中キャッシュ、候補解決API）
 6. クラウドアカウント接続と暗号化Vault同期（push / pull）
 7. 課金状態確認、ネイティブIAP導線、Web契約管理への接続
 8. 共通Vaultコア + pure JS暗号による、native実行時のローカル完結動作
+9. Expo prebuild 経由での iOS Credential Provider / Android AutofillService によるログイン AutoFill
 
 ## 2. なぜこの構成にしたか
 

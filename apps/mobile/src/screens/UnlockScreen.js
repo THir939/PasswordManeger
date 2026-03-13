@@ -11,6 +11,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { theme } from '../theme';
 import { api } from '../services/api';
 import { getTextInputAutofillProps } from '../services/text-input-autofill';
+import { refreshAutofillSessionCache } from '../services/autofill-session';
 import {
     isBiometricAvailable, biometricUnlock, isBiometricEnabled,
     saveMasterPassword, setBiometricEnabled
@@ -55,6 +56,7 @@ export default function UnlockScreen({ onComplete }) {
                 await api.unlockVault(pw);
             });
             if (result.success) {
+                await refreshAutofillSessionCache();
                 onComplete();
                 return;
             }
@@ -68,6 +70,7 @@ export default function UnlockScreen({ onComplete }) {
         setLoading(true);
         try {
             await api.unlockVault(password);
+            await refreshAutofillSessionCache();
 
             // 生体認証が利用可能だが未設定の場合、提案
             if (bioInfo.available && !bioEnabled) {

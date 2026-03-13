@@ -13,6 +13,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { theme } from './src/theme';
 import { api } from './src/services/api';
+import { clearAutofillSessionCache, refreshAutofillSessionCache } from './src/services/autofill-session';
 import { shouldAutoLock, recordLastActive } from './src/services/auth';
 
 import SetupScreen from './src/screens/SetupScreen';
@@ -115,8 +116,11 @@ export default function App() {
                 if (screen === 'main') {
                     const needsLock = await shouldAutoLock(5);
                     if (needsLock) {
+                        await clearAutofillSessionCache();
                         try { await api.lockVault(); } catch { }
                         setScreen('unlock');
+                    } else {
+                        await refreshAutofillSessionCache();
                     }
                 }
             }
@@ -125,9 +129,16 @@ export default function App() {
         return () => sub.remove();
     }, [screen]);
 
-    const handleSetupComplete = () => setScreen('main');
-    const handleUnlockComplete = () => setScreen('main');
+    const handleSetupComplete = async () => {
+        await refreshAutofillSessionCache();
+        setScreen('main');
+    };
+    const handleUnlockComplete = async () => {
+        await refreshAutofillSessionCache();
+        setScreen('main');
+    };
     const handleLock = async () => {
+        await clearAutofillSessionCache();
         try { await api.lockVault(); } catch { }
         setScreen('unlock');
     };

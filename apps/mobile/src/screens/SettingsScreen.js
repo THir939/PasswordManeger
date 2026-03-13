@@ -12,6 +12,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import { theme } from '../theme';
 import { api } from '../services/api';
 import { loadAutofillSettings, saveAutofillSettings } from '../services/autofill';
+import { clearAutofillSessionCache, refreshAutofillSessionCache } from '../services/autofill-session';
 import { getTextInputAutofillProps } from '../services/text-input-autofill';
 import {
     isBiometricAvailable, isBiometricEnabled, setBiometricEnabled,
@@ -131,7 +132,12 @@ export default function SettingsScreen({ onLock }) {
             });
             setAutofillEnabled(saved.enabled);
             setAutofillDomains(saved.domains.join('\n'));
-            Alert.alert('✓', 'OS AutoFill 用の設定を保存しました。次のネイティブビルドから associated domains に反映できます。');
+            if (saved.enabled) {
+                await refreshAutofillSessionCache();
+            } else {
+                await clearAutofillSessionCache();
+            }
+            Alert.alert('✓', 'OS AutoFill 用の設定を保存しました。解錠中キャッシュも更新しました。');
         } catch (err) {
             Alert.alert('エラー', err.message);
         }

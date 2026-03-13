@@ -14,6 +14,7 @@ import {
     setupPurchaseListeners, restorePurchases, setIapServerBase, clearPurchaseListeners
 } from '../services/iap';
 import { api } from '../services/api';
+import { clearAutofillSessionCache } from '../services/autofill-session';
 import { getTextInputAutofillProps } from '../services/text-input-autofill';
 import {
     clearCloudSession,
@@ -212,6 +213,7 @@ export default function PurchaseScreen() {
                 return;
             }
             await api.importVaultEnvelope(snapshot.envelope);
+            await clearAutofillSessionCache();
             const next = {
                 revision: Number(snapshot.revision) || 0,
                 lastSyncAt: new Date().toISOString()

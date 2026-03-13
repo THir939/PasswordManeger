@@ -46,12 +46,18 @@ function getConfiguredAssociatedDomains(env = process.env) {
 function getReleaseReadinessSnapshot(env = process.env) {
     const associatedDomains = getConfiguredAssociatedDomains(env);
     const cloudBaseUrl = String(env.EXPO_PUBLIC_PM_CLOUD_BASE_URL || "").trim();
+    const iosBundleIdentifier = baseConfig.ios?.bundleIdentifier || "com.antigravity.passwordmaneger";
+    const androidPackage = baseConfig.android?.package || "com.antigravity.passwordmaneger";
+    const appGroup = String(env.PM_MOBILE_APP_GROUP || `group.${iosBundleIdentifier}`).trim();
 
     return {
         associatedDomains,
         hasAssociatedDomains: associatedDomains.length > 0,
         cloudBaseUrl,
         hasCloudBaseUrl: Boolean(cloudBaseUrl),
+        appGroup,
+        iosExtensionBundleIdentifier: `${iosBundleIdentifier}.autofill`,
+        androidAutofillService: `${androidPackage}.autofill.PasswordManegerAutofillService`,
         readyForNativeBuild: Boolean(cloudBaseUrl) && associatedDomains.length > 0
     };
 }
@@ -66,6 +72,16 @@ module.exports = () => {
         expo: {
             ...baseConfig,
             scheme: "passwordmaneger",
+            plugins: [
+                ...(baseConfig.plugins || []),
+                [
+                    "./plugins/with-passwordmaneger-native-autofill.cjs",
+                    {
+                        appGroup: readiness.appGroup,
+                        iosExtensionBundleIdentifier: readiness.iosExtensionBundleIdentifier,
+                    },
+                ],
+            ],
             extra: {
                 ...(baseConfig.extra || {}),
                 mobileReleaseReadiness: readiness

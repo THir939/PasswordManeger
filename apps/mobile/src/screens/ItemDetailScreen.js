@@ -10,6 +10,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import * as Clipboard from 'expo-clipboard';
 import { theme } from '../theme';
 import { api } from '../services/api';
+import { refreshAutofillSessionCache } from '../services/autofill-session';
 
 export default function ItemDetailScreen({ route, navigation }) {
     const { id } = route.params;
@@ -62,6 +63,7 @@ export default function ItemDetailScreen({ route, navigation }) {
                 onPress: async () => {
                     try {
                         await api.deleteItem(item.id);
+                        await refreshAutofillSessionCache();
                         navigation.goBack();
                     } catch (err) {
                         Alert.alert('エラー', err.message);

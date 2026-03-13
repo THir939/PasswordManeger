@@ -986,7 +986,7 @@ push時に `test:full` を回すと何が嬉しいか:
 1. 同期がスナップショット（差分マージ無し）なので、同時編集の競合解決UIがない
 2. Desktop側のVault解錠そのものに対する Touch ID / Windows Hello 統合はまだ未完了
 3. Passkeyは「メタデータ管理」と「拡張での保護フロー」までは実装済みだが、OSやブラウザ標準認証器を完全に置き換える段階ではない
-4. モバイルアプリは実装済みで、ローカルVaultも native 実行時は端末内で完結するようになったが、OS AutoFill の本体拡張（iOS Credential Provider / Android AutofillService）の本番有効化確認とストア本番課金検証は未完了
+4. モバイルアプリは実装済みで、ローカルVaultも native 実行時は端末内で完結するようになった。さらに iOS Credential Provider / Android AutofillService でログイン AutoFill を返す native 実装も入ったが、Passkey の native 実行、実機での最終UX調整、本番ストア課金検証は未完了
 
 ### 22-2. モバイルの現状
 
@@ -996,15 +996,16 @@ push時に `test:full` を回すと何が嬉しいか:
 3. パスワード生成 / TOTP / セキュリティ診断
 4. クラウドアカウント接続、課金状態確認、暗号化Vaultの push / pull
 5. Passkeyメタデータの閲覧 / 保存
-6. OS AutoFill ベータ準備
+6. OS AutoFill ベータ（解錠中キャッシュ + ログイン AutoFill）
 7. `app.config.js` / `eas.json` によるネイティブビルド準備
 8. `MobileVaultCore` + pure JS暗号により、native 実行時は `localhost` ブリッジに依存しない
+9. Expo config plugin により、iOS Credential Provider 拡張ターゲットと Android AutofillService を prebuild 時に生成し、解錠中キャッシュからログイン候補を返す
 
 採用理由:
 1. Desktop / Extension / Server と JavaScript 資産を共有しやすい
 2. 初期リリースで「Vault体験」を早く揃えやすい
 3. 共通Vaultコアに切り出すことで、Nodeラッパーと端末内保存の両方を同じ仕様で維持しやすい
-4. 将来のネイティブブリッジ追加（AutoFillやOS連携）に段階的に進みやすい
+4. 共通の解錠状態から AutoFill 用キャッシュを切り出し、React Native と native 拡張の役割分担を明確にしやすい
 
 デメリット:
 1. OS自動入力や深い認証器連携は、最終的にネイティブ実装が必要になりやすい
@@ -1013,8 +1014,8 @@ push時に `test:full` を回すと何が嬉しいか:
 
 ### 22-3. モバイルの次の優先実装
 
-1. iOS / Android 実機での OS AutoFill 有効化確認
-2. Android AutofillService / iOS Credential Provider のネイティブ連携本体実装
+1. iOS / Android 実機での OS AutoFill 有効化確認と候補表示UXの調整
+2. Passkey を native 拡張から直接扱う仕組みの追加
 3. ストア本番商品と本番レシート検証での購入試験
 4. 競合解決を含む同期UXの改善
 

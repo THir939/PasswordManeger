@@ -46,6 +46,7 @@ import {
   loadAutofillSettings,
   saveAutofillSettings
 } from "../apps/mobile/src/services/autofill.js";
+import { buildAutofillCachePayload } from "../apps/mobile/src/services/autofill-cache.js";
 import { MobileVaultCore } from "../apps/mobile/src/services/mobile-vault-core.js";
 import { startTempServer } from "./e2e-helpers.mjs";
 import { MobileVaultService } from "../apps/mobile/src/mobile-vault-service.js";
@@ -562,6 +563,28 @@ await run("mobile autofill config normalizes domains and entitlements", () => {
   assert.equal(readiness.readyForNativeBuild, true);
 });
 
+await run("mobile expo config includes native autofill plugin", async () => {
+  const { getConfig } = await import("@expo/config");
+  const { exp: evaluated } = getConfig(new URL("../apps/mobile", import.meta.url).pathname, {
+    skipSDKVersionRequirement: true,
+    isPublicConfig: true
+  });
+  const pluginEntries = evaluated.plugins || [];
+  const nativePlugin = pluginEntries.find(
+    (entry) => Array.isArray(entry) && entry[0] === "./plugins/with-passwordmaneger-native-autofill.cjs"
+  );
+
+  assert.ok(nativePlugin);
+  assert.equal(
+    evaluated.extra.mobileReleaseReadiness.appGroup,
+    "group.com.antigravity.passwordmaneger"
+  );
+  assert.equal(
+    evaluated.extra.mobileReleaseReadiness.iosExtensionBundleIdentifier,
+    "com.antigravity.passwordmaneger.autofill"
+  );
+});
+
 await run("mobile autofill settings round-trip", async () => {
   const storageMap = new Map();
   const storage = {
@@ -590,6 +613,48 @@ await run("mobile autofill settings round-trip", async () => {
   );
   assert.equal(loaded.enabled, true);
   assert.deepEqual(loaded.domains, ["example.com", "accounts.example.com"]);
+});
+
+await run("mobile autofill cache keeps only login credentials with domains", () => {
+  const payload = buildAutofillCachePayload([
+    {
+      id: "login-1",
+      type: "login",
+      title: "GitHub",
+      username: "alice@example.com",
+      password: "Secret123!",
+      url: "github.com",
+      updatedAt: "2026-03-01T00:00:00.000Z",
+      favorite: true
+    },
+    {
+      id: "note-1",
+      type: "note",
+      title: "Private note",
+      notes: "keep me out"
+    },
+    {
+      id: "login-2",
+      type: "login",
+      title: "Broken",
+      username: "bob@example.com",
+      password: "MissingDomain123!"
+    }
+  ], "2026-03-13T12:00:00.000Z");
+
+  assert.equal(payload.version, 1);
+  assert.equal(payload.generatedAt, "2026-03-13T12:00:00.000Z");
+  assert.equal(payload.recordCount, 1);
+  assert.deepEqual(payload.records[0], {
+    id: "login-1",
+    title: "GitHub",
+    username: "alice@example.com",
+    password: "Secret123!",
+    url: "https://github.com",
+    domain: "github.com",
+    updatedAt: "2026-03-01T00:00:00.000Z",
+    favorite: true
+  });
 });
 
 await run("mobile cloud sync push and pull", async () => {

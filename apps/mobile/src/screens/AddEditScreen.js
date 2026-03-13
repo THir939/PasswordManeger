@@ -9,6 +9,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { theme } from '../theme';
 import { api } from '../services/api';
+import { refreshAutofillSessionCache } from '../services/autofill-session';
 import { getTextInputAutofillProps } from '../services/text-input-autofill';
 
 const TYPES = [
@@ -92,6 +93,7 @@ export default function AddEditScreen({ route, navigation }) {
                     transports: passkeyTransports,
                 }
             });
+            await refreshAutofillSessionCache();
             Alert.alert('✓', isEdit ? '更新しました！' : '保存しました！');
             if (navigation.canGoBack()) navigation.goBack();
         } catch (err) {
